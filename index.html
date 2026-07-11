@@ -1090,6 +1090,7 @@ let saveTimer=null;
 function saveSoon(){clearTimeout(saveTimer);saveTimer=setTimeout(saveGame,1200)}
 async function saveGame(){
   await store.set('save-v1',{inv:S.inv,name:S.me.name,id:S.me.id,x:S.me.x,y:S.me.y,score:S.score,won:S.won,msgShown:S.msgShown,quest:S.quest,stats:S.stats,muted:S.muted,wonderRewarded:!!S.wonderRewarded,
+    monu:S.monu, playSec:S.playSec,
     villagers:S.villagers.map(v=>({name:v.name,color:v.color,job:v.job,hasTool:v.hasTool,xp:v.xp||0})),
     buildings:Object.values(S.buildings).filter(b=>b.mine).map(b=>({type:b.type,x:b.x,y:b.y,store:b.store}))});
 }
@@ -1097,10 +1098,13 @@ async function loadGame(){
   const s=await store.get('save-v1');
   if(!s)return false;
   Object.assign(S.inv,s.inv||{});S.me.name=s.name||'';S.me.id=s.id;S.score=s.score||0;S.won=s.won;S.msgShown=s.msgShown||{};
-  S.quest=s.quest||0;S.muted=!!s.muted;S.wonderRewarded=!!s.wonderRewarded;
+  S.quest=s.quest||0;S.muted=!!s.muted;S.wonderRewarded=!!s.wonderRewarded;S.playSec=s.playSec||0;
   if(s.stats){S.stats.jobs=s.stats.jobs||0;Object.assign(S.stats.g,s.stats.g||{});Object.assign(S.stats.b,s.stats.b||{})}
   if(s.x&&passable(s.x|0,s.y|0)){S.me.x=s.x;S.me.y=s.y;S.cam.x=s.x;S.cam.y=s.y}
   for(const b of (s.buildings||[]))S.buildings[key(b.x,b.y)]={...b,mine:true};
+  if(s.monu) S.monu=s.monu;
+  else if(Object.values(S.buildings).some(b=>b.type==='monument')) S.monu={stage:2,given:{},lit:false}; // v1 migration: Foundation complete
+  else S.monu=null;
   for(const vs of (s.villagers||[])){const v=makeVillager();v.name=vs.name;v.color=vs.color;v.job=vs.job;v.hasTool=vs.hasTool;v.xp=vs.xp||0}
   return true;
 }
