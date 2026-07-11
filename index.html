@@ -1251,7 +1251,13 @@ const QUESTS=[
  {t:'Smelt 3 ingots',icon:'\u{1F525}',p:()=>[Math.min(3,S.stats.g.ingot||0),3],c:()=>(S.stats.g.ingot||0)>=3,r:{ore:6}},
  {t:'Bake 3 bread',icon:'\u{1F35E}',p:()=>[Math.min(3,S.stats.g.bread||0),3],c:()=>(S.stats.g.bread||0)>=3,r:{wheat:4}},
  {t:'Craft a tool',icon:'\u{1F6E0}\uFE0F',p:()=>[Math.min(1,S.stats.g.tool||0),1],c:()=>(S.stats.g.tool||0)>=1,r:{ingot:5}},
- {t:'Raise the Monument',icon:'\u{1F5FF}',p:()=>[S.won?1:0,1],c:()=>!!S.won,r:null},
+ {t:'Lay the Monument Foundation',icon:'\u{1F5FF}',p:()=>[completedStages()>=1?1:0,1],c:()=>completedStages()>=1,r:{clay:10}},
+ {t:'Fire 5 bricks',icon:'\u{1F9F1}',p:()=>[Math.min(5,S.stats.g.brick||0),5],c:()=>(S.stats.g.brick||0)>=5,r:{sand:6}},
+ {t:'Forge 3 steel beams',icon:'\u{1F3D7}️',p:()=>[Math.min(3,S.stats.g.beam||0),3],c:()=>(S.stats.g.beam||0)>=3,r:{clay:8}},
+ {t:'Complete the Frame',icon:'\u{1F3DB}️',p:()=>[completedStages()>=2?1:0,1],c:()=>completedStages()>=2,r:{sand:10}},
+ {t:'Craft an ornament',icon:'\u{1F48E}',p:()=>[Math.min(1,S.stats.g.ornament||0),1],c:()=>(S.stats.g.ornament||0)>=1,r:{bread:5}},
+ {t:'Raise the Spire',icon:'\u{1F5FC}',p:()=>[completedStages()>=4?1:0,1],c:()=>completedStages()>=4,r:{bread:10}},
+ {t:'Light the Eternal Flame',icon:'\u{1F525}',p:()=>[S.won?1:0,1],c:()=>!!S.won,r:null},
 ];
 let questBusy=false;
 function questTick(){
