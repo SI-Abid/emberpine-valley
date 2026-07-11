@@ -348,6 +348,7 @@ const S={
   removed:{},   // key -> timestamp (shared chops/mines)
   cam:{x:HALL.x,y:HALL.y}, sel:null, buildSel:null, selV:null,
   others:{}, score:0, won:false, msgShown:{}, quest:0, muted:false,
+  monu:null, playSec:0, celebrateUntil:0,
   stats:{g:{},b:{},jobs:0},
 };
 const RES_INFO={
@@ -384,8 +385,16 @@ const BUILDS={
   torch:{name:'Torch',ico:'🕯️',cost:{wood:4},desc:'Lights the night — villagers keep working near torches'},
   path:{name:'Path',ico:'🛤️',cost:{stone:1},desc:'Settlers and villagers walk 35% faster on paths'},
   crate:{name:'Crate',ico:'📦',cost:{plank:4},desc:'Workers stash goods here (holds 12) — haulers ferry them to the Hall'},
-  monument:{name:'Monument',ico:'🗿',cost:{plank:80,ingot:30,bread:15},desc:'Raise it to win the Valley'},
+  monument:{name:'Monument Foundation',ico:'🗿',cost:{stone:40,plank:20},desc:'Lay the Foundation, then raise it through five eras'},
 };
+const MONUMENT_STAGES=[
+ null,
+ {name:'Foundation',   need:{stone:40,plank:20},  bonus:50,  banner:'⛏️ The Foundation is laid — the Era of Stone begins'},
+ {name:'Frame',        need:{brick:24,beam:16},   bonus:50,  banner:'🏗️ The Frame rises — the Era of Iron begins'},
+ {name:'Walls',        need:{glass:20,brick:20},  bonus:50,  banner:'🧱 The Walls stand — the Era of Craft begins'},
+ {name:'Spire',        need:{cloth:12,ornament:8},bonus:50,  banner:'🗼 The Spire pierces the sky — the Era of Splendor begins'},
+ {name:'Eternal Flame',need:{bread:15},           bonus:200, banner:'🔥 The Eternal Flame is lit — Emberpine is complete'},
+];
 const VNAMES=['Bram','Wren','Odo','Tilly','Garrick','Petal','Moss','Hazel','Fenn','Juno','Cobb','Ivy','Rook','Marta','Silas','Nell'];
 const VCOLORS=['#e8a33d','#b0563b','#5b8fb0','#8a6bb0','#5aa06a','#c96a8b','#c9b45a','#6ab0a4'];
 
@@ -645,10 +654,11 @@ function placeBuilding(type,x,y){
   S.buildings[key(x,y)]={type,x,y,mine:true};
   S.stats.b[type]=(S.stats.b[type]||0)+1;S.score+=15;sfx('build');spawnBurst(x,y,'#e8a33d',10);questTick();
   toast(B.ico+' '+B.name+' built!');
-  if(type==='monument'&&!S.won){
-    S.won=true;S.score+=100;
-    document.getElementById('victoryText').textContent=S.me.name+' has raised the Monument of Emberpine Valley. The guild ledger will remember this day.';
-    document.getElementById('victory').style.display='flex';
+  if(type==='monument'){
+    S.monu={stage:2,given:{},lit:false};
+    S.score+=MONUMENT_STAGES[1].bonus;                 // Foundation complete: +50
+    toast(MONUMENT_STAGES[1].banner);
+    firstTime('monu','Walk to the Monument 🗿 and click it to contribute goods to the next era.');
   }
   if(type==='farm')firstTime('farm','Assign a villager as 🌾 Farmer and they\u2019ll work your farm.');
   S.buildSel=null;renderBuildBar();saveSoon();
@@ -1472,6 +1482,8 @@ function spawnFireworks(x,y){
 function vLvl(v){return Math.min(5,1+Math.floor((v.xp||0)/25))}
 function torchNear(x,y){for(const k in S.buildings){const b=S.buildings[k];if(b.type==='torch'&&(b.x+.5-x)**2+(b.y+.5-y)**2<20)return true}return false}
 function onPath(x,y){const b=S.buildings[key(Math.floor(x),Math.floor(y))];return !!(b&&b.type==='path')}
+function completedStages(){return S.monu?(S.monu.lit?5:S.monu.stage-1):0}
+function monBuilding(){for(const k in S.buildings)if(S.buildings[k].type==='monument')return S.buildings[k];return null}
 
 /* ============ ancient relics ============ */
 const RELIC_EPOCH=90000;
