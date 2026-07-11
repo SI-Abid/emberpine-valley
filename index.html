@@ -737,6 +737,7 @@ function drawBuilding(b,sx,sy,sz){
     cx.fillStyle='#ffe9a0';cx.beginPath();cx.arc(sx+sz/2,sy+sz*.28,2.6*fl*k,0,7);cx.fill();
     return;
   }
+  if(b.type==='monument'){drawMonument(b,sx,sy,sz);return;}
   const ico=b.type==='hall'?'\u{1F3DB}\uFE0F':BUILDS[b.type].ico;
   cx.fillStyle='rgba(0,0,0,.22)';cx.fillRect(sx+3,sy+sz*.75,sz-6,sz*.2);
   cx.fillStyle=BCOLS[b.type];cx.fillRect(sx+3,sy+4,sz-6,sz-9);
@@ -747,6 +748,35 @@ function drawBuilding(b,sx,sy,sz){
     cx.fillStyle='#2b2620';cx.fillRect(sx+5,sy+sz-9,sz-10,4);
     cx.fillStyle='#e8a33d';cx.fillRect(sx+5,sy+sz-9,(sz-10)*Math.min(1,tot/12),4);}
   if(!b.mine&&b.type!=='hall'){cx.globalAlpha=.35;cx.fillStyle='#fff';cx.fillRect(sx+3,sy+4,sz-6,sz-9);cx.globalAlpha=1}
+}
+function drawMonument(b,sx,sy,sz){
+  const cs=completedStages();               // 0..5
+  cx.fillStyle='rgba(0,0,0,.28)';cx.beginPath();cx.ellipse(sx+sz/2,sy+sz*.92,sz*.5,sz*.13,0,0,7);cx.fill();
+  const tiers=[
+    {w:.86,h:.34,y:.62,c:'#b8b4a6'},        // 1 Foundation
+    {w:.70,h:.30,y:.34,c:'#c8c2b0'},        // 2 Frame
+    {w:.56,h:.28,y:.08,c:'#d8d2bd'},        // 3 Walls
+    {w:.40,h:.30,y:-.20,c:'#e6dcc2'},       // 4 Spire
+  ];
+  const shown=Math.min(4,cs);
+  for(let i=0;i<shown;i++){const t=tiers[i];
+    cx.fillStyle=t.c;cx.strokeStyle='#2b2620';cx.lineWidth=2;
+    const w=sz*t.w, x=sx+sz/2-w/2, y=sy+sz*t.y;
+    cx.fillRect(x,y,w,sz*t.h);cx.strokeRect(x,y,w,sz*t.h);
+  }
+  if(cs>=4){ // spire cap
+    cx.fillStyle='#e6dcc2';cx.strokeStyle='#2b2620';
+    cx.beginPath();cx.moveTo(sx+sz/2,sy-sz*.42);cx.lineTo(sx+sz/2-sz*.16,sy-sz*.16);cx.lineTo(sx+sz/2+sz*.16,sy-sz*.16);cx.closePath();cx.fill();cx.stroke();
+  }
+  if(S.monu&&S.monu.lit){
+    const fl=1+Math.sin(now()/110)*.25;
+    cx.fillStyle='rgba(255,180,60,.3)';cx.beginPath();cx.arc(sx+sz/2,sy-sz*.5,sz*.7*fl,0,7);cx.fill();
+    cx.fillStyle='#e8a33d';cx.beginPath();cx.arc(sx+sz/2,sy-sz*.5,sz*.16*fl,0,7);cx.fill();
+    cx.fillStyle='#ffe9a0';cx.beginPath();cx.arc(sx+sz/2,sy-sz*.5,sz*.08*fl,0,7);cx.fill();
+  }
+  if(cs===0){ // placed but nothing built yet — flag marker
+    cx.font=(sz*.5)+'px serif';cx.textAlign='center';cx.textBaseline='middle';cx.fillText('🚩',sx+sz/2,sy+sz*.45);
+  }
 }
 function drawPerson(px,py,color,name,isMe,working,ghost){
   const z=ZOOM, sx=(px-S.cam.x)*TSZ+VW/2, sy=(py-S.cam.y)*TSZ+VH/2;
