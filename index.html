@@ -868,6 +868,7 @@ function render(){
     drawPerson(v.x,v.y,v.color,v.name.split(' ')[0]+' \u00B7 '+JOBS[v.job].label.slice(0,2),false,v.state==='working',false);
     if(v.state==='working'){const info=RES_INFO[v.target?.type||'tree'];drawProgress(v.x,v.y,v.work/info.time,info.emoji)}
   }
+  if(now()<S.celebrateUntil)for(const v of S.villagers)drawEmote(v.x,v.y,'🎉');
   drawPerson(S.me.x,S.me.y,'#e8a33d',S.me.name||'You',true,!!S.me.harvest,false);
   if(myEmote&&now()-myEmote.t<4000)drawEmote(S.me.x,S.me.y,myEmote.e);
   if(S.me.harvest){const h=S.me.harvest;drawProgress(S.me.x,S.me.y,h.t/RES_INFO[h.type].time,RES_INFO[h.type].emoji)}
@@ -1161,6 +1162,8 @@ function darknessNow(){const l=.5+.5*Math.sin(dayPhase()*Math.PI*2);let d=(1-l)*
 let parts=[],rainFx=[],smokeT=0,critterT=0;
 function spawnBurst(x,y,color,n){n=n||6;for(let i=0;i<n;i++)parts.push({x:x+.5,y:y+.5,vx:(Math.random()-.5)*2.4,vy:-1-Math.random()*1.6,g:5,life:.55+Math.random()*.25,max:.8,color,sz:3})}
 function ambienceTick(dt){
+  if(monuFxUntil>now()){const mon=monBuilding();
+    if(mon&&Math.random()<dt*3)spawnFireworks(mon.x+.5+(Math.random()-.5)*2, mon.y-1+(Math.random()-.5));}
   if(now()>weather.next){weather.rain=!weather.rain;
     weather.next=now()+(weather.rain?30000+Math.random()*40000:70000+Math.random()*140000);
     toast(weather.rain?'\u{1F327}\uFE0F Rain drifts over the valley\u2026':'\u{1F324}\uFE0F The rain clears');}
@@ -1429,12 +1432,45 @@ function contributeMonu(k){
   saveSoon();
   if(popup.style.display==='block'&&S.monu&&!S.monu.lit) openMonumentPopup(lastMX,lastMY);
 }
+let monuFxUntil=0;
+function lightFlame(){
+  if(!S.monu||S.monu.lit)return;
+  if((S.inv.bread||0)<MONUMENT_STAGES[5].need.bread){toast('Need 15 🍞 for the feast');return}
+  S.inv.bread-=MONUMENT_STAGES[5].need.bread; bumpRes('bread');
+  S.monu.lit=true; S.monu.stage=6;
+  S.score+=MONUMENT_STAGES[5].bonus; S.won=true;
+  toast(MONUMENT_STAGES[5].banner); sfx('quest');
+  const mon=monBuilding();
+  monuFxUntil=now()+10000; S.celebrateUntil=now()+10000;
+  if(mon){spawnFireworks(mon.x+.5,mon.y-1);spawnFireworks(mon.x-1,mon.y);spawnFireworks(mon.x+2,mon.y-.5);
+    for(const v of S.villagers){const p=findPath(v.x,v.y,mon.x,mon.y,true);if(p)v.path=p}}
+  popup.style.display='none';
+  showVictory(); renderBuildBar(); questTick(); saveGame();
+}
+function showVictory(){
+  const days=(S.playSec/DAYLEN).toFixed(1);
+  const goods=Object.values(S.stats.g).reduce((a,b)=>a+b,0);
+  const rank=S.score>=1000?'Master Builder of Emberpine':S.score>=600?'Architect':S.score>=300?'Builder':'Settler';
+  const h1=document.querySelector('#victory h1'); if(h1)h1.textContent='THE ETERNAL FLAME';
+  document.getElementById('victoryText').innerHTML=
+    escapeHtml(S.me.name)+' has lit the Eternal Flame of Emberpine Valley.<br><br>'+
+    '🗓️ Days survived: <b>'+days+'</b><br>'+
+    '📦 Goods produced: <b>'+goods+'</b><br>'+
+    '⭐ Final score: <b>'+S.score+'</b><br>'+
+    '🏅 Rank: <b>'+rank+'</b>';
+  document.getElementById('victory').style.display='flex';
+}
 function openMonumentPopup(px,py){
   lastMX=px;lastMY=py;
   const cs=completedStages();
   let body;
   if(S.monu.lit){
     body='<div class="desc">The Eternal Flame burns on. Emberpine is complete. 🔥</div>';
+  }else if(cs>=4){
+    const need=MONUMENT_STAGES[5].need.bread, can=(S.inv.bread||0)>=need;
+    body='<div class="desc">The Spire is raised. Hold the feast to light the Eternal Flame.</div>'+
+      '<div class="wrow"><span>🍞</span><span class="wnum">'+(S.inv.bread||0)+'/'+need+'</span>'+
+      '<button id="feastBtn" class="wgive"'+(can?'':' disabled')+'>🔥 Hold the Feast</button></div>';
   }else{
     const stage=S.monu.stage, st=MONUMENT_STAGES[stage];
     const rows=Object.entries(st.need).map(([k,need])=>{
@@ -1446,6 +1482,7 @@ function openMonumentPopup(px,py){
   }
   popup.innerHTML='<button class="close">✕</button><h4>🗿 Monument · '+(S.monu.lit?'Complete':MONUMENT_STAGES[Math.min(5,S.monu.stage)].name)+'</h4>'+body;
   popup.querySelectorAll('.wgive[data-k]').forEach(b=>b.onclick=()=>contributeMonu(b.dataset.k));
+  const fb=popup.querySelector('#feastBtn'); if(fb)fb.onclick=lightFlame;
   popup.querySelector('.close').onclick=()=>popup.style.display='none';
   popup.style.display='block';
   popup.style.left=clamp(px-130,8,Math.max(8,VW-276))+'px';
@@ -1669,6 +1706,7 @@ function loop(t){
   const dt=Math.min(.05,(t-last)/1000);last=t;
   if(running&&!paused){
     try{
+      S.playSec+=dt;
       playerTick(dt);
       for(const v of S.villagers)villagerTick(v,dt);
       productionTick(dt);ambienceTick(dt);
