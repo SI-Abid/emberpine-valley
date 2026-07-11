@@ -983,6 +983,7 @@ function openVillagerPopup(v,px,py){
   popup.style.top=clamp(py-popup.offsetHeight-30,8,VH-240)+'px';
 }
 function openBuildingPopup(b,px,py){
+  if(b.type==='monument'&&S.monu){openMonumentPopup(px,py);return}
   const B=BUILDS[b.type];
   popup.innerHTML='<button class="close">✕</button><h4 class="px">'+B.ico+' '+B.name+'</h4><div class="sub">'+(b.mine?'YOUR WORKS':'ANOTHER SETTLER\u2019S WORKS')+'</div><div class="desc">'+B.desc+'</div>';
   popup.querySelector('.close').onclick=()=>popup.style.display='none';
@@ -1364,6 +1365,48 @@ function contribute(k){
   const c=wonder.contrib[S.me.id]=wonder.contrib[S.me.id]||{name:S.me.name,n:0};c.n+=n;c.name=S.me.name;
   S.score+=n*2;sfx('build');spawnBurst(WONDER.x,WONDER.y-1,'#ffe9b8',10);
   syncWonder();saveSoon();openWonderPopup(lastWX,lastWY);
+}
+let lastMX=200,lastMY=200;
+function advanceStage(){
+  const stage=S.monu.stage, st=MONUMENT_STAGES[stage];
+  S.score+=st.bonus;
+  toast(st.banner); sfx('quest');
+  const mon=monBuilding(); if(mon)spawnBurst(mon.x,mon.y-1,'#ffe9b8',14);
+  S.monu.stage=stage+1; S.monu.given={};
+  renderBuildBar(); questTick(); saveSoon();
+}
+function contributeMonu(k){
+  if(!S.monu||S.monu.lit)return;
+  const stage=S.monu.stage, st=MONUMENT_STAGES[stage]; if(!st||!(k in st.need))return;
+  const given=S.monu.given[k]||0, put=Math.min(S.inv[k]||0, st.need[k]-given);
+  if(put<=0)return;
+  S.inv[k]-=put; S.monu.given[k]=given+put; bumpRes(k);
+  const mon=monBuilding(); if(mon)spawnBurst(mon.x,mon.y-1,'#ffe9b8',6); sfx('build');
+  if(Object.entries(st.need).every(([g,nn])=>(S.monu.given[g]||0)>=nn)) advanceStage();
+  saveSoon();
+  if(popup.style.display==='block'&&S.monu&&!S.monu.lit) openMonumentPopup(lastMX,lastMY);
+}
+function openMonumentPopup(px,py){
+  lastMX=px;lastMY=py;
+  const cs=completedStages();
+  let body;
+  if(S.monu.lit){
+    body='<div class="desc">The Eternal Flame burns on. Emberpine is complete. 🔥</div>';
+  }else{
+    const stage=S.monu.stage, st=MONUMENT_STAGES[stage];
+    const rows=Object.entries(st.need).map(([k,need])=>{
+      const given=S.monu.given[k]||0, have=S.inv[k]||0, ok=have>0&&given<need;
+      return '<div class="wrow"><span>'+ICONS[k]+'</span><div class="wbar"><div class="wfill" style="width:'+(100*Math.min(given,need)/need)+'%"></div></div>'+
+             '<span class="wnum">'+given+'/'+need+'</span><button data-k="'+k+'" class="wgive"'+(ok?'':' disabled')+'>Give</button></div>';
+    }).join('');
+    body='<div class="desc">Raising the <b>'+st.name+'</b> · era '+(cs+1)+' of 5</div>'+rows;
+  }
+  popup.innerHTML='<button class="close">✕</button><h4>🗿 Monument · '+(S.monu.lit?'Complete':MONUMENT_STAGES[Math.min(5,S.monu.stage)].name)+'</h4>'+body;
+  popup.querySelectorAll('.wgive[data-k]').forEach(b=>b.onclick=()=>contributeMonu(b.dataset.k));
+  popup.querySelector('.close').onclick=()=>popup.style.display='none';
+  popup.style.display='block';
+  popup.style.left=clamp(px-130,8,Math.max(8,VW-276))+'px';
+  popup.style.top=clamp(py-200,8,Math.max(8,VH-280))+'px';
 }
 function openWonderPopup(px,py){
   lastWX=px;lastWY=py;
