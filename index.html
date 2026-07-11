@@ -118,8 +118,12 @@
   #mini{display:block;background:var(--pine)}
   @media (max-width:720px){
     #miniWrap{display:none}
-    .res{font-size:11px;padding:2px 5px}
-    #roster{width:186px}
+    #hud{top:6px;flex-wrap:nowrap;overflow-x:auto;max-width:94vw;padding:4px 8px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+    #hud::-webkit-scrollbar{display:none}
+    .res{font-size:11px;padding:2px 5px;flex:none;white-space:nowrap}
+    #roster{width:186px;top:50px}
+    #rosterTab{top:50px;right:8px}
+    #hint{top:52px;font-size:10.5px;max-width:92vw;text-align:center}
   }
 
   /* ---------- charter, trader, chat, ledger, side buttons ---------- */
@@ -174,10 +178,25 @@
   .touch #emoteRow{bottom:178px}
   .touch #chatTab{bottom:178px}
   @media (max-width:720px){
-    #quest{top:66px;left:8px;width:174px}
-    .sideBtns{top:112px}
-    #ledger{top:112px;right:56px}
+    #hint{display:none}
+    #quest{top:122px;left:8px;width:158px;padding:6px 8px}
+    #quest .qt{font-size:11px}
+    #quest .qh{font-size:9px}
+    #quest .qr{font-size:9.5px}
+    #trader{top:52px;left:8px;transform:none;max-width:70vw;flex-wrap:wrap;font-size:11px;padding:4px 10px}
+    .sideBtns{top:100px;right:8px}
+    .sideBtns button{width:36px;height:36px;font-size:14px}
+    #ledger{top:100px;right:50px;width:206px}
+    #chat{width:236px}
   }
+  #quest .qh{cursor:pointer}
+  .qcaret{display:none}
+  .touch .qcaret{display:inline;opacity:.6}
+  #quest.mini .qt,#quest.mini .qbar,#quest.mini .qr{display:none}
+  .touch #chat{bottom:232px}
+  #verBadge{position:fixed;left:8px;bottom:8px;z-index:30;font-size:9px;font-weight:800;letter-spacing:.5px;
+    color:var(--parch);background:rgba(22,48,38,.75);border-radius:8px;padding:2px 7px;pointer-events:none;opacity:.75}
+  .touch #verBadge{bottom:auto;top:calc(100dvh - 22px)}
   @media (prefers-reduced-motion:reduce){ *{animation:none!important;transition:none!important} }
 </style>
 </head>
@@ -203,6 +222,7 @@
 <div id="joy"><div id="joyKnob"></div></div>
 <button id="actBtn">⛏️</button>
 
+<div id="verBadge">EMBERPINE v5</div>
 <div id="quest"></div>
 <div id="trader" style="display:none"></div>
 <div class="sideBtns">
@@ -899,7 +919,8 @@ cv.addEventListener('click',e=>{
 const joyVec={x:0,y:0};
 const joy=document.getElementById('joy'),knob=document.getElementById('joyKnob');
 let joyId=null;
-if('ontouchstart'in window)document.body.classList.add('touch');
+if('ontouchstart'in window){document.body.classList.add('touch');
+  setTimeout(()=>{if(running)toast('👇 Drag the joystick to move \u00B7 tap trees to gather \u00B7 tap the \u2692\uFE0F button to work')},2500);}
 joy.addEventListener('touchstart',e=>{joyId=e.changedTouches[0].identifier;e.preventDefault()},{passive:false});
 addEventListener('touchmove',e=>{
   for(const t of e.changedTouches){if(t.identifier!==joyId)continue;
@@ -1096,14 +1117,17 @@ function questTick(){
 }
 function renderQuest(){
   const el=document.getElementById('quest');if(!el)return;
-  if(S.quest>=QUESTS.length){el.innerHTML='<div class="qh">\u{1F4DC} GUILD CHARTER</div><div class="qt">\u{1F451} Charter complete! The valley thrives.</div>';return}
+  if(S.quest>=QUESTS.length){el.innerHTML='<div class="qh">\u{1F4DC} GUILD CHARTER<span class="qcaret"> \u25BE</span></div><div class="qt">\u{1F451} Charter complete! The valley thrives.</div>';return}
   const q=QUESTS[S.quest],pr=q.p();
-  el.innerHTML='<div class="qh">\u{1F4DC} GUILD CHARTER \u00B7 '+(S.quest+1)+'/'+QUESTS.length+'</div>'+
+  el.innerHTML='<div class="qh">\u{1F4DC} GUILD CHARTER \u00B7 '+(S.quest+1)+'/'+QUESTS.length+'<span class="qcaret"> \u25BE</span></div>'+
    '<div class="qt">'+q.icon+' '+q.t+'</div>'+
    '<div class="qbar"><div class="qfill" style="width:'+(pr[1]?100*pr[0]/pr[1]:0)+'%"></div></div>'+
    (q.r?'<div class="qr">Reward: '+costStr(q.r)+'</div>':'');
 }
 setInterval(renderQuest,3000);
+document.getElementById('quest').addEventListener('click',()=>{
+  if(document.body.classList.contains('touch'))document.getElementById('quest').classList.toggle('mini');
+});
 
 /* ============ campfire chat ============ */
 let pendingChat=[],chatOpen=false,chatLastT=0,chatKnown={};
