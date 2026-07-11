@@ -1220,7 +1220,7 @@ function drawParts(){
   }
   for(const r of rainFx){cx.strokeStyle='rgba(190,210,235,.45)';cx.lineWidth=1.2;cx.beginPath();cx.moveTo(r.x,r.y);cx.lineTo(r.x-3,r.y-13);cx.stroke()}
 }
-const TRADES=[{give:{wood:12},get:{ingot:3}},{give:{stone:10},get:{plank:5}},{give:{berry:10},get:{wheat:6}},{give:{fish:6},get:{bread:4}},{give:{plank:8},get:{ore:8}},{give:{bread:3},get:{tool:1}},{give:{egg:6},get:{bread:4}}];
+const TRADES=[{give:{wood:12},get:{ingot:3}},{give:{stone:10},get:{plank:5}},{give:{berry:10},get:{wheat:6}},{give:{fish:6},get:{bread:4}},{give:{plank:8},get:{ore:8}},{give:{bread:3},get:{tool:1}},{give:{egg:6},get:{bread:4}},{give:{brick:10},get:{glass:6}},{give:{cloth:8},get:{ornament:1}},{give:{wood:15},get:{clay:4}},{give:{glass:6},get:{goldbar:2}}];
 const trader={active:false,offer:null,until:0,next:now()+75000};
 function traderTick(){
   if(!trader.active&&now()>trader.next){trader.active=true;trader.until=now()+60000;
