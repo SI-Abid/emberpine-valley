@@ -37,6 +37,8 @@
   .bbtn:hover{transform:translateY(-2px);background:#fffdf4}
   .bbtn.sel{background:var(--amber);box-shadow:inset 0 0 0 2px #fff}
   .bbtn.locked{opacity:.45;filter:grayscale(.6)}
+  .bbtn.eralock{opacity:.4;filter:grayscale(.85);cursor:not-allowed}
+  .bbtn.eralock .bc{color:var(--clay)}
   .bbtn .bi{font-size:20px}
   .bbtn .bn{font-size:11px;font-weight:800}
   .bbtn .bc{font-size:10px;font-weight:700;opacity:.75}
@@ -323,6 +325,14 @@ const HALL={x:Math.floor(MW/2),y:Math.floor(MH/2)};
     else if(t===2&&r<.045)baseRes[key(x,y)]={type:'tree'};
     else if(t===2&&r>.985)baseRes[key(x,y)]={type:'berry'};
     else if(t===4&&r<.22)baseRes[key(x,y)]={type:r<.07?'iron':'stone'};
+    const kk=key(x,y), r2=hash2(x,y,SEED^444);
+    if(!baseRes[kk]){
+      const nearWater=[[1,0],[-1,0],[0,1],[0,-1]].some(([dx,dy])=>terrain[(y+dy)*MW+(x+dx)]===0);
+      if(t===1&&nearWater&&r2<.16)baseRes[kk]={type:'clay'};        // sand near water, uncommon
+      else if(t===1&&r2<.30)baseRes[kk]={type:'sand'};              // beaches, common
+      else if(t===4&&r2<.023)baseRes[kk]={type:'gold'};             // rock ground, ~1/3 of iron's rate
+      else if(t===2&&r2>.955)baseRes[kk]={type:'flax'};             // grass meadows, uncommon
+    }
   }
   // clear a village green around the hall & guarantee land
   for(let y=HALL.y-4;y<=HALL.y+4;y++)for(let x=HALL.x-4;x<=HALL.x+4;x++){
@@ -334,11 +344,13 @@ function terrAt(x,y){return (x<0||y<0||x>=MW||y>=MH)?0:terrain[y*MW+x]}
 /* ============ game state ============ */
 const S={
   me:{id:null,name:'',x:HALL.x+0.5,y:HALL.y+2.5,fx:0,fy:1,harvest:null},
-  inv:{wood:0,stone:0,ore:0,berry:0,fish:0,egg:0,plank:0,ingot:0,wheat:0,bread:0,tool:0},
+  inv:{wood:0,stone:0,ore:0,berry:0,fish:0,egg:0,plank:0,ingot:0,wheat:0,bread:0,tool:0,
+       clay:0,sand:0,goldore:0,flax:0,brick:0,glass:0,beam:0,cloth:0,goldbar:0,ornament:0},
   villagers:[], buildings:{}, // key -> {type,x,y,owner:'me'|name}
   removed:{},   // key -> timestamp (shared chops/mines)
   cam:{x:HALL.x,y:HALL.y}, sel:null, buildSel:null, selV:null,
   others:{}, score:0, won:false, msgShown:{}, quest:0, muted:false,
+  monu:null, playSec:0, celebrateUntil:0,
   stats:{g:{},b:{},jobs:0},
 };
 const RES_INFO={
@@ -346,12 +358,16 @@ const RES_INFO={
   iron:{yield:'ore',n:2,time:2.4,emoji:'⛏️'}, berry:{yield:'berry',n:2,time:1.0,emoji:'🫐'},
   wheatplot:{yield:'wheat',n:2,time:2.2,emoji:'🌾'},
   fishspot:{yield:'fish',n:2,time:2.6,emoji:'🎣'}
+  ,clay:{yield:'clay',n:2,time:2.2,emoji:'🧱'},
+  sand:{yield:'sand',n:2,time:1.8,emoji:'⏳'},
+  gold:{yield:'goldore',n:1,time:3.0,emoji:'✨'},
+  flax:{yield:'flax',n:2,time:1.4,emoji:'🌿'}
 };
 const JOBS={
   idle:{label:'🛌 Idle',finds:null},
   woodcutter:{label:'🪓 Woodcutter',finds:'tree'},
-  miner:{label:'⛏️ Miner',finds:['stone','iron']},
-  forager:{label:'🫐 Forager',finds:'berry'},
+  miner:{label:'⛏️ Miner',finds:['stone','iron','clay','sand','gold']},
+  forager:{label:'🫐 Forager',finds:['berry','flax']},
   farmer:{label:'🌾 Farmer',finds:'farm'},
   fisher:{label:'🎣 Fisher',finds:'dock'},
   hauler:{label:'📦 Hauler',finds:null},
@@ -363,11 +379,24 @@ const BUILDS={
   dock:{name:'Dock',ico:'🎣',cost:{plank:8},desc:'A fisher villager casts lines here — place it beside water'},
   bakery:{name:'Bakery',ico:'🍞',cost:{plank:12,stone:10},desc:'2 wheat → 1 bread / 5s',rate:5},
   workshop:{name:'Workshop',ico:'🛠️',cost:{plank:16,ingot:4},desc:'2 planks + 1 ingot → 1 tool / 8s. Tools make villagers 60% faster',rate:8},
+  kiln:{name:'Kiln',ico:'🔥',cost:{stone:20,wood:10},desc:'2 clay + 1 wood → 1 brick / 5s',rate:5},
+  glassworks:{name:'Glassworks',ico:'🪩',cost:{stone:16,plank:8},desc:'2 sand + 1 wood → 1 glass / 6s',rate:6},
+  forge:{name:'Forge',ico:'⚒️',cost:{stone:20,ingot:6},desc:'2 ingot + 1 plank → 1 beam / 7s',rate:7},
+  loom:{name:'Loom',ico:'🧵',cost:{plank:12,wood:8},desc:'2 flax → 1 cloth / 5s',rate:5},
+  gilder:{name:'Gilder',ico:'👑',cost:{brick:10,glass:4},desc:'1 goldbar + 1 glass → 1 ornament / 8s',rate:8},
   torch:{name:'Torch',ico:'🕯️',cost:{wood:4},desc:'Lights the night — villagers keep working near torches'},
   path:{name:'Path',ico:'🛤️',cost:{stone:1},desc:'Settlers and villagers walk 35% faster on paths'},
   crate:{name:'Crate',ico:'📦',cost:{plank:4},desc:'Workers stash goods here (holds 12) — haulers ferry them to the Hall'},
-  monument:{name:'Monument',ico:'🗿',cost:{plank:80,ingot:30,bread:15},desc:'Raise it to win the Valley'},
+  monument:{name:'Monument Foundation',ico:'🗿',cost:{stone:40,plank:20},desc:'Lay the Foundation, then raise it through five eras'},
 };
+const MONUMENT_STAGES=[
+ null,
+ {name:'Foundation',   need:{stone:40,plank:20},  bonus:50,  banner:'⛏️ The Foundation is laid — the Era of Stone begins'},
+ {name:'Frame',        need:{brick:24,beam:16},   bonus:50,  banner:'🏗️ The Frame rises — the Era of Iron begins'},
+ {name:'Walls',        need:{glass:20,brick:20},  bonus:50,  banner:'🧱 The Walls stand — the Era of Craft begins'},
+ {name:'Spire',        need:{cloth:12,ornament:8},bonus:50,  banner:'🗼 The Spire pierces the sky — the Era of Splendor begins'},
+ {name:'Eternal Flame',need:{bread:15},           bonus:200, banner:'🔥 The Eternal Flame is lit — Emberpine is complete'},
+];
 const VNAMES=['Bram','Wren','Odo','Tilly','Garrick','Petal','Moss','Hazel','Fenn','Juno','Cobb','Ivy','Rook','Marta','Silas','Nell'];
 const VCOLORS=['#e8a33d','#b0563b','#5b8fb0','#8a6bb0','#5aa06a','#c96a8b','#c9b45a','#6ab0a4'];
 
@@ -535,21 +564,26 @@ let pendingOps=[];
 function markRemoved(x,y){ S.removed[key(x,y)]=now(); pendingOps.push({k:key(x,y),t:now()}); }
 
 /* ============ production ============ */
-const prodTimers={sawmill:0,smelter:0,bakery:0,workshop:0};
+const prodTimers={sawmill:0,smelter:0,bakery:0,workshop:0,kiln:0,glassworks:0,forge:0,loom:0,gilder:0};
 const RECIPES={
-  sawmill:{in:{wood:2},out:'plank'}, smelter:{in:{ore:1,wood:1},out:'ingot'},
+  sawmill:{in:{wood:2},out:'plank'},
+  smelter:[{in:{goldore:1,wood:1},out:'goldbar'},{in:{ore:1,wood:1},out:'ingot'}],
   bakery:{in:{wheat:2},out:'bread'}, workshop:{in:{plank:2,ingot:1},out:'tool'},
+  kiln:{in:{clay:2,wood:1},out:'brick'}, glassworks:{in:{sand:2,wood:1},out:'glass'},
+  forge:{in:{ingot:2,plank:1},out:'beam'}, loom:{in:{flax:2},out:'cloth'},
+  gilder:{in:{goldbar:1,glass:1},out:'ornament'},
 };
 function countB(type){let n=0;for(const k in S.buildings)if(S.buildings[k].type===type&&S.buildings[k].mine)n++;return n}
 function productionTick(dt){
   for(const t in RECIPES){
     const n=countB(t);if(!n)continue;
-    prodTimers[t]+=dt*n;
+    prodTimers[t]=(prodTimers[t]||0)+dt*n;
     const rate=BUILDS[t].rate;
     while(prodTimers[t]>=rate){
       prodTimers[t]-=rate;
-      const r=RECIPES[t];
-      if(Object.entries(r.in).every(([k,v])=>S.inv[k]>=v)){
+      const recs=Array.isArray(RECIPES[t])?RECIPES[t]:[RECIPES[t]];
+      const r=recs.find(rc=>Object.entries(rc.in).every(([k,v])=>S.inv[k]>=v));
+      if(r){
         for(const[k,v]of Object.entries(r.in))S.inv[k]-=v;
         gain(r.out,1);
         const bl=Object.values(S.buildings).find(bb=>bb.type===t&&bb.mine);
@@ -622,10 +656,11 @@ function placeBuilding(type,x,y){
   S.buildings[key(x,y)]={type,x,y,mine:true};
   S.stats.b[type]=(S.stats.b[type]||0)+1;S.score+=15;sfx('build');spawnBurst(x,y,'#e8a33d',10);questTick();
   toast(B.ico+' '+B.name+' built!');
-  if(type==='monument'&&!S.won){
-    S.won=true;S.score+=100;
-    document.getElementById('victoryText').textContent=S.me.name+' has raised the Monument of Emberpine Valley. The guild ledger will remember this day.';
-    document.getElementById('victory').style.display='flex';
+  if(type==='monument'){
+    S.monu={stage:2,given:{},lit:false};
+    S.score+=MONUMENT_STAGES[1].bonus;                 // Foundation complete: +50
+    toast(MONUMENT_STAGES[1].banner);
+    firstTime('monu','Walk to the Monument 🗿 and click it to contribute goods to the next era.');
   }
   if(type==='farm')firstTime('farm','Assign a villager as 🌾 Farmer and they\u2019ll work your farm.');
   S.buildSel=null;renderBuildBar();saveSoon();
@@ -669,9 +704,26 @@ function drawRes(r,x,y,sx,sy,sz){
     cx.fillStyle='#3f7a45';cx.beginPath();cx.arc(cxm,sy+sz*.62,sz*.24,0,7);cx.fill();
     cx.fillStyle='#8a3d8f';
     for(let i=0;i<4;i++){const a=i*1.7+x;cx.beginPath();cx.arc(cxm+Math.cos(a)*5,sy+sz*.6+Math.sin(a)*4,2.4,0,7);cx.fill()}
+  }else if(r.type==='clay'){
+    cx.fillStyle='rgba(0,0,0,.18)';cx.beginPath();cx.ellipse(cxm,sy+sz*.8,sz*.3,sz*.09,0,0,7);cx.fill();
+    cx.fillStyle='#a4674a';cx.beginPath();cx.arc(cxm,sy+sz*.62,sz*.24,0,7);cx.fill();
+    cx.fillStyle='#8a5238';cx.fillRect(cxm-sz*.12,sy+sz*.58,sz*.24,sz*.14);
+  }else if(r.type==='sand'){
+    cx.fillStyle='rgba(0,0,0,.14)';cx.beginPath();cx.ellipse(cxm,sy+sz*.82,sz*.28,sz*.08,0,0,7);cx.fill();
+    cx.fillStyle='#e6d29a';cx.beginPath();cx.moveTo(sx+sz*.16,sy+sz*.78);cx.quadraticCurveTo(cxm,sy+sz*.42,sx+sz*.84,sy+sz*.78);cx.closePath();cx.fill();
+    cx.fillStyle='#d3bc78';cx.fillRect(sx+sz*.32,sy+sz*.66,sz*.36,2);
+  }else if(r.type==='gold'){
+    cx.fillStyle='rgba(0,0,0,.18)';cx.beginPath();cx.ellipse(cxm,sy+sz*.8,sz*.3,sz*.09,0,0,7);cx.fill();
+    cx.fillStyle='#8f8b82';cx.beginPath();cx.moveTo(sx+sz*.22,sy+sz*.8);cx.lineTo(sx+sz*.36,sy+sz*.36);cx.lineTo(sx+sz*.66,sy+sz*.32);cx.lineTo(sx+sz*.8,sy+sz*.8);cx.closePath();cx.fill();
+    cx.fillStyle='#f4c542';cx.fillRect(cxm-2,sy+sz*.5,4,4);cx.fillRect(cxm+3,sy+sz*.62,3,3);cx.fillRect(cxm-5,sy+sz*.6,2,2);
+  }else if(r.type==='flax'){
+    cx.strokeStyle='#5c8a52';cx.lineWidth=2;
+    for(let i=0;i<3;i++){const bx=cxm+(i-1)*5;cx.beginPath();cx.moveTo(bx,sy+sz*.78);cx.lineTo(bx,sy+sz*.42);cx.stroke();
+      cx.fillStyle='#8fb6d8';cx.beginPath();cx.arc(bx,sy+sz*.4,2.4,0,7);cx.fill();}
   }
 }
-const BCOLS={sawmill:'#a8783f',smelter:'#8d5a4a',farm:'#c9b45a',dock:'#7a8ca0',bakery:'#d9a05f',workshop:'#7d8a99',torch:'#c9a05a',monument:'#b8b4a6',hall:'#8f6b45'};
+const BCOLS={sawmill:'#a8783f',smelter:'#8d5a4a',farm:'#c9b45a',dock:'#7a8ca0',bakery:'#d9a05f',workshop:'#7d8a99',torch:'#c9a05a',monument:'#b8b4a6',hall:'#8f6b45'
+,kiln:'#b5643c',glassworks:'#7fa9b0',forge:'#6a6f78',loom:'#b58fb0',gilder:'#c9a94a'};
 function drawBuilding(b,sx,sy,sz){
   if(b.type==='path'){
     cx.fillStyle='#c9b389';cx.fillRect(sx+1,sy+1,sz-2,sz-2);
@@ -687,6 +739,7 @@ function drawBuilding(b,sx,sy,sz){
     cx.fillStyle='#ffe9a0';cx.beginPath();cx.arc(sx+sz/2,sy+sz*.28,2.6*fl*k,0,7);cx.fill();
     return;
   }
+  if(b.type==='monument'){drawMonument(b,sx,sy,sz);return;}
   const ico=b.type==='hall'?'\u{1F3DB}\uFE0F':BUILDS[b.type].ico;
   cx.fillStyle='rgba(0,0,0,.22)';cx.fillRect(sx+3,sy+sz*.75,sz-6,sz*.2);
   cx.fillStyle=BCOLS[b.type];cx.fillRect(sx+3,sy+4,sz-6,sz-9);
@@ -697,6 +750,35 @@ function drawBuilding(b,sx,sy,sz){
     cx.fillStyle='#2b2620';cx.fillRect(sx+5,sy+sz-9,sz-10,4);
     cx.fillStyle='#e8a33d';cx.fillRect(sx+5,sy+sz-9,(sz-10)*Math.min(1,tot/12),4);}
   if(!b.mine&&b.type!=='hall'){cx.globalAlpha=.35;cx.fillStyle='#fff';cx.fillRect(sx+3,sy+4,sz-6,sz-9);cx.globalAlpha=1}
+}
+function drawMonument(b,sx,sy,sz){
+  const cs=completedStages();               // 0..5
+  cx.fillStyle='rgba(0,0,0,.28)';cx.beginPath();cx.ellipse(sx+sz/2,sy+sz*.92,sz*.5,sz*.13,0,0,7);cx.fill();
+  const tiers=[
+    {w:.86,h:.34,y:.62,c:'#b8b4a6'},        // 1 Foundation
+    {w:.70,h:.30,y:.34,c:'#c8c2b0'},        // 2 Frame
+    {w:.56,h:.28,y:.08,c:'#d8d2bd'},        // 3 Walls
+    {w:.40,h:.30,y:-.20,c:'#e6dcc2'},       // 4 Spire
+  ];
+  const shown=Math.min(4,cs);
+  for(let i=0;i<shown;i++){const t=tiers[i];
+    cx.fillStyle=t.c;cx.strokeStyle='#2b2620';cx.lineWidth=2;
+    const w=sz*t.w, x=sx+sz/2-w/2, y=sy+sz*t.y;
+    cx.fillRect(x,y,w,sz*t.h);cx.strokeRect(x,y,w,sz*t.h);
+  }
+  if(cs>=4){ // spire cap
+    cx.fillStyle='#e6dcc2';cx.strokeStyle='#2b2620';
+    cx.beginPath();cx.moveTo(sx+sz/2,sy-sz*.42);cx.lineTo(sx+sz/2-sz*.16,sy-sz*.16);cx.lineTo(sx+sz/2+sz*.16,sy-sz*.16);cx.closePath();cx.fill();cx.stroke();
+  }
+  if(S.monu&&S.monu.lit){
+    const fl=1+Math.sin(now()/110)*.25;
+    cx.fillStyle='rgba(255,180,60,.3)';cx.beginPath();cx.arc(sx+sz/2,sy-sz*.5,sz*.7*fl,0,7);cx.fill();
+    cx.fillStyle='#e8a33d';cx.beginPath();cx.arc(sx+sz/2,sy-sz*.5,sz*.16*fl,0,7);cx.fill();
+    cx.fillStyle='#ffe9a0';cx.beginPath();cx.arc(sx+sz/2,sy-sz*.5,sz*.08*fl,0,7);cx.fill();
+  }
+  if(cs===0){ // placed but nothing built yet — flag marker
+    cx.font=(sz*.5)+'px serif';cx.textAlign='center';cx.textBaseline='middle';cx.fillText('🚩',sx+sz/2,sy+sz*.45);
+  }
 }
 function drawPerson(px,py,color,name,isMe,working,ghost){
   const z=ZOOM, sx=(px-S.cam.x)*TSZ+VW/2, sy=(py-S.cam.y)*TSZ+VH/2;
@@ -786,6 +868,7 @@ function render(){
     drawPerson(v.x,v.y,v.color,v.name.split(' ')[0]+' \u00B7 '+JOBS[v.job].label.slice(0,2),false,v.state==='working',false);
     if(v.state==='working'){const info=RES_INFO[v.target?.type||'tree'];drawProgress(v.x,v.y,v.work/info.time,info.emoji)}
   }
+  if(now()<S.celebrateUntil)for(const v of S.villagers)drawEmote(v.x,v.y,'🎉');
   drawPerson(S.me.x,S.me.y,'#e8a33d',S.me.name||'You',true,!!S.me.harvest,false);
   if(myEmote&&now()-myEmote.t<4000)drawEmote(S.me.x,S.me.y,myEmote.e);
   if(S.me.harvest){const h=S.me.harvest;drawProgress(S.me.x,S.me.y,h.t/RES_INFO[h.type].time,RES_INFO[h.type].emoji)}
@@ -820,7 +903,9 @@ let miniBase=null;
 function bakeMini(){
   const c=document.createElement('canvas');c.width=MW;c.height=MH;const g=c.getContext('2d');
   for(let y=0;y<MH;y++)for(let x=0;x<MW;x++){g.fillStyle=TCOL[terrAt(x,y)];g.fillRect(x,y,1,1);
-    const r=baseRes[key(x,y)];if(r)g.fillStyle=r.type==='tree'?'#2f6b3e':r.type==='berry'?'#8a3d8f':'#6e6a60',g.fillRect(x,y,1,1)}
+    const rr=baseRes[key(x,y)];
+    if(rr){const c={tree:'#2f6b3e',berry:'#8a3d8f',stone:'#6e6a60',iron:'#6e6a60',clay:'#a4674a',sand:'#d3bc78',flax:'#7fa9c9'}[rr.type];
+      if(c){g.fillStyle=c;g.fillRect(x,y,1,1)}}}
   miniBase=c;
 }
 function renderMini(){
@@ -828,6 +913,10 @@ function renderMini(){
   mcx.imageSmoothingEnabled=false;
   mcx.drawImage(miniBase,0,0,140,140);
   const f=140/MW;
+  if((typeof completedStages==='function'?completedStages():0)>=3){
+    mcx.fillStyle='#f4c542';
+    for(const k in baseRes){if(baseRes[k].type!=='gold')continue;const p=k.split(',');mcx.fillRect(p[0]*f-1,p[1]*f-1,2,2)}
+  }
   mcx.fillStyle='#ffe9b8';mcx.fillRect(S.me.x*f-2,S.me.y*f-2,4,4);
   mcx.strokeStyle='#2b2620';mcx.strokeRect(S.me.x*f-2,S.me.y*f-2,4,4);
   for(const id in S.others){const o=S.others[id];if(id!==S.me.id)mcx.fillStyle='#5b8fb0',mcx.fillRect(o.x*f-1.5,o.y*f-1.5,3,3)}
@@ -835,13 +924,19 @@ function renderMini(){
 }
 
 /* ============ UI ============ */
-const ICONS={wood:'🪵',stone:'🪨',ore:'⚙️',berry:'🫐',fish:'🐟',egg:'🥚',plank:'📏',ingot:'🔩',wheat:'🌾',bread:'🍞',tool:'🛠️'};
-const NICE={wood:'Wood',stone:'Stone',ore:'Ore',berry:'Berries',fish:'Fish',egg:'Eggs',plank:'Planks',ingot:'Ingots',wheat:'Wheat',bread:'Bread',tool:'Tools'};
+const ICONS={wood:'🪵',stone:'🪨',ore:'⚙️',berry:'🫐',fish:'🐟',egg:'🥚',plank:'📏',ingot:'🔩',wheat:'🌾',bread:'🍞',tool:'🛠️'
+ ,clay:'🟤',sand:'⏳',goldore:'🟡',flax:'🌿',brick:'🧱',glass:'🪟',beam:'🏗️',cloth:'🧵',goldbar:'🪙',ornament:'💎'};
+const NICE={wood:'Wood',stone:'Stone',ore:'Ore',berry:'Berries',fish:'Fish',egg:'Eggs',plank:'Planks',ingot:'Ingots',wheat:'Wheat',bread:'Bread',tool:'Tools'
+ ,clay:'Clay',sand:'Sand',goldore:'Gold Ore',flax:'Flax',brick:'Brick',glass:'Glass',beam:'Steel Beam',cloth:'Cloth',goldbar:'Gold Bar',ornament:'Ornament'};
 const hud=document.getElementById('hud');
 const RAW=['wood','stone','ore','berry','fish','egg'],CRAFT=['plank','ingot','wheat','bread','tool'];
+const NEWRAW=['clay','sand','goldore','flax'], NEWCRAFT=['brick','glass','beam','cloth','goldbar','ornament'];
+function ownsGood(k){return (S.inv[k]||0)>0 || (S.stats.g[k]||0)>0}
 function chipHtml(k){return '<div class="res" id="res-'+k+'" title="'+NICE[k]+'"><span class="ico">'+ICONS[k]+'</span>'+S.inv[k]+'</div>'}
 function renderHUD(){
-  hud.innerHTML=RAW.map(chipHtml).join('')+'<div class="hsep"></div>'+CRAFT.map(chipHtml).join('')
+  const rawChips=RAW.map(chipHtml).join('')+NEWRAW.filter(ownsGood).map(chipHtml).join('');
+  const craftChips=CRAFT.map(chipHtml).join('')+NEWCRAFT.filter(ownsGood).map(chipHtml).join('');
+  hud.innerHTML=rawChips+'<div class="hsep"></div>'+craftChips
    +'<div class="hsep"></div><div class="res" title="Villagers"><span class="ico">👥</span>'+S.villagers.length+'</div>'
    +'<div class="res" id="clockChip" title="Time of day"></div>';
   updateClock();
@@ -858,15 +953,26 @@ function firstTime(k,msg){if(S.msgShown[k])return;S.msgShown[k]=1;toast('💡 '+
 /* build bar */
 const bbar=document.getElementById('buildbar');
 function costStr(c){return Object.entries(c).map(([k,v])=>v+ICONS[k]).join(' ')}
+const ERA={kiln:1,glassworks:1,forge:1,loom:2,gilder:2};
 function renderBuildBar(){
   bbar.innerHTML='';
+  const cs=completedStages();
   for(const t in BUILDS){
-    const B=BUILDS[t],btn=document.createElement('button');
-    btn.className='bbtn'+(S.buildSel===t?' sel':'')+(canAfford(B.cost)?'':' locked');
-    btn.innerHTML='<span class="bi">'+B.ico+'</span><span class="bn">'+B.name+'</span><span class="bc">'+costStr(B.cost)+'</span>';
-    btn.title=B.desc;
-    btn.onclick=()=>{S.buildSel=S.buildSel===t?null:t;renderBuildBar();
-      if(S.buildSel)toast('Tap a tile to place the '+B.name);popup.style.display='none'};
+    if(t==='monument'&&S.monu)continue;                 // Foundation already placed
+    const B=BUILDS[t], req=ERA[t]||0, eraLocked=cs<req;
+    const btn=document.createElement('button');
+    if(eraLocked){
+      btn.className='bbtn eralock';
+      btn.innerHTML='<span class="bi">'+B.ico+'</span><span class="bn">'+B.name+'</span><span class="bc">🔒 '+MONUMENT_STAGES[req].name+'</span>';
+      btn.title='Unlocks when the '+MONUMENT_STAGES[req].name+' is complete';
+      btn.onclick=()=>toast('🔒 Complete the '+MONUMENT_STAGES[req].name+' first');
+    }else{
+      btn.className='bbtn'+(S.buildSel===t?' sel':'')+(canAfford(B.cost)?'':' locked');
+      btn.innerHTML='<span class="bi">'+B.ico+'</span><span class="bn">'+B.name+'</span><span class="bc">'+costStr(B.cost)+'</span>';
+      btn.title=B.desc;
+      btn.onclick=()=>{S.buildSel=S.buildSel===t?null:t;renderBuildBar();
+        if(S.buildSel)toast('Tap a tile to place the '+B.name);popup.style.display='none'};
+    }
     bbar.appendChild(btn);
   }
 }
@@ -921,6 +1027,7 @@ function openVillagerPopup(v,px,py){
   popup.style.top=clamp(py-popup.offsetHeight-30,8,VH-240)+'px';
 }
 function openBuildingPopup(b,px,py){
+  if(b.type==='monument'&&S.monu){openMonumentPopup(px,py);return}
   const B=BUILDS[b.type];
   popup.innerHTML='<button class="close">✕</button><h4 class="px">'+B.ico+' '+B.name+'</h4><div class="sub">'+(b.mine?'YOUR WORKS':'ANOTHER SETTLER\u2019S WORKS')+'</div><div class="desc">'+B.desc+'</div>';
   popup.querySelector('.close').onclick=()=>popup.style.display='none';
@@ -983,6 +1090,7 @@ let saveTimer=null;
 function saveSoon(){clearTimeout(saveTimer);saveTimer=setTimeout(saveGame,1200)}
 async function saveGame(){
   await store.set('save-v1',{inv:S.inv,name:S.me.name,id:S.me.id,x:S.me.x,y:S.me.y,score:S.score,won:S.won,msgShown:S.msgShown,quest:S.quest,stats:S.stats,muted:S.muted,wonderRewarded:!!S.wonderRewarded,
+    monu:S.monu, playSec:S.playSec,
     villagers:S.villagers.map(v=>({name:v.name,color:v.color,job:v.job,hasTool:v.hasTool,xp:v.xp||0})),
     buildings:Object.values(S.buildings).filter(b=>b.mine).map(b=>({type:b.type,x:b.x,y:b.y,store:b.store}))});
 }
@@ -990,10 +1098,13 @@ async function loadGame(){
   const s=await store.get('save-v1');
   if(!s)return false;
   Object.assign(S.inv,s.inv||{});S.me.name=s.name||'';S.me.id=s.id;S.score=s.score||0;S.won=s.won;S.msgShown=s.msgShown||{};
-  S.quest=s.quest||0;S.muted=!!s.muted;S.wonderRewarded=!!s.wonderRewarded;
+  S.quest=s.quest||0;S.muted=!!s.muted;S.wonderRewarded=!!s.wonderRewarded;S.playSec=s.playSec||0;
   if(s.stats){S.stats.jobs=s.stats.jobs||0;Object.assign(S.stats.g,s.stats.g||{});Object.assign(S.stats.b,s.stats.b||{})}
   if(s.x&&passable(s.x|0,s.y|0)){S.me.x=s.x;S.me.y=s.y;S.cam.x=s.x;S.cam.y=s.y}
   for(const b of (s.buildings||[]))S.buildings[key(b.x,b.y)]={...b,mine:true};
+  if(s.monu) S.monu=s.monu;
+  else if(Object.values(S.buildings).some(b=>b.type==='monument')) S.monu={stage:2,given:{},lit:false}; // v1 migration: Foundation complete
+  else S.monu=null;
   for(const vs of (s.villagers||[])){const v=makeVillager();v.name=vs.name;v.color=vs.color;v.job=vs.job;v.hasTool=vs.hasTool;v.xp=vs.xp||0}
   return true;
 }
@@ -1055,6 +1166,8 @@ function darknessNow(){const l=.5+.5*Math.sin(dayPhase()*Math.PI*2);let d=(1-l)*
 let parts=[],rainFx=[],smokeT=0,critterT=0;
 function spawnBurst(x,y,color,n){n=n||6;for(let i=0;i<n;i++)parts.push({x:x+.5,y:y+.5,vx:(Math.random()-.5)*2.4,vy:-1-Math.random()*1.6,g:5,life:.55+Math.random()*.25,max:.8,color,sz:3})}
 function ambienceTick(dt){
+  if(monuFxUntil>now()){const mon=monBuilding();
+    if(mon&&Math.random()<dt*3)spawnFireworks(mon.x+.5+(Math.random()-.5)*2, mon.y-1+(Math.random()-.5));}
   if(now()>weather.next){weather.rain=!weather.rain;
     weather.next=now()+(weather.rain?30000+Math.random()*40000:70000+Math.random()*140000);
     toast(weather.rain?'\u{1F327}\uFE0F Rain drifts over the valley\u2026':'\u{1F324}\uFE0F The rain clears');}
@@ -1111,7 +1224,7 @@ function drawParts(){
   }
   for(const r of rainFx){cx.strokeStyle='rgba(190,210,235,.45)';cx.lineWidth=1.2;cx.beginPath();cx.moveTo(r.x,r.y);cx.lineTo(r.x-3,r.y-13);cx.stroke()}
 }
-const TRADES=[{give:{wood:12},get:{ingot:3}},{give:{stone:10},get:{plank:5}},{give:{berry:10},get:{wheat:6}},{give:{fish:6},get:{bread:4}},{give:{plank:8},get:{ore:8}},{give:{bread:3},get:{tool:1}},{give:{egg:6},get:{bread:4}}];
+const TRADES=[{give:{wood:12},get:{ingot:3}},{give:{stone:10},get:{plank:5}},{give:{berry:10},get:{wheat:6}},{give:{fish:6},get:{bread:4}},{give:{plank:8},get:{ore:8}},{give:{bread:3},get:{tool:1}},{give:{egg:6},get:{bread:4}},{give:{brick:10},get:{glass:6}},{give:{cloth:8},get:{ornament:1}},{give:{wood:15},get:{clay:4}},{give:{glass:6},get:{goldbar:2}}];
 const trader={active:false,offer:null,until:0,next:now()+75000};
 function traderTick(){
   if(!trader.active&&now()>trader.next){trader.active=true;trader.until=now()+60000;
@@ -1142,7 +1255,13 @@ const QUESTS=[
  {t:'Smelt 3 ingots',icon:'\u{1F525}',p:()=>[Math.min(3,S.stats.g.ingot||0),3],c:()=>(S.stats.g.ingot||0)>=3,r:{ore:6}},
  {t:'Bake 3 bread',icon:'\u{1F35E}',p:()=>[Math.min(3,S.stats.g.bread||0),3],c:()=>(S.stats.g.bread||0)>=3,r:{wheat:4}},
  {t:'Craft a tool',icon:'\u{1F6E0}\uFE0F',p:()=>[Math.min(1,S.stats.g.tool||0),1],c:()=>(S.stats.g.tool||0)>=1,r:{ingot:5}},
- {t:'Raise the Monument',icon:'\u{1F5FF}',p:()=>[S.won?1:0,1],c:()=>!!S.won,r:null},
+ {t:'Lay the Monument Foundation',icon:'\u{1F5FF}',p:()=>[completedStages()>=1?1:0,1],c:()=>completedStages()>=1,r:{clay:10}},
+ {t:'Fire 5 bricks',icon:'\u{1F9F1}',p:()=>[Math.min(5,S.stats.g.brick||0),5],c:()=>(S.stats.g.brick||0)>=5,r:{sand:6}},
+ {t:'Forge 3 steel beams',icon:'\u{1F3D7}️',p:()=>[Math.min(3,S.stats.g.beam||0),3],c:()=>(S.stats.g.beam||0)>=3,r:{clay:8}},
+ {t:'Complete the Frame',icon:'\u{1F3DB}️',p:()=>[completedStages()>=2?1:0,1],c:()=>completedStages()>=2,r:{sand:10}},
+ {t:'Craft an ornament',icon:'\u{1F48E}',p:()=>[Math.min(1,S.stats.g.ornament||0),1],c:()=>(S.stats.g.ornament||0)>=1,r:{bread:5}},
+ {t:'Raise the Spire',icon:'\u{1F5FC}',p:()=>[completedStages()>=4?1:0,1],c:()=>completedStages()>=4,r:{bread:10}},
+ {t:'Light the Eternal Flame',icon:'\u{1F525}',p:()=>[S.won?1:0,1],c:()=>!!S.won,r:null},
 ];
 let questBusy=false;
 function questTick(){
@@ -1303,6 +1422,82 @@ function contribute(k){
   S.score+=n*2;sfx('build');spawnBurst(WONDER.x,WONDER.y-1,'#ffe9b8',10);
   syncWonder();saveSoon();openWonderPopup(lastWX,lastWY);
 }
+let lastMX=200,lastMY=200;
+function advanceStage(){
+  const stage=S.monu.stage, st=MONUMENT_STAGES[stage];
+  S.score+=st.bonus;
+  toast(st.banner); sfx('quest');
+  const mon=monBuilding(); if(mon)spawnBurst(mon.x,mon.y-1,'#ffe9b8',14);
+  S.monu.stage=stage+1; S.monu.given={};
+  renderBuildBar(); questTick(); saveSoon();
+}
+function contributeMonu(k){
+  if(!S.monu||S.monu.lit)return;
+  const stage=S.monu.stage, st=MONUMENT_STAGES[stage]; if(!st||!(k in st.need))return;
+  const given=S.monu.given[k]||0, put=Math.min(S.inv[k]||0, st.need[k]-given);
+  if(put<=0)return;
+  S.inv[k]-=put; S.monu.given[k]=given+put; bumpRes(k);
+  const mon=monBuilding(); if(mon)spawnBurst(mon.x,mon.y-1,'#ffe9b8',6); sfx('build');
+  if(Object.entries(st.need).every(([g,nn])=>(S.monu.given[g]||0)>=nn)) advanceStage();
+  saveSoon();
+  if(popup.style.display==='block'&&S.monu&&!S.monu.lit) openMonumentPopup(lastMX,lastMY);
+}
+let monuFxUntil=0;
+function lightFlame(){
+  if(!S.monu||S.monu.lit)return;
+  if((S.inv.bread||0)<MONUMENT_STAGES[5].need.bread){toast('Need 15 🍞 for the feast');return}
+  S.inv.bread-=MONUMENT_STAGES[5].need.bread; bumpRes('bread');
+  S.monu.lit=true; S.monu.stage=6;
+  S.score+=MONUMENT_STAGES[5].bonus; S.won=true;
+  toast(MONUMENT_STAGES[5].banner); sfx('quest');
+  const mon=monBuilding();
+  monuFxUntil=now()+10000; S.celebrateUntil=now()+10000;
+  if(mon){spawnFireworks(mon.x+.5,mon.y-1);spawnFireworks(mon.x-1,mon.y);spawnFireworks(mon.x+2,mon.y-.5);
+    for(const v of S.villagers){const p=findPath(v.x,v.y,mon.x,mon.y,true);if(p)v.path=p}}
+  popup.style.display='none';
+  showVictory(); renderBuildBar(); questTick(); saveGame();
+}
+function showVictory(){
+  const days=(S.playSec/DAYLEN).toFixed(1);
+  const goods=Object.values(S.stats.g).reduce((a,b)=>a+b,0);
+  const rank=S.score>=1000?'Master Builder of Emberpine':S.score>=600?'Architect':S.score>=300?'Builder':'Settler';
+  const h1=document.querySelector('#victory h1'); if(h1)h1.textContent='THE ETERNAL FLAME';
+  document.getElementById('victoryText').innerHTML=
+    escapeHtml(S.me.name)+' has lit the Eternal Flame of Emberpine Valley.<br><br>'+
+    '🗓️ Days survived: <b>'+days+'</b><br>'+
+    '📦 Goods produced: <b>'+goods+'</b><br>'+
+    '⭐ Final score: <b>'+S.score+'</b><br>'+
+    '🏅 Rank: <b>'+rank+'</b>';
+  document.getElementById('victory').style.display='flex';
+}
+function openMonumentPopup(px,py){
+  lastMX=px;lastMY=py;
+  const cs=completedStages();
+  let body;
+  if(S.monu.lit){
+    body='<div class="desc">The Eternal Flame burns on. Emberpine is complete. 🔥</div>';
+  }else if(cs>=4){
+    const need=MONUMENT_STAGES[5].need.bread, can=(S.inv.bread||0)>=need;
+    body='<div class="desc">The Spire is raised. Hold the feast to light the Eternal Flame.</div>'+
+      '<div class="wrow"><span>🍞</span><span class="wnum">'+(S.inv.bread||0)+'/'+need+'</span>'+
+      '<button id="feastBtn" class="wgive"'+(can?'':' disabled')+'>🔥 Hold the Feast</button></div>';
+  }else{
+    const stage=S.monu.stage, st=MONUMENT_STAGES[stage];
+    const rows=Object.entries(st.need).map(([k,need])=>{
+      const given=S.monu.given[k]||0, have=S.inv[k]||0, ok=have>0&&given<need;
+      return '<div class="wrow"><span>'+ICONS[k]+'</span><div class="wbar"><div class="wfill" style="width:'+(100*Math.min(given,need)/need)+'%"></div></div>'+
+             '<span class="wnum">'+given+'/'+need+'</span><button data-k="'+k+'" class="wgive"'+(ok?'':' disabled')+'>Give</button></div>';
+    }).join('');
+    body='<div class="desc">Raising the <b>'+st.name+'</b> · era '+(cs+1)+' of 5</div>'+rows;
+  }
+  popup.innerHTML='<button class="close">✕</button><h4>🗿 Monument · '+(S.monu.lit?'Complete':MONUMENT_STAGES[Math.min(5,S.monu.stage)].name)+'</h4>'+body;
+  popup.querySelectorAll('.wgive[data-k]').forEach(b=>b.onclick=()=>contributeMonu(b.dataset.k));
+  const fb=popup.querySelector('#feastBtn'); if(fb)fb.onclick=lightFlame;
+  popup.querySelector('.close').onclick=()=>popup.style.display='none';
+  popup.style.display='block';
+  popup.style.left=clamp(px-130,8,Math.max(8,VW-276))+'px';
+  popup.style.top=clamp(py-200,8,Math.max(8,VH-280))+'px';
+}
 function openWonderPopup(px,py){
   lastWX=px;lastWY=py;
   const rows=Object.entries(WONDER_GOAL).map(([k,g])=>{
@@ -1420,6 +1615,8 @@ function spawnFireworks(x,y){
 function vLvl(v){return Math.min(5,1+Math.floor((v.xp||0)/25))}
 function torchNear(x,y){for(const k in S.buildings){const b=S.buildings[k];if(b.type==='torch'&&(b.x+.5-x)**2+(b.y+.5-y)**2<20)return true}return false}
 function onPath(x,y){const b=S.buildings[key(Math.floor(x),Math.floor(y))];return !!(b&&b.type==='path')}
+function completedStages(){return S.monu?(S.monu.lit?5:S.monu.stage-1):0}
+function monBuilding(){for(const k in S.buildings)if(S.buildings[k].type==='monument')return S.buildings[k];return null}
 
 /* ============ ancient relics ============ */
 const RELIC_EPOCH=90000;
@@ -1519,6 +1716,7 @@ function loop(t){
   const dt=Math.min(.05,(t-last)/1000);last=t;
   if(running&&!paused){
     try{
+      S.playSec+=dt;
       playerTick(dt);
       for(const v of S.villagers)villagerTick(v,dt);
       productionTick(dt);ambienceTick(dt);
