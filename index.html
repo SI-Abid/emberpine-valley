@@ -334,7 +334,8 @@ function terrAt(x,y){return (x<0||y<0||x>=MW||y>=MH)?0:terrain[y*MW+x]}
 /* ============ game state ============ */
 const S={
   me:{id:null,name:'',x:HALL.x+0.5,y:HALL.y+2.5,fx:0,fy:1,harvest:null},
-  inv:{wood:0,stone:0,ore:0,berry:0,fish:0,egg:0,plank:0,ingot:0,wheat:0,bread:0,tool:0},
+  inv:{wood:0,stone:0,ore:0,berry:0,fish:0,egg:0,plank:0,ingot:0,wheat:0,bread:0,tool:0,
+       clay:0,sand:0,goldore:0,flax:0,brick:0,glass:0,beam:0,cloth:0,goldbar:0,ornament:0},
   villagers:[], buildings:{}, // key -> {type,x,y,owner:'me'|name}
   removed:{},   // key -> timestamp (shared chops/mines)
   cam:{x:HALL.x,y:HALL.y}, sel:null, buildSel:null, selV:null,
@@ -835,13 +836,19 @@ function renderMini(){
 }
 
 /* ============ UI ============ */
-const ICONS={wood:'🪵',stone:'🪨',ore:'⚙️',berry:'🫐',fish:'🐟',egg:'🥚',plank:'📏',ingot:'🔩',wheat:'🌾',bread:'🍞',tool:'🛠️'};
-const NICE={wood:'Wood',stone:'Stone',ore:'Ore',berry:'Berries',fish:'Fish',egg:'Eggs',plank:'Planks',ingot:'Ingots',wheat:'Wheat',bread:'Bread',tool:'Tools'};
+const ICONS={wood:'🪵',stone:'🪨',ore:'⚙️',berry:'🫐',fish:'🐟',egg:'🥚',plank:'📏',ingot:'🔩',wheat:'🌾',bread:'🍞',tool:'🛠️'
+ ,clay:'🟤',sand:'⏳',goldore:'🟡',flax:'🌿',brick:'🧱',glass:'🪟',beam:'🏗️',cloth:'🧵',goldbar:'🪙',ornament:'💎'};
+const NICE={wood:'Wood',stone:'Stone',ore:'Ore',berry:'Berries',fish:'Fish',egg:'Eggs',plank:'Planks',ingot:'Ingots',wheat:'Wheat',bread:'Bread',tool:'Tools'
+ ,clay:'Clay',sand:'Sand',goldore:'Gold Ore',flax:'Flax',brick:'Brick',glass:'Glass',beam:'Steel Beam',cloth:'Cloth',goldbar:'Gold Bar',ornament:'Ornament'};
 const hud=document.getElementById('hud');
 const RAW=['wood','stone','ore','berry','fish','egg'],CRAFT=['plank','ingot','wheat','bread','tool'];
+const NEWRAW=['clay','sand','goldore','flax'], NEWCRAFT=['brick','glass','beam','cloth','goldbar','ornament'];
+function ownsGood(k){return (S.inv[k]||0)>0 || (S.stats.g[k]||0)>0}
 function chipHtml(k){return '<div class="res" id="res-'+k+'" title="'+NICE[k]+'"><span class="ico">'+ICONS[k]+'</span>'+S.inv[k]+'</div>'}
 function renderHUD(){
-  hud.innerHTML=RAW.map(chipHtml).join('')+'<div class="hsep"></div>'+CRAFT.map(chipHtml).join('')
+  const rawChips=RAW.map(chipHtml).join('')+NEWRAW.filter(ownsGood).map(chipHtml).join('');
+  const craftChips=CRAFT.map(chipHtml).join('')+NEWCRAFT.filter(ownsGood).map(chipHtml).join('');
+  hud.innerHTML=rawChips+'<div class="hsep"></div>'+craftChips
    +'<div class="hsep"></div><div class="res" title="Villagers"><span class="ico">👥</span>'+S.villagers.length+'</div>'
    +'<div class="res" id="clockChip" title="Time of day"></div>';
   updateClock();
