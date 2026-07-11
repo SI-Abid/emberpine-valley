@@ -376,6 +376,11 @@ const BUILDS={
   dock:{name:'Dock',ico:'🎣',cost:{plank:8},desc:'A fisher villager casts lines here — place it beside water'},
   bakery:{name:'Bakery',ico:'🍞',cost:{plank:12,stone:10},desc:'2 wheat → 1 bread / 5s',rate:5},
   workshop:{name:'Workshop',ico:'🛠️',cost:{plank:16,ingot:4},desc:'2 planks + 1 ingot → 1 tool / 8s. Tools make villagers 60% faster',rate:8},
+  kiln:{name:'Kiln',ico:'🔥',cost:{stone:20,wood:10},desc:'2 clay + 1 wood → 1 brick / 5s',rate:5},
+  glassworks:{name:'Glassworks',ico:'🪩',cost:{stone:16,plank:8},desc:'2 sand + 1 wood → 1 glass / 6s',rate:6},
+  forge:{name:'Forge',ico:'⚒️',cost:{stone:20,ingot:6},desc:'2 ingot + 1 plank → 1 beam / 7s',rate:7},
+  loom:{name:'Loom',ico:'🧵',cost:{plank:12,wood:8},desc:'2 flax → 1 cloth / 5s',rate:5},
+  gilder:{name:'Gilder',ico:'👑',cost:{brick:10,glass:4},desc:'1 goldbar + 1 glass → 1 ornament / 8s',rate:8},
   torch:{name:'Torch',ico:'🕯️',cost:{wood:4},desc:'Lights the night — villagers keep working near torches'},
   path:{name:'Path',ico:'🛤️',cost:{stone:1},desc:'Settlers and villagers walk 35% faster on paths'},
   crate:{name:'Crate',ico:'📦',cost:{plank:4},desc:'Workers stash goods here (holds 12) — haulers ferry them to the Hall'},
@@ -548,21 +553,26 @@ let pendingOps=[];
 function markRemoved(x,y){ S.removed[key(x,y)]=now(); pendingOps.push({k:key(x,y),t:now()}); }
 
 /* ============ production ============ */
-const prodTimers={sawmill:0,smelter:0,bakery:0,workshop:0};
+const prodTimers={sawmill:0,smelter:0,bakery:0,workshop:0,kiln:0,glassworks:0,forge:0,loom:0,gilder:0};
 const RECIPES={
-  sawmill:{in:{wood:2},out:'plank'}, smelter:{in:{ore:1,wood:1},out:'ingot'},
+  sawmill:{in:{wood:2},out:'plank'},
+  smelter:[{in:{goldore:1,wood:1},out:'goldbar'},{in:{ore:1,wood:1},out:'ingot'}],
   bakery:{in:{wheat:2},out:'bread'}, workshop:{in:{plank:2,ingot:1},out:'tool'},
+  kiln:{in:{clay:2,wood:1},out:'brick'}, glassworks:{in:{sand:2,wood:1},out:'glass'},
+  forge:{in:{ingot:2,plank:1},out:'beam'}, loom:{in:{flax:2},out:'cloth'},
+  gilder:{in:{goldbar:1,glass:1},out:'ornament'},
 };
 function countB(type){let n=0;for(const k in S.buildings)if(S.buildings[k].type===type&&S.buildings[k].mine)n++;return n}
 function productionTick(dt){
   for(const t in RECIPES){
     const n=countB(t);if(!n)continue;
-    prodTimers[t]+=dt*n;
+    prodTimers[t]=(prodTimers[t]||0)+dt*n;
     const rate=BUILDS[t].rate;
     while(prodTimers[t]>=rate){
       prodTimers[t]-=rate;
-      const r=RECIPES[t];
-      if(Object.entries(r.in).every(([k,v])=>S.inv[k]>=v)){
+      const recs=Array.isArray(RECIPES[t])?RECIPES[t]:[RECIPES[t]];
+      const r=recs.find(rc=>Object.entries(rc.in).every(([k,v])=>S.inv[k]>=v));
+      if(r){
         for(const[k,v]of Object.entries(r.in))S.inv[k]-=v;
         gain(r.out,1);
         const bl=Object.values(S.buildings).find(bb=>bb.type===t&&bb.mine);
@@ -700,7 +710,8 @@ function drawRes(r,x,y,sx,sy,sz){
       cx.fillStyle='#8fb6d8';cx.beginPath();cx.arc(bx,sy+sz*.4,2.4,0,7);cx.fill();}
   }
 }
-const BCOLS={sawmill:'#a8783f',smelter:'#8d5a4a',farm:'#c9b45a',dock:'#7a8ca0',bakery:'#d9a05f',workshop:'#7d8a99',torch:'#c9a05a',monument:'#b8b4a6',hall:'#8f6b45'};
+const BCOLS={sawmill:'#a8783f',smelter:'#8d5a4a',farm:'#c9b45a',dock:'#7a8ca0',bakery:'#d9a05f',workshop:'#7d8a99',torch:'#c9a05a',monument:'#b8b4a6',hall:'#8f6b45'
+,kiln:'#b5643c',glassworks:'#7fa9b0',forge:'#6a6f78',loom:'#b58fb0',gilder:'#c9a94a'};
 function drawBuilding(b,sx,sy,sz){
   if(b.type==='path'){
     cx.fillStyle='#c9b389';cx.fillRect(sx+1,sy+1,sz-2,sz-2);
