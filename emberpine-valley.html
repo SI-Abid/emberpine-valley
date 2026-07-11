@@ -408,10 +408,10 @@ function findPath(sx,sy,tx,ty,adjacent){
   }
   return null;
 }
-function claimedRes(self){ // resource tiles already targeted by other villagers
+function claimedRes(self){ // work tiles (resources, farms, docks) already targeted by other villagers
   const c={};
   for(const v of S.villagers){
-    if(v===self||!v.target||v.target.farm)continue;
+    if(v===self||!v.target)continue;
     if(v.state==='toWork'||v.state==='working')c[key(v.target.x,v.target.y)]=1;
   }
   return c;
@@ -424,9 +424,10 @@ function nearestRes(px,py,types,claimed){
     if(d<bd){bd=d;best={x,y,type:b.type}}}
   return best;
 }
-function nearestB(px,py,type){
+function nearestB(px,py,type,claimed){
   let best=null,bd=1e9;
   for(const k in S.buildings){const b=S.buildings[k];if(b.type!==type)continue;
+    if(claimed&&claimed[k])continue;
     const d=(b.x-px)**2+(b.y-py)**2;if(d<bd){bd=d;best=b}}
   return best;
 }
@@ -510,7 +511,12 @@ function villagerTick(v,dt){
     if(c){const p=findPath(v.x,v.y,c.x,c.y,true);if(p){v.crate=key(c.x,c.y);v.path=p;v.state='toPickup';return}}
   } else if(v.job!=='idle'){
     let tgt=null;
-    if(v.job==='farmer'||v.job==='fisher'){const f=nearestB(v.x,v.y,v.job==='farmer'?'farm':'dock');if(f)tgt={x:f.x,y:f.y,type:v.job==='farmer'?'wheatplot':'fishspot',farm:true}}
+    if(v.job==='farmer'||v.job==='fisher'){
+      const bt=v.job==='farmer'?'farm':'dock';
+      // prefer an unclaimed farm/dock; share the nearest one only if all are taken
+      const f=nearestB(v.x,v.y,bt,claimedRes(v))||nearestB(v.x,v.y,bt);
+      if(f)tgt={x:f.x,y:f.y,type:v.job==='farmer'?'wheatplot':'fishspot',farm:true};
+    }
     else tgt=nearestRes(v.x|0,v.y|0,J.finds,claimedRes(v));
     if(tgt){
       const p=findPath(v.x,v.y,tgt.x,tgt.y,!tgt.farm);
