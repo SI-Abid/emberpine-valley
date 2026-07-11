@@ -97,12 +97,19 @@
   #onlineRow{margin-top:14px;font-size:12px;font-weight:800;color:var(--pine2)}
 
   /* ---------- Victory ---------- */
-  #victory{position:fixed;inset:0;z-index:90;display:none;align-items:center;justify-content:center;background:rgba(20,24,18,.7)}
-  #victory .vc{background:linear-gradient(#fbf3da,var(--parch2));border:4px solid var(--ink);border-radius:20px;padding:30px;
+  #victory,#pause{position:fixed;inset:0;z-index:90;display:none;align-items:center;justify-content:center;background:rgba(20,24,18,.7)}
+  #victory .vc,#pause .vc{background:linear-gradient(#fbf3da,var(--parch2));border:4px solid var(--ink);border-radius:20px;padding:30px;
     text-align:center;width:min(380px,90vw);box-shadow:0 10px 0 var(--shadow)}
   #victory h1{font-size:30px;color:var(--clay)}
   #victory p{font-weight:700;margin:10px 0 16px}
   #victory button{padding:10px 22px;border-radius:10px;border:3px solid var(--ink);background:var(--amber);font-weight:800}
+  #pause{z-index:95}
+  #pause h1{font-size:30px;color:var(--pine2)}
+  #pause .saved{font-weight:800;font-size:13px;color:var(--pine2);opacity:.75;margin:10px 0 18px}
+  #pause button{display:block;width:100%;padding:11px 22px;margin-top:10px;border-radius:10px;border:3px solid var(--ink);font-weight:800;font-size:15px}
+  #pause #resumeBtn{background:var(--amber)}
+  #pause #pauseSndBtn{background:var(--parch)}
+  #pause .fine{font-size:10.5px;font-weight:700;opacity:.55;margin-top:14px;line-height:1.5}
 
   /* ---------- Touch controls ---------- */
   #joy{position:fixed;left:18px;bottom:86px;width:110px;height:110px;border-radius:50%;z-index:25;display:none;
@@ -206,7 +213,7 @@
 <div id="miniWrap"></div>
 
 <div id="hud"></div>
-<div id="hint">WASD / arrows · E to gather · scroll to zoom · 1-5 to emote · click villagers to assign jobs · 🔥 chat with fellow settlers</div>
+<div id="hint">WASD / arrows · E to gather · Esc to pause · scroll to zoom · 1-5 to emote · click villagers to assign jobs · 🔥 chat with fellow settlers</div>
 
 <button id="rosterTab" class="px">👥 Villagers</button>
 <div id="roster" class="hid">
@@ -226,6 +233,7 @@
 <div id="quest"></div>
 <div id="trader" style="display:none"></div>
 <div class="sideBtns">
+  <button id="pauseBtn" title="Pause (Esc)">⏸️</button>
   <button id="ledgerTab" title="Valley ledger">🏆</button>
   <button id="sndBtn" title="Sound">🔊</button>
   <button id="zoomIn" title="Zoom in">➕</button>
@@ -240,6 +248,14 @@
   <div id="chatList"></div>
   <div class="chatRow"><input id="chatInput" maxlength="80" placeholder="Say something to the valley…"><button id="chatSend">➤</button></div>
 </div>
+
+<div id="pause"><div class="vc">
+  <h1 class="px">PAUSED</h1>
+  <div class="saved">💾 Progress saved — safe to close the tab</div>
+  <button id="resumeBtn" class="px">▶ RESUME</button>
+  <button id="pauseSndBtn"></button>
+  <div class="fine">Your settlement is stored in this browser. Come back any time — the valley will be waiting.</div>
+</div></div>
 
 <div id="victory"><div class="vc">
   <h1 class="px">THE MONUMENT RISES</h1>
@@ -274,11 +290,18 @@ const key=(x,y)=>x+','+y;
 const now=()=>Date.now();
 function pick(arr,r){return arr[Math.floor(r*arr.length)%arr.length]}
 
-/* ============ storage (with in-memory fallback) ============ */
+/* ============ storage (localStorage, with in-memory fallback) ============ */
 const mem={};
+const LSK=(k,sh)=>'emberpine:'+(sh?'s:':'p:')+k;
 const store={
-  async get(k,sh=false){ try{ if(window.storage){const r=await window.storage.get(k,sh); return r?JSON.parse(r.value):null} }catch(e){} return mem[(sh?'s:':'p:')+k]??null },
-  async set(k,v,sh=false){ try{ if(window.storage){await window.storage.set(k,JSON.stringify(v),sh); return} }catch(e){} mem[(sh?'s:':'p:')+k]=v }
+  async get(k,sh=false){
+    try{ if(window.storage){const r=await window.storage.get(k,sh); return r?JSON.parse(r.value):null} }catch(e){}
+    try{ const r=localStorage.getItem(LSK(k,sh)); if(r!=null)return JSON.parse(r) }catch(e){}
+    return mem[(sh?'s:':'p:')+k]??null },
+  async set(k,v,sh=false){
+    try{ if(window.storage){await window.storage.set(k,JSON.stringify(v),sh); return} }catch(e){}
+    try{ localStorage.setItem(LSK(k,sh),JSON.stringify(v)); return }catch(e){}
+    mem[(sh?'s:':'p:')+k]=v }
 };
 
 /* ============ world generation ============ */
@@ -385,9 +408,18 @@ function findPath(sx,sy,tx,ty,adjacent){
   }
   return null;
 }
-function nearestRes(px,py,types){
+function claimedRes(self){ // resource tiles already targeted by other villagers
+  const c={};
+  for(const v of S.villagers){
+    if(v===self||!v.target||v.target.farm)continue;
+    if(v.state==='toWork'||v.state==='working')c[key(v.target.x,v.target.y)]=1;
+  }
+  return c;
+}
+function nearestRes(px,py,types,claimed){
   const list=Array.isArray(types)?types:[types];let best=null,bd=1e9;
-  for(const k in baseRes){const b=resAt(...k.split(',').map(Number));if(!b||!list.includes(b.type))continue;
+  for(const k in baseRes){if(claimed&&claimed[k])continue;
+    const b=resAt(...k.split(',').map(Number));if(!b||!list.includes(b.type))continue;
     const[x,y]=k.split(',').map(Number);const d=(x-px)**2+(y-py)**2;
     if(d<bd){bd=d;best={x,y,type:b.type}}}
   return best;
@@ -431,6 +463,7 @@ function villagerTick(v,dt){
   if(v.state==='working'){
     const info=RES_INFO[v.target?.type||'tree'];
     const stationary=info===RES_INFO.wheatplot||info===RES_INFO.fishspot;
+    if(!stationary&&v.target&&!resAt(v.target.x,v.target.y)){v.work=0;v.target=null;v.state='idle';return}
     v.work+=dt*(v.hasTool?1.6:1)*(1+.05*(vLvl(v)-1));
     if(v.work>=info.time){
       v.work=0;v.carry={what:info.yield,n:info.n};
@@ -478,7 +511,7 @@ function villagerTick(v,dt){
   } else if(v.job!=='idle'){
     let tgt=null;
     if(v.job==='farmer'||v.job==='fisher'){const f=nearestB(v.x,v.y,v.job==='farmer'?'farm':'dock');if(f)tgt={x:f.x,y:f.y,type:v.job==='farmer'?'wheatplot':'fishspot',farm:true}}
-    else tgt=nearestRes(v.x|0,v.y|0,J.finds);
+    else tgt=nearestRes(v.x|0,v.y|0,J.finds,claimedRes(v));
     if(tgt){
       const p=findPath(v.x,v.y,tgt.x,tgt.y,!tgt.farm);
       if(p){v.target=tgt;v.path=p;v.state='toWork';return}
@@ -893,7 +926,13 @@ function openBuildingPopup(b,px,py){
 /* ============ input ============ */
 addEventListener('keydown',e=>{const tg=e.target;if(tg&&(tg.tagName==='INPUT'||tg.tagName==='SELECT'||tg.isContentEditable)&&tg.offsetParent!==null)return;const k=e.key.toLowerCase();keys[k]=true;if(k>='1'&&k<='5')doEmote(+k-1);
   if(k==='e'||k===' '){if(!S.me.harvest)tryHarvest();e.preventDefault()}
-  if(k==='escape'){S.buildSel=null;renderBuildBar();popup.style.display='none';S.selV=null}});
+  if(k==='p')togglePause();
+  if(k==='escape'){
+    if(paused){setPaused(false);return}
+    const open=S.buildSel||S.selV||popup.style.display==='block';
+    S.buildSel=null;renderBuildBar();popup.style.display='none';S.selV=null;
+    if(!open)setPaused(true);
+  }});
 addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
 let hoverTile=null;
 cv.addEventListener('mousemove',e=>{hoverTile=screenToTile(e.clientX,e.clientY)});
@@ -1187,8 +1226,11 @@ document.getElementById('ledgerClose').onclick=()=>document.getElementById('ledg
 
 /* ============ side buttons ============ */
 const sndBtn=document.getElementById('sndBtn');
-function renderSnd(){sndBtn.textContent=S.muted?'\u{1F507}':'\u{1F50A}'}
-sndBtn.onclick=()=>{S.muted=!S.muted;renderSnd();saveSoon();if(!S.muted)sfx('pick')};
+function renderSnd(){sndBtn.textContent=S.muted?'\u{1F507}':'\u{1F50A}';
+  const pb=document.getElementById('pauseSndBtn');if(pb)pb.textContent=S.muted?'\u{1F507} Sound: Off':'\u{1F50A} Sound: On'}
+function toggleSnd(){S.muted=!S.muted;renderSnd();saveSoon();if(!S.muted)sfx('pick')}
+sndBtn.onclick=toggleSnd;
+document.getElementById('pauseSndBtn').onclick=toggleSnd;
 document.getElementById('zoomIn').onclick=()=>{ZOOM=clamp(ZOOM*1.18,.55,1.9)};
 document.getElementById('zoomOut').onclick=()=>{ZOOM=clamp(ZOOM/1.18,.55,1.9)};
 
@@ -1431,6 +1473,7 @@ async function boot(){
   document.getElementById('enterBtn').onclick=start;
   ni.addEventListener('keydown',e=>{if(e.key==='Enter')start()});
   function start(){
+    if(running)return;
     S.me.name=(ni.value.trim()||'Settler '+S.me.id.slice(-3)).slice(0,16);
     try{ni.blur();if(document.activeElement&&document.activeElement.blur)document.activeElement.blur()}catch(e){}
     for(const k in keys)keys[k]=false;
@@ -1439,15 +1482,36 @@ async function boot(){
     renderHUD();renderBuildBar();renderQuest();renderSnd();chatLastT=now();
     syncWorld().then(()=>{syncPresence();syncChat();syncWonder()});
     saveGame();
-    setTimeout(()=>{const h=document.getElementById('hint');h.style.opacity=0;setTimeout(()=>h.remove(),600)},14000);
     running=true;
+    setTimeout(()=>{const h=document.getElementById('hint');if(!h)return;h.style.opacity=0;setTimeout(()=>h.remove(),600)},14000);
   }
 }
 let running=false,last=performance.now();
+
+/* ============ pause menu ============ */
+let paused=false;
+function setPaused(p){
+  if(!running||paused===p)return;
+  paused=p;
+  document.getElementById('pause').style.display=p?'flex':'none';
+  if(p){
+    for(const k in keys)keys[k]=false;joyVec.x=0;joyVec.y=0;
+    S.buildSel=null;renderBuildBar();popup.style.display='none';S.selV=null;
+    renderSnd();saveGame();
+  } else last=performance.now();
+}
+function togglePause(){setPaused(!paused)}
+document.getElementById('pauseBtn').onclick=togglePause;
+document.getElementById('resumeBtn').onclick=()=>setPaused(false);
+// save (and pause) when the tab is hidden or closed, so no progress is lost
+addEventListener('visibilitychange',()=>{if(document.hidden&&running){saveGame();setPaused(true)}});
+addEventListener('pagehide',()=>{if(running)saveGame()});
+addEventListener('beforeunload',()=>{if(running)saveGame()});
+
 let loopErrN=0;
 function loop(t){
   const dt=Math.min(.05,(t-last)/1000);last=t;
-  if(running){
+  if(running&&!paused){
     try{
       playerTick(dt);
       for(const v of S.villagers)villagerTick(v,dt);
