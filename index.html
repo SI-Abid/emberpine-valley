@@ -25,6 +25,8 @@
     padding:6px 10px;box-shadow:0 4px 0 var(--shadow), inset 0 0 0 2px rgba(255,255,255,.35);z-index:20;max-width:96vw}
   .res{display:flex;align-items:center;gap:4px;font-weight:800;font-size:13px;padding:2px 7px;border-radius:6px;background:rgba(255,255,255,.35)}
   .res .ico{font-size:15px;line-height:1}
+  .ic{display:inline-flex;vertical-align:-2px}
+  .ic svg{width:1em;height:1em;display:block}
   .res.bump{animation:bump .3s ease}
   @keyframes bump{50%{transform:scale(1.25)}}
 
@@ -922,6 +924,21 @@ function renderMini(){
   for(const id in S.others){const o=S.others[id];if(id!==S.me.id)mcx.fillStyle='#5b8fb0',mcx.fillRect(o.x*f-1.5,o.y*f-1.5,3,3)}
   mcx.fillStyle='#e8a33d';mcx.fillRect(HALL.x*f-2,HALL.y*f-2,4,4);
 }
+
+/* ============ v3 icon system ============ */
+const ICON_SVG={
+ _missing:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4" fill="#9a978e" stroke="#2b2620" stroke-width="2"/><text x="12" y="17" font-size="13" font-weight="800" text-anchor="middle" fill="#2b2620">?</text></svg>',
+ wood:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="2" y="8" width="17" height="8" rx="3" fill="#8a6b45" stroke="#2b2620" stroke-width="2"/><ellipse cx="19" cy="12" rx="3" ry="4" fill="#d9b98a" stroke="#2b2620" stroke-width="2"/><ellipse cx="19" cy="12" rx="1.2" ry="1.8" fill="#8a6b45"/></svg>',
+ stone:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 19 3 12l6-7 9 2 3 8-5 4z" fill="#9a978e" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><path d="M9 5l3 7-6 7M12 12l9-5" fill="none" stroke="#6f6d66" stroke-width="1.5"/></svg>',
+ clay:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 17c0-5 3-9 8-9s8 4 8 9c0 2-3 3-8 3s-8-1-8-3z" fill="#b0563b" stroke="#2b2620" stroke-width="2"/><path d="M8 12c1-2 3-3 5-3" fill="none" stroke="#d98a6a" stroke-width="1.6" stroke-linecap="round"/></svg>',
+ goldbar:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 9h12l3 8H3z" fill="#f4c542" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><path d="M7 12h7" stroke="#fff3c0" stroke-width="1.8" stroke-linecap="round"/></svg>',
+ brick:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="11" rx="1.5" fill="#b0563b" stroke="#2b2620" stroke-width="2"/><path d="M3 12.5h18M9 7v5.5M15 12.5V18" stroke="#7d3a26" stroke-width="1.6"/></svg>',
+};
+function iconHTML(k,cls){return '<span class="ic'+(cls?' '+cls:'')+'" title="'+(NICE[k]||'')+'">'+(ICON_SVG[k]||ICON_SVG._missing)+'</span>'}
+const iconImg={};
+function preloadIcons(){for(const k in ICON_SVG){const im=new Image();im.onload=()=>{im.ready=true};im.src='data:image/svg+xml;utf8,'+encodeURIComponent(ICON_SVG[k]);iconImg[k]=im}}
+function drawIcon(c2,k,px,py,sz){const im=iconImg[k]||iconImg._missing;if(!im||!im.ready)return false;c2.drawImage(im,px-sz/2,py-sz/2,sz,sz);return true}
+preloadIcons();
 
 /* ============ UI ============ */
 const ICONS={wood:'🪵',stone:'🪨',ore:'⚙️',berry:'🫐',fish:'🐟',egg:'🥚',plank:'📏',ingot:'🔩',wheat:'🌾',bread:'🍞',tool:'🛠️'
