@@ -59,9 +59,7 @@
   .vdot{width:14px;height:14px;border-radius:50%;border:2px solid var(--ink);flex:none}
   .vname{font-size:12px;font-weight:800;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .vill select{font-size:11px;font-weight:700;border:1.5px solid var(--ink);border-radius:6px;background:#fff8e6;padding:2px 3px;font-family:inherit}
-  #recruitBtn{display:block;width:calc(100% - 12px);margin:2px 6px 8px;padding:7px;border-radius:8px;border:2px solid var(--ink);
-    background:var(--amber);font-weight:800;font-size:12px}
-  #recruitBtn:disabled{opacity:.5;cursor:not-allowed}
+  #popHint{display:block;width:calc(100% - 12px);margin:2px 6px 8px;padding:7px;font-weight:800;font-size:12px;text-align:center}
   #rosterTab{position:fixed;right:10px;top:70px;z-index:19;background:var(--parch);border:3px solid var(--ink);border-radius:10px;
     padding:8px 10px;font-weight:800;font-size:13px;box-shadow:0 4px 0 var(--shadow)}
 
@@ -226,7 +224,7 @@
 <div id="roster" class="hid">
   <h3 class="px"><span>GUILD ROSTER</span><button id="rosterClose" style="background:none;border:none;color:var(--parch);font-weight:800">✕</button></h3>
   <div id="rosterList"></div>
-  <button id="recruitBtn">🍞 Recruit villager</button>
+  <div id="popHint"></div>
 </div>
 
 <div id="buildbar"></div>
@@ -357,6 +355,7 @@ const S={
   others:{}, score:0, won:false, msgShown:{}, quest:0, muted:false,
   monu:null, playSec:0, celebrateUntil:0,
   stats:{g:{},b:{},jobs:0},
+  town:{tier:0}, spawnQ:[],
 };
 const RES_INFO={
   tree:{yield:'wood',n:3,time:1.6,emoji:'🪓'}, stone:{yield:'stone',n:3,time:2.0,emoji:'⛏️'},
@@ -392,6 +391,9 @@ const BUILDS={
   torch:{name:'Torch',ico:'🕯️',cost:{wood:4},desc:'Lights the night — villagers keep working near torches'},
   path:{name:'Path',ico:'🛤️',cost:{stone:1},desc:'Settlers and villagers walk 35% faster on paths'},
   crate:{name:'Crate',ico:'📦',cost:{plank:4},desc:'Workers stash goods here (holds 12) — haulers ferry them to the Hall'},
+  cottage:{name:'Cottage',ico:'🐱',cost:{plank:6,stone:2},desc:'A home for 1 settler — settlers move in when built',home:true,cap:1},
+  house:{name:'House',ico:'🏠',cost:{plank:12,stone:6,bread:4},desc:'A home for 2 settlers',home:true,cap:2},
+  manor:{name:'Manor',ico:'🏛',cost:{brick:20,glass:8,bread:6},desc:'A home for 3 settlers',home:true,cap:3},
   monument:{name:'Monument Foundation',ico:'🗿',cost:{stone:40,plank:20},desc:'Lay the Foundation, then raise it through five eras'},
 };
 const MONUMENT_STAGES=[
@@ -468,11 +470,15 @@ function nearestB(px,py,type,claimed){
 
 /* ============ villagers ============ */
 let vid=0;
+const ROMAN=['II','III','IV','V','VI','VII','VIII','IX','X','XI','XII','XIII','XIV','XV','XVI'];
 function makeVillager(){
   const r=hash2(vid*7+3,S.villagers.length,SEED^vid);
-  const v={id:++vid,name:pick(VNAMES,r)+' '+pick(['Jr.','II','the Keen','of the Glen','Quickhand','Stoutheart',''],hash2(vid,9,SEED)),
-    color:pick(VCOLORS,hash2(vid,4,SEED)),x:HALL.x+0.5+(vid%3)-1,y:HALL.y+3.5+((vid/3)|0)%2,
-    job:'idle',state:'idle',path:[],target:null,carry:0,work:0,speed:2.2,hasTool:false,wander:0,xp:0};
+  const base=pick(VNAMES,r);
+  const used=(S.stats.vnameUse=S.stats.vnameUse||{});
+  const n=(used[base]=(used[base]||0)+1);
+  const name=n===1?base:base+' '+ROMAN[Math.min(n-2,ROMAN.length-1)];
+  const v={id:++vid,name,color:pick(VCOLORS,hash2(vid,4,SEED)),x:HALL.x+0.5+(vid%3)-1,y:HALL.y+3.5+((vid/3)|0)%2,
+    job:'idle',state:'idle',path:[],target:null,carry:0,work:0,speed:2.2,hasTool:false,wander:0,xp:0,home:null};
   S.villagers.push(v);return v;
 }
 function villagerTick(v,dt){
@@ -579,6 +585,31 @@ const RECIPES={
   gilder:{in:{goldbar:1,glass:1},out:'ornament'},
 };
 function countB(type){let n=0;for(const k in S.buildings)if(S.buildings[k].type===type&&S.buildings[k].mine)n++;return n}
+function popCap(){let cap=2;for(const k in S.buildings){const b=S.buildings[k];if(b.mine&&BUILDS[b.type]&&BUILDS[b.type].home)cap+=BUILDS[b.type].cap}return cap}
+function homeless(){return S.villagers.filter(v=>!v.home||(v.home!=='hall'&&!S.buildings[v.home]))}
+function moveIn(bKey){
+  const b=S.buildings[bKey];if(!b||!BUILDS[b.type].home)return;
+  let free=BUILDS[b.type].cap - S.villagers.filter(v=>v.home===bKey).length;
+  if(free<=0)return;
+  const hs=homeless().sort((a,c)=>((a.x-b.x)**2+(a.y-b.y)**2)-((c.x-b.x)**2+(c.y-b.y)**2));
+  for(const v of hs){if(free<=0)break;v.home=bKey;free--}
+  for(let i=0;i<free;i++)S.spawnQ.push({home:bKey,in:2*(i+1)});
+  renderRoster();
+}
+function spawnQueueTick(dt){
+  if(!S.spawnQ.length)return;
+  for(let i=S.spawnQ.length-1;i>=0;i--){
+    const q=S.spawnQ[i];q.in-=dt;
+    if(q.in<=0){
+      S.spawnQ.splice(i,1);
+      const b=S.buildings[q.home];if(!b)continue;
+      const v=makeVillager();v.home=q.home;
+      toast('👋 '+v.name+' joins the guild!');sfx('recruit');
+      spawnBurst(b.x,b.y,'#ffe9b8',8);
+      renderHUD();questTick();saveSoon();
+    }
+  }
+}
 function productionTick(dt){
   for(const t in RECIPES){
     const n=countB(t);if(!n)continue;
@@ -659,6 +690,7 @@ function placeBuilding(type,x,y){
   if(type==='dock'&&![[1,0],[-1,0],[0,1],[0,-1]].some(([dx,dy])=>terrAt(x+dx,y+dy)===0)){toast('The dock must touch water 🌊');return}
   for(const[k,v]of Object.entries(B.cost))S.inv[k]-=v;
   S.buildings[key(x,y)]={type,x,y,mine:true};
+  if(B.home)moveIn(key(x,y));
   S.stats.b[type]=(S.stats.b[type]||0)+1;S.score+=15;sfx('build');spawnBurst(x,y,'#e8a33d',10);questTick();
   toast(B.name+' built!');
   if(type==='monument'){
@@ -989,7 +1021,7 @@ function renderHUD(){
   const rawChips=RAW.map(chipHtml).join('')+NEWRAW.filter(ownsGood).map(chipHtml).join('');
   const craftChips=CRAFT.map(chipHtml).join('')+NEWCRAFT.filter(ownsGood).map(chipHtml).join('');
   hud.innerHTML=rawChips+'<div class="hsep"></div>'+craftChips
-   +'<div class="hsep"></div><div class="res" title="Villagers">'+iconHTML('villagers','ico')+S.villagers.length+'</div>'
+   +'<div class="hsep"></div><div class="res" title="Villagers / housing capacity">'+iconHTML('villagers','ico')+S.villagers.length+'/'+popCap()+'</div>'
    +'<div class="res" id="clockChip" title="Time of day"></div>';
   updateClock();
 }
@@ -1006,18 +1038,23 @@ function firstTime(k,msg){if(S.msgShown[k])return;S.msgShown[k]=1;toast('💡 '+
 const bbar=document.getElementById('buildbar');
 function costStr(c){return Object.entries(c).map(([k,v])=>'<span class="cp">'+v+' '+iconHTML(k)+'</span>').join(' ')}
 const ERA={kiln:1,glassworks:1,forge:1,loom:2,gilder:2};
+const TIER={house:1,manor:2,tavern:1,plaza:1,chapel:2,statue:2};
+const NEXT_HOME={cottage:'house',house:'manor'};
 function renderBuildBar(){
   bbar.innerHTML='';
   const cs=completedStages();
   for(const t in BUILDS){
     if(t==='monument'&&S.monu)continue;                 // Foundation already placed
-    const B=BUILDS[t], req=ERA[t]||0, eraLocked=cs<req;
+    const B=BUILDS[t], eraReq=ERA[t]||0, eraLocked=cs<eraReq;
+    const tierReq=TIER[t]||0, tierLocked=S.town.tier<tierReq;
+    const TIER_NAMES=['Hamlet','Village','Town','City'];
     const btn=document.createElement('button');
-    if(eraLocked){
+    if(eraLocked||tierLocked){
       btn.className='bbtn eralock';
-      btn.innerHTML='<span class="bi">'+iconHTML(t)+'</span><span class="bn">'+B.name+'</span><span class="bc">🔒 '+MONUMENT_STAGES[req].name+'</span>';
-      btn.title='Unlocks when the '+MONUMENT_STAGES[req].name+' is complete';
-      btn.onclick=()=>toast('🔒 Complete the '+MONUMENT_STAGES[req].name+' first');
+      const lockName=eraLocked?MONUMENT_STAGES[eraReq].name:TIER_NAMES[tierReq];
+      btn.innerHTML='<span class="bi">'+iconHTML(t)+'</span><span class="bn">'+B.name+'</span><span class="bc">🔒 '+lockName+'</span>';
+      btn.title=eraLocked?('Unlocks when the '+lockName+' is complete'):('Unlocks when the town reaches '+lockName);
+      btn.onclick=()=>toast(eraLocked?('🔒 Complete the '+lockName+' first'):('🔒 Reach '+lockName+' first'));
     }else{
       btn.className='bbtn'+(S.buildSel===t?' sel':'')+(canAfford(B.cost)?'':' locked');
       btn.innerHTML='<span class="bi">'+iconHTML(t)+'</span><span class="bn">'+B.name+'</span><span class="bc">'+costStr(B.cost)+'</span>';
@@ -1039,25 +1076,14 @@ function renderRoster(){
   for(const v of S.villagers){
     const row=document.createElement('div');row.className='vill';
     const st={idle:'resting 💤',toWork:'walking 👣',working:'working ⚒️',toHall:'hauling 📦',toCrate:'stashing 📦',toPickup:'collecting 📦',sleep:'sleeping 😴'}[v.state]||'resting';
-    row.innerHTML='<div class="vdot" style="background:'+v.color+'"></div><div class="vname">'+v.name+(v.hasTool?' 🛠️':'')+' <span class="vlv">Lv'+vLvl(v)+'</span><div class="vstat">'+st+'</div></div>';
+    row.innerHTML='<div class="vdot" style="background:'+v.color+'"></div><div class="vname">'+v.name+(v.hasTool?' 🛠️':'')+((!v.home||(v.home!=='hall'&&!S.buildings[v.home]))?' 🛌❓':'')+' <span class="vlv">Lv'+vLvl(v)+'</span><div class="vstat">'+st+'</div></div>';
     const sel=document.createElement('select');
     for(const j in JOBS){const o=document.createElement('option');o.value=j;o.textContent=JOBS[j].label;if(v.job===j)o.selected=true;sel.appendChild(o)}
     sel.onchange=()=>{setJob(v,sel.value)};
     row.appendChild(sel);rosterList.appendChild(row);
   }
-  const rb=document.getElementById('recruitBtn');
-  const cost=recruitCost();
-  rb.innerHTML='Recruit villager · '+costStr(cost);
-  rb.disabled=!canAfford(cost);
+  document.getElementById('popHint').textContent='🏠 '+S.villagers.length+'/'+popCap()+' housed capacity — build homes to attract settlers';
 }
-function recruitCost(){const n=S.villagers.length;if(n<4)return{berry:8*(n-1)||8};if(n<6)return{fish:5+3*(n-4)};return{bread:Math.min(10,n-3)}}
-document.getElementById('recruitBtn').onclick=()=>{
-  const c=recruitCost();if(!canAfford(c))return;
-  for(const[k,v]of Object.entries(c))S.inv[k]-=v;
-  const v=makeVillager();toast('👋 '+v.name+' joins the guild!');sfx('recruit');questTick();
-  spawnBurst(HALL.x,HALL.y+2,'#ffe9b8',8);
-  renderHUD();renderRoster();saveSoon();
-};
 setInterval(()=>{if(!roster.classList.contains('hid')&&!rosterList.contains(document.activeElement))renderRoster()},2000);
 function setJob(v,j){v.job=j;v.state='idle';v.path=[];v.target=null;
   if(j!=='idle'){S.stats.jobs=(S.stats.jobs||0)+1;questTick()}
@@ -1081,8 +1107,27 @@ function openVillagerPopup(v,px,py){
 function openBuildingPopup(b,px,py){
   if(b.type==='monument'&&S.monu){openMonumentPopup(px,py);return}
   const B=BUILDS[b.type];
-  popup.innerHTML='<button class="close">✕</button><h4 class="px">'+iconHTML(b.type)+' '+B.name+'</h4><div class="sub">'+(b.mine?'YOUR WORKS':'ANOTHER SETTLER\u2019S WORKS')+'</div><div class="desc">'+B.desc+'</div>';
+  let extra='';
+  if(B.home){
+    const occ=S.villagers.filter(v=>v.home===key(b.x,b.y));
+    extra='<div class="desc">🛌 '+(occ.length?occ.map(v=>v.name.split(' ')[0]).join(', '):'Empty — settlers arriving')+'</div>';
+    const next=NEXT_HOME[b.type];
+    if(next&&b.mine&&S.town.tier>=(TIER[next]||0)){
+      extra+='<button id="upgradeBtn" class="wgive"'+(canAfford(BUILDS[next].cost)?'':' disabled')+'>Upgrade → '+BUILDS[next].name+' · '+costStr(BUILDS[next].cost)+'</button>';
+    }
+  }
+  popup.innerHTML='<button class="close">✕</button><h4 class="px">'+iconHTML(b.type)+' '+B.name+'</h4><div class="sub">'+(b.mine?'YOUR WORKS':'ANOTHER SETTLER\u2019S WORKS')+'</div><div class="desc">'+B.desc+'</div>'+extra;
   popup.querySelector('.close').onclick=()=>popup.style.display='none';
+  const ub=popup.querySelector('#upgradeBtn');
+  if(ub)ub.onclick=()=>{
+    const next=NEXT_HOME[b.type],NB=BUILDS[next];
+    if(!canAfford(NB.cost))return;
+    for(const[k,v]of Object.entries(NB.cost))S.inv[k]-=v;
+    b.type=next;S.stats.b[next]=(S.stats.b[next]||0)+1;S.score+=15;
+    sfx('build');spawnBurst(b.x,b.y,'#e8a33d',10);
+    moveIn(key(b.x,b.y));renderHUD();renderBuildBar();questTick();saveSoon();
+    openBuildingPopup(b,px,py);
+  };
   popup.style.display='block';
   popup.style.left=clamp(px-120,8,VW-256)+'px';
   popup.style.top=clamp(py-150,8,VH-200)+'px';
@@ -1142,22 +1187,23 @@ let saveTimer=null;
 function saveSoon(){clearTimeout(saveTimer);saveTimer=setTimeout(saveGame,1200)}
 async function saveGame(){
   await store.set('save-v1',{inv:S.inv,name:S.me.name,id:S.me.id,x:S.me.x,y:S.me.y,score:S.score,won:S.won,msgShown:S.msgShown,quest:S.quest,stats:S.stats,muted:S.muted,wonderRewarded:!!S.wonderRewarded,
-    monu:S.monu, playSec:S.playSec,
-    villagers:S.villagers.map(v=>({name:v.name,color:v.color,job:v.job,hasTool:v.hasTool,xp:v.xp||0})),
+    monu:S.monu, playSec:S.playSec, town:S.town,
+    villagers:S.villagers.map(v=>({name:v.name,color:v.color,job:v.job,hasTool:v.hasTool,xp:v.xp||0,home:v.home||null})),
     buildings:Object.values(S.buildings).filter(b=>b.mine).map(b=>({type:b.type,x:b.x,y:b.y,store:b.store}))});
 }
 async function loadGame(){
   const s=await store.get('save-v1');
   if(!s)return false;
   Object.assign(S.inv,s.inv||{});S.me.name=s.name||'';S.me.id=s.id;S.score=s.score||0;S.won=s.won;S.msgShown=s.msgShown||{};
-  S.quest=s.quest||0;S.muted=!!s.muted;S.wonderRewarded=!!s.wonderRewarded;S.playSec=s.playSec||0;
-  if(s.stats){S.stats.jobs=s.stats.jobs||0;Object.assign(S.stats.g,s.stats.g||{});Object.assign(S.stats.b,s.stats.b||{})}
+  S.quest=s.quest||0;S.town=s.town||{tier:0};S.muted=!!s.muted;S.wonderRewarded=!!s.wonderRewarded;S.playSec=s.playSec||0;
+  if(s.stats){S.stats.jobs=s.stats.jobs||0;Object.assign(S.stats.g,s.stats.g||{});Object.assign(S.stats.b,s.stats.b||{});S.stats.vnameUse=s.stats.vnameUse||{}}
   if(s.x&&passable(s.x|0,s.y|0)){S.me.x=s.x;S.me.y=s.y;S.cam.x=s.x;S.cam.y=s.y}
   for(const b of (s.buildings||[]))S.buildings[key(b.x,b.y)]={...b,mine:true};
   if(s.monu) S.monu=s.monu;
   else if(Object.values(S.buildings).some(b=>b.type==='monument')) S.monu={stage:2,given:{},lit:false}; // v1 migration: Foundation complete
   else S.monu=null;
-  for(const vs of (s.villagers||[])){const v=makeVillager();v.name=vs.name;v.color=vs.color;v.job=vs.job;v.hasTool=vs.hasTool;v.xp=vs.xp||0}
+  for(const vs of (s.villagers||[])){const v=makeVillager();v.name=vs.name;v.color=vs.color;v.job=vs.job;v.hasTool=vs.hasTool;v.xp=vs.xp||0;v.home=vs.home||null}
+  for(const k in S.buildings)if(BUILDS[S.buildings[k].type]&&BUILDS[S.buildings[k].type].home&&S.buildings[k].mine)moveIn(k);
   return true;
 }
 
@@ -1733,7 +1779,7 @@ async function boot(){
     try{ni.blur();if(document.activeElement&&document.activeElement.blur)document.activeElement.blur()}catch(e){}
     for(const k in keys)keys[k]=false;
     document.getElementById('splash').style.display='none';
-    if(!had||S.villagers.length===0){makeVillager();makeVillager();toast('Two villagers await your orders 👥')}
+    if(!had||S.villagers.length===0){const a=makeVillager(),b2=makeVillager();a.home='hall';b2.home='hall';toast('Two villagers await your orders 👥')}
     renderHUD();renderBuildBar();renderQuest();renderSnd();chatLastT=now();
     syncWorld().then(()=>{syncPresence();syncChat();syncWonder()});
     saveGame();
@@ -1771,6 +1817,7 @@ function loop(t){
       S.playSec+=dt;
       playerTick(dt);
       for(const v of S.villagers)villagerTick(v,dt);
+      spawnQueueTick(dt);
       productionTick(dt);ambienceTick(dt);
       render();
     }catch(err){
