@@ -354,8 +354,8 @@ const S={
   cam:{x:HALL.x,y:HALL.y}, sel:null, buildSel:null, selV:null,
   others:{}, score:0, won:false, msgShown:{}, quest:0, muted:false,
   monu:null, playSec:0, celebrateUntil:0,
-  stats:{g:{},b:{},jobs:0},
-  town:{tier:0}, spawnQ:[],
+  stats:{g:{},b:{},jobs:0,fedDay:0},
+  town:{tier:0}, spawnQ:[], lastMeal:0,
 };
 const RES_INFO={
   tree:{yield:'wood',n:3,time:1.6,emoji:'🪓'}, stone:{yield:'stone',n:3,time:2.0,emoji:'⛏️'},
@@ -487,7 +487,7 @@ function makeVillager(){
   S.villagers.push(v);return v;
 }
 function villagerTick(v,dt){
-  const spd=v.speed*(v.hasTool?1.6:1)*(1+.07*(vLvl(v)-1))*(onPath(v.x,v.y)?1.35:1);
+  const spd=v.speed*(v.hasTool?1.6:1)*(1+.07*(vLvl(v)-1))*(onPath(v.x,v.y)?1.35:1)*(v.hungry?0.75:1);
   if(v.path&&v.path.length){
     const t=v.path[0],dx=t.x-v.x,dy=t.y-v.y,d=Math.hypot(dx,dy);
     if(d<.08)v.path.shift();else{v.x+=dx/d*spd*dt;v.y+=dy/d*spd*dt}
@@ -519,7 +519,7 @@ function villagerTick(v,dt){
     const info=RES_INFO[v.target?.type||'tree'];
     const stationary=info===RES_INFO.wheatplot||info===RES_INFO.fishspot;
     if(!stationary&&v.target&&!resAt(v.target.x,v.target.y)){v.work=0;v.target=null;v.state='idle';return}
-    v.work+=dt*(v.hasTool?1.6:1)*(1+.05*(vLvl(v)-1));
+    v.work+=dt*(v.hasTool?1.6:1)*(1+.05*(vLvl(v)-1))*(v.hungry?0.75:1);
     if(v.work>=info.time){
       v.work=0;v.carry={what:info.yield,n:info.n};
       spawnBurst(v.x-.5,v.y-.5,'#e8d9a8',4);
@@ -561,8 +561,10 @@ function villagerTick(v,dt){
   // idle: look for work or wander
   if(v.carry&&v.state==='idle'){const ph=findPath(v.x,v.y,HALL.x,HALL.y,true);if(ph){v.path=ph;v.state='toHall';return}}
   if(v.job==='hauler'){
-    const c=crateWithItems(v.x,v.y);
-    if(c){const p=findPath(v.x,v.y,c.x,c.y,true);if(p){v.crate=key(c.x,c.y);v.path=p;v.state='toPickup';return}}
+    if(!v.hungry){
+      const c=crateWithItems(v.x,v.y);
+      if(c){const p=findPath(v.x,v.y,c.x,c.y,true);if(p){v.crate=key(c.x,c.y);v.path=p;v.state='toPickup';return}}
+    }
   } else if(v.job!=='idle'){
     let tgt=null;
     if(v.job==='farmer'||v.job==='fisher'){
@@ -641,6 +643,21 @@ function productionTick(dt){
       }
     }
   }
+}
+function dawnMealTick(){
+  const day=Math.floor(now()/1000/DAYLEN);
+  if(day<=S.lastMeal)return;
+  S.lastMeal=day;
+  const order=['berry','fish','egg','bread'];
+  let fed=0,hungry=0;
+  for(const v of S.villagers){
+    let ate=false;
+    for(const k of order){if((S.inv[k]||0)>0){S.inv[k]--;ate=true;break}}
+    v.hungry=!ate;if(ate)fed++;else hungry++;
+  }
+  if(hungry===0&&S.villagers.length>=4)S.stats.fedDay=1;
+  renderHUD();renderRoster();questTick();saveSoon();
+  if(S.villagers.length)toast(hungry===0?('🍞 The guild breaks fast — '+fed+' fed'):('⚠️ '+hungry+' villager'+(hungry>1?'s':'')+' went hungry!'));
 }
 function equipTools(){
   for(const v of S.villagers){ if(!v.hasTool&&S.inv.tool>0){v.hasTool=true;S.inv.tool--;toast('🛠️ '+v.name.split(' ')[0]+' equipped a tool!')} }
@@ -1034,8 +1051,9 @@ function chipHtml(k){return '<div class="res" id="res-'+k+'" title="'+NICE[k]+'"
 function renderHUD(){
   const rawChips=RAW.map(chipHtml).join('')+NEWRAW.filter(ownsGood).map(chipHtml).join('');
   const craftChips=CRAFT.map(chipHtml).join('')+NEWCRAFT.filter(ownsGood).map(chipHtml).join('');
+  const edible=(S.inv.berry||0)+(S.inv.fish||0)+(S.inv.egg||0)+(S.inv.bread||0), foodShort=edible<S.villagers.length;
   hud.innerHTML=rawChips+'<div class="hsep"></div>'+craftChips
-   +'<div class="hsep"></div><div class="res" title="Villagers / housing capacity">'+iconHTML('villagers','ico')+S.villagers.length+'/'+popCap()+'</div>'
+   +'<div class="hsep"></div><div class="res" title="'+(foodShort?'Not enough food for the next meal':'Villagers / housing capacity')+'">'+iconHTML('villagers','ico')+S.villagers.length+'/'+popCap()+(foodShort?' ⚠️':'')+'</div>'
    +'<div class="res" id="clockChip" title="Time of day"></div>';
   updateClock();
 }
@@ -1090,7 +1108,7 @@ function renderRoster(){
   for(const v of S.villagers){
     const row=document.createElement('div');row.className='vill';
     const st={idle:'resting 💤',toWork:'walking 👣',working:'working ⚒️',toHall:'hauling 📦',toCrate:'stashing 📦',toPickup:'collecting 📦',sleep:'sleeping 😴',toHome:'walking home 🏡'}[v.state]||'resting';
-    row.innerHTML='<div class="vdot" style="background:'+v.color+'"></div><div class="vname">'+v.name+(v.hasTool?' 🛠️':'')+((!v.home||(v.home!=='hall'&&!S.buildings[v.home]))?' 🛌❓':'')+' <span class="vlv">Lv'+vLvl(v)+'</span><div class="vstat">'+st+'</div></div>';
+    row.innerHTML='<div class="vdot" style="background:'+v.color+'"></div><div class="vname">'+v.name+(v.hasTool?' 🛠️':'')+(v.hungry?' 🥺':'')+((!v.home||(v.home!=='hall'&&!S.buildings[v.home]))?' 🛌❓':'')+' <span class="vlv">Lv'+vLvl(v)+'</span><div class="vstat">'+st+'</div></div>';
     const sel=document.createElement('select');
     for(const j in JOBS){const o=document.createElement('option');o.value=j;o.textContent=JOBS[j].label;if(v.job===j)o.selected=true;sel.appendChild(o)}
     sel.onchange=()=>{setJob(v,sel.value)};
@@ -1201,8 +1219,8 @@ let saveTimer=null;
 function saveSoon(){clearTimeout(saveTimer);saveTimer=setTimeout(saveGame,1200)}
 async function saveGame(){
   await store.set('save-v1',{inv:S.inv,name:S.me.name,id:S.me.id,x:S.me.x,y:S.me.y,score:S.score,won:S.won,msgShown:S.msgShown,quest:S.quest,stats:S.stats,muted:S.muted,wonderRewarded:!!S.wonderRewarded,
-    monu:S.monu, playSec:S.playSec, town:S.town,
-    villagers:S.villagers.map(v=>({name:v.name,color:v.color,job:v.job,hasTool:v.hasTool,xp:v.xp||0,home:v.home||null})),
+    monu:S.monu, playSec:S.playSec, town:S.town, lastMeal:S.lastMeal,
+    villagers:S.villagers.map(v=>({name:v.name,color:v.color,job:v.job,hasTool:v.hasTool,xp:v.xp||0,home:v.home||null,hungry:!!v.hungry})),
     buildings:Object.values(S.buildings).filter(b=>b.mine).map(b=>({type:b.type,x:b.x,y:b.y,store:b.store}))});
 }
 async function loadGame(){
@@ -1210,13 +1228,14 @@ async function loadGame(){
   if(!s)return false;
   Object.assign(S.inv,s.inv||{});S.me.name=s.name||'';S.me.id=s.id;S.score=s.score||0;S.won=s.won;S.msgShown=s.msgShown||{};
   S.quest=s.quest||0;S.town=s.town||{tier:0};S.muted=!!s.muted;S.wonderRewarded=!!s.wonderRewarded;S.playSec=s.playSec||0;
-  if(s.stats){S.stats.jobs=s.stats.jobs||0;Object.assign(S.stats.g,s.stats.g||{});Object.assign(S.stats.b,s.stats.b||{});S.stats.vnameUse=s.stats.vnameUse||{}}
+  S.lastMeal=(s.lastMeal!==undefined)?s.lastMeal:Math.floor(now()/1000/DAYLEN);
+  if(s.stats){S.stats.jobs=s.stats.jobs||0;Object.assign(S.stats.g,s.stats.g||{});Object.assign(S.stats.b,s.stats.b||{});S.stats.vnameUse=s.stats.vnameUse||{};S.stats.fedDay=s.stats.fedDay?1:0}
   if(s.x&&passable(s.x|0,s.y|0)){S.me.x=s.x;S.me.y=s.y;S.cam.x=s.x;S.cam.y=s.y}
   for(const b of (s.buildings||[]))S.buildings[key(b.x,b.y)]={...b,mine:true};
   if(s.monu) S.monu=s.monu;
   else if(Object.values(S.buildings).some(b=>b.type==='monument')) S.monu={stage:2,given:{},lit:false}; // v1 migration: Foundation complete
   else S.monu=null;
-  for(const vs of (s.villagers||[])){const v=makeVillager();v.name=vs.name;v.color=vs.color;v.job=vs.job;v.hasTool=vs.hasTool;v.xp=vs.xp||0;v.home=vs.home||null}
+  for(const vs of (s.villagers||[])){const v=makeVillager();v.name=vs.name;v.color=vs.color;v.job=vs.job;v.hasTool=vs.hasTool;v.xp=vs.xp||0;v.home=vs.home||null;v.hungry=!!vs.hungry}
   for(const k in S.buildings)if(BUILDS[S.buildings[k].type]&&BUILDS[S.buildings[k].type].home&&S.buildings[k].mine)moveIn(k);
   return true;
 }
@@ -1781,6 +1800,7 @@ function playPad(){
 /* ============ boot & main loop ============ */
 async function boot(){
   const had=await loadGame();
+  if(!had)S.lastMeal=Math.floor(now()/1000/DAYLEN);
   if(!S.me.id)S.me.id='p'+Math.random().toString(36).slice(2,8);
   const ni=document.getElementById('nameInput');
   if(S.me.name)ni.value=S.me.name;
@@ -1832,6 +1852,7 @@ function loop(t){
       playerTick(dt);
       for(const v of S.villagers)villagerTick(v,dt);
       spawnQueueTick(dt);
+      dawnMealTick();
       productionTick(dt);ambienceTick(dt);
       render();
     }catch(err){
