@@ -444,6 +444,11 @@ function findPath(sx,sy,tx,ty,adjacent){
   }
   return null;
 }
+function homeTarget(v){
+  if(v.home==='hall')return HALL;
+  if(v.home){const b=S.buildings[v.home];if(b)return b;v.home=null}
+  return HALL;
+}
 function claimedRes(self){ // work tiles (resources, farms, docks) already targeted by other villagers
   const c={};
   for(const v of S.villagers){
@@ -490,15 +495,24 @@ function villagerTick(v,dt){
   }
   const sleepy=v.job!=='idle'&&darknessNow()>.52&&!torchNear(v.x,v.y);
   if(sleepy){
-    if(v.state==='working'||v.state==='toWork'){v.work=0;const p=findPath(v.x,v.y,HALL.x,HALL.y,true);if(p){v.path=p;v.state='toHall'}else v.state='sleep';return}
-    if(v.state==='toCrate'||v.state==='toPickup'){const p=findPath(v.x,v.y,HALL.x,HALL.y,true);if(p){v.path=p;v.state='toHall'}else v.state='sleep';return}
-    if(v.state!=='toHall'){
-      if(Math.hypot(v.x-HALL.x,v.y-HALL.y)>4.5){const p=findPath(v.x,v.y,HALL.x,HALL.y,true);if(p){v.path=p;v.state='toHall';return}}
+    const hp=homeTarget(v);
+    if(v.state==='working'||v.state==='toWork'){v.work=0;const p=findPath(v.x,v.y,hp.x,hp.y,true);if(p){v.path=p;v.state='toHome'}else v.state='sleep';return}
+    if(v.state==='toCrate'||v.state==='toPickup'){const p=findPath(v.x,v.y,hp.x,hp.y,true);if(p){v.path=p;v.state='toHome'}else v.state='sleep';return}
+    if(v.state==='toHome'){
+      if(Math.hypot(v.x-hp.x,v.y-hp.y)<=1.6){v.state='sleep';return}
+      const p=findPath(v.x,v.y,hp.x,hp.y,true);
+      if(p){v.path=p}else v.state='sleep';
+      return;
+    }
+    if(v.state!=='sleep'){
+      if(Math.hypot(v.x-hp.x,v.y-hp.y)>4.5){const p=findPath(v.x,v.y,hp.x,hp.y,true);if(p){v.path=p;v.state='toHome';return}}
       v.state='sleep';
       if(Math.random()<dt*.9)parts.push({x:v.x,y:v.y-.7,vx:.12,vy:-.3,life:1.5,max:1.5,color:'zzz',sz:1});
       return;
     }
-  } else if(v.state==='sleep')v.state='idle';
+    if(Math.random()<dt*.9)parts.push({x:v.x,y:v.y-.7,vx:.12,vy:-.3,life:1.5,max:1.5,color:'zzz',sz:1});
+    return;
+  } else if(v.state==='sleep'||v.state==='toHome')v.state='idle';
   const J=JOBS[v.job];
   if(v.state==='toWork'){ v.state='working'; v.work=0; return }
   if(v.state==='working'){
@@ -1075,7 +1089,7 @@ function renderRoster(){
   rosterList.innerHTML='';
   for(const v of S.villagers){
     const row=document.createElement('div');row.className='vill';
-    const st={idle:'resting 💤',toWork:'walking 👣',working:'working ⚒️',toHall:'hauling 📦',toCrate:'stashing 📦',toPickup:'collecting 📦',sleep:'sleeping 😴'}[v.state]||'resting';
+    const st={idle:'resting 💤',toWork:'walking 👣',working:'working ⚒️',toHall:'hauling 📦',toCrate:'stashing 📦',toPickup:'collecting 📦',sleep:'sleeping 😴',toHome:'walking home 🏡'}[v.state]||'resting';
     row.innerHTML='<div class="vdot" style="background:'+v.color+'"></div><div class="vname">'+v.name+(v.hasTool?' 🛠️':'')+((!v.home||(v.home!=='hall'&&!S.buildings[v.home]))?' 🛌❓':'')+' <span class="vlv">Lv'+vLvl(v)+'</span><div class="vstat">'+st+'</div></div>';
     const sel=document.createElement('select');
     for(const j in JOBS){const o=document.createElement('option');o.value=j;o.textContent=JOBS[j].label;if(v.job===j)o.selected=true;sel.appendChild(o)}
