@@ -438,6 +438,7 @@ const VCOLORS=['#e8a33d','#b0563b','#5b8fb0','#8a6bb0','#5aa06a','#c96a8b','#c9b
 
 function resAt(x,y){ // effective resource, accounting for shared removals + regrowth (150s)
   const k=key(x,y), b=baseRes[k]; if(!b)return null;
+  if(S.buildings[k])return null; // occupied tile — nothing regrows under a building or path
   const rm=S.removed[k];
   if(rm&&now()-rm<150000)return null;
   return b;
