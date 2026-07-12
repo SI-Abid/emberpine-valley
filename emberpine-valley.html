@@ -668,7 +668,8 @@ function placeBuilding(type,x,y){
     firstTime('monu','Walk to the Monument 🗿 and click it to contribute goods to the next era.');
   }
   if(type==='farm')firstTime('farm','Assign a villager as 🌾 Farmer and they\u2019ll work your farm.');
-  S.buildSel=null;renderBuildBar();saveSoon();
+  if(type==='monument')S.buildSel=null;      // monument leaves the bar once placed
+  renderBuildBar();saveSoon();
 }
 
 /* ============ rendering ============ */
