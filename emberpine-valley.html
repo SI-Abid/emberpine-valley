@@ -966,6 +966,7 @@ const ICON_SVG={
  path:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><ellipse cx="6" cy="17" rx="4.5" ry="3" fill="#c9b389" stroke="#2b2620" stroke-width="2"/><ellipse cx="14" cy="10" rx="4.5" ry="3" fill="#c9b389" stroke="#2b2620" stroke-width="2"/><ellipse cx="18" cy="19" rx="3.6" ry="2.4" fill="#c9b389" stroke="#2b2620" stroke-width="2"/></svg>',
  crate:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="14" rx="1.5" fill="#8a6b45" stroke="#2b2620" stroke-width="2"/><path d="M3 12h18M9 6v14M15 6v14" stroke="#6b4f30" stroke-width="1.6"/></svg>',
  hall:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M2 9l10-6 10 6z" fill="#b0563b" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><rect x="3" y="9" width="18" height="2" fill="#8a6b45" stroke="#2b2620" stroke-width="1.6"/><rect x="5" y="11" width="2.4" height="9" fill="#f0e6c8" stroke="#2b2620" stroke-width="1.6"/><rect x="10.8" y="11" width="2.4" height="9" fill="#f0e6c8" stroke="#2b2620" stroke-width="1.6"/><rect x="16.6" y="11" width="2.4" height="9" fill="#f0e6c8" stroke="#2b2620" stroke-width="1.6"/><rect x="3" y="20" width="18" height="2" fill="#8a6b45"/><path d="M18 3v4l2.6-1.3z" fill="#e8a33d" stroke="#2b2620" stroke-width="1.4" stroke-linejoin="round"/><rect x="17.6" y="1" width="1" height="7" fill="#6b4f30"/></svg>',
+ monument:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 22V19H6V16H8V13L12 3L16 13V16H18V19H20V22Z" fill="#9a978e" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><path d="M4 19H20M6 16H18" fill="none" stroke="#6f6d66" stroke-width="1.4"/><path d="M12 3L10.2 7.5H13.8Z" fill="#e8a33d"/></svg>',
 };
 function iconHTML(k,cls){return '<span class="ic'+(cls?' '+cls:'')+'" title="'+(NICE[k]||'')+'">'+(ICON_SVG[k]||ICON_SVG._missing)+'</span>'}
 const iconImg={};
@@ -1002,7 +1003,7 @@ function firstTime(k,msg){if(S.msgShown[k])return;S.msgShown[k]=1;toast('💡 '+
 
 /* build bar */
 const bbar=document.getElementById('buildbar');
-function costStr(c){return Object.entries(c).map(([k,v])=>'<span class="cp">'+v+' '+iconHTML(k)+'</span>').join('')}
+function costStr(c){return Object.entries(c).map(([k,v])=>'<span class="cp">'+v+' '+iconHTML(k)+'</span>').join(' ')}
 const ERA={kiln:1,glassworks:1,forge:1,loom:2,gilder:2};
 function renderBuildBar(){
   bbar.innerHTML='';
