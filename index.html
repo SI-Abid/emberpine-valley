@@ -23,7 +23,7 @@
   #hud{position:fixed;top:10px;left:50%;transform:translateX(-50%);display:flex;gap:6px;flex-wrap:wrap;justify-content:center;
     background:linear-gradient(var(--parch),var(--parch2));border:3px solid var(--ink);border-radius:10px;
     padding:6px 10px;box-shadow:0 4px 0 var(--shadow), inset 0 0 0 2px rgba(255,255,255,.35);z-index:20;max-width:96vw}
-  .res{display:flex;align-items:center;gap:4px;font-weight:800;font-size:13px;padding:2px 7px;border-radius:6px;background:rgba(255,255,255,.35)}
+  .res{display:flex;align-items:center;gap:5px;font-weight:800;font-size:13px;padding:3px 9px;border-radius:6px;background:rgba(255,255,255,.35)}
   .res .ico{font-size:15px;line-height:1}
   .ic.ico{font-size:15px}
   .ic{display:inline-flex;vertical-align:-2px}
@@ -44,7 +44,8 @@
   .bbtn.eralock .bc{color:var(--clay)}
   .bbtn .bi{font-size:20px}
   .bbtn .bn{font-size:11px;font-weight:800}
-  .bbtn .bc{font-size:10px;font-weight:700;opacity:.75}
+  .bbtn .bc{display:flex;align-items:center;gap:2px;flex-wrap:wrap;justify-content:center;font-size:10px;font-weight:700;opacity:.75}
+  .bc .cp{display:inline-flex;align-items:center;gap:1px;white-space:nowrap}
 
   /* ---------- Roster panel ---------- */
   #roster{position:fixed;right:10px;top:70px;width:212px;z-index:20;
@@ -182,6 +183,7 @@
   #emoteRow.hid{display:none}
   #emoteRow button{width:38px;height:38px;border-radius:50%;border:2px solid var(--ink);background:#fff8e6;font-size:17px}
   .wrow{display:flex;align-items:center;gap:6px;margin:5px 0;font-size:12px;font-weight:700}
+  .wrow .ic{font-size:14px}
   .wbar{flex:1;height:8px;border:1.5px solid var(--ink);border-radius:5px;background:#fff8e6;overflow:hidden}
   .wfill{height:100%;background:var(--amber)}
   .wnum{font-size:10px;opacity:.75;min-width:52px;text-align:right}
@@ -955,7 +957,7 @@ const ICON_SVG={
  dock:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M2 15h20" stroke="#5b8fb0" stroke-width="3" stroke-linecap="round"/><rect x="5" y="4" width="3" height="13" fill="#8a6b45" stroke="#2b2620" stroke-width="2"/><rect x="16" y="4" width="3" height="13" fill="#8a6b45" stroke="#2b2620" stroke-width="2"/><path d="M12 4v6a2 2 0 1 0 3 1.7" fill="none" stroke="#2b2620" stroke-width="2" stroke-linecap="round"/></svg>',
  bakery:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 21v-6c0-4.5 4-8 9-8s9 3.5 9 8v6z" fill="#b0563b" stroke="#2b2620" stroke-width="2"/><path d="M7 21v-4a5 5 0 0 1 10 0v4z" fill="#2b2620"/><ellipse cx="12" cy="18.4" rx="3.4" ry="2" fill="#d9a05f" stroke="#2b2620" stroke-width="1.2"/><path d="M9.6 18l1 1M14.4 18l-1 1" stroke="#a86f3a" stroke-width="1"/></svg>',
  workshop:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M2 12h4l3-3h9l2 3h2v3H2z" fill="#7a6a5a" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><rect x="9" y="15" width="6" height="4" fill="#7a6a5a" stroke="#2b2620" stroke-width="2"/><rect x="6" y="19" width="12" height="2" fill="#5a4c3f"/><rect x="13" y="2" width="9" height="2.6" rx="1" fill="#8a6b45" stroke="#2b2620" stroke-width="1.6" transform="rotate(45 17.5 3.3)"/><rect x="17" y=".5" width="5" height="5" rx="1" fill="#9a978e" stroke="#2b2620" stroke-width="1.8" transform="rotate(45 19.5 3)"/></svg>',
- kiln:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 21c0-6 3.6-11 8-11s8 5 8 11z" fill="#b0563b" stroke="#2b2620" stroke-width="2"/><path d="M9 21v-4a3 3 0 0 1 6 0v4z" fill="#2b2620"/><circle cx="12" cy="18.4" r="1.5" fill="#e8a33d"/></svg>',
+ kiln:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 21a8 8 0 0 1 16 0z" fill="#b0563b" stroke="#2b2620" stroke-width="2"/><rect x="13.3" y="6" width="2.8" height="8.4" rx=".6" fill="#8a6b45" stroke="#2b2620" stroke-width="1.6"/><path d="M14.7 6c-1.3-1-1.3-2.5 0-3.8" fill="none" stroke="#cfcac0" stroke-width="1.3" stroke-linecap="round" opacity=".7"/><path d="M9.7 21v-2a2.3 2.3 0 0 1 4.6 0v2z" fill="#2b2620"/><circle cx="12" cy="19.6" r="1.1" fill="#e8a33d"/></svg>',
  glassworks:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 2h4v5l4 6v5a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2v-5l4-6z" fill="#bcd6e0" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><path d="M10 2h4" stroke="#2b2620" stroke-width="2"/><path d="M3 21l7-9" stroke="#8a6b45" stroke-width="2" stroke-linecap="round"/></svg>',
  forge:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M2 12h4l3-3h9l2 3h2v3H2z" fill="#7a6a5a" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><rect x="9" y="15" width="6" height="4" fill="#7a6a5a" stroke="#2b2620" stroke-width="2"/><rect x="6" y="19" width="12" height="2" fill="#5a4c3f"/><path d="M14 8l2-3M18 9l3-2M16 5l1-3" stroke="#e8a33d" stroke-width="1.8" stroke-linecap="round"/></svg>',
  loom:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="3" rx="1" fill="#8a6b45" stroke="#2b2620" stroke-width="2"/><rect x="3" y="18" width="18" height="3" rx="1" fill="#8a6b45" stroke="#2b2620" stroke-width="2"/><rect x="3" y="3" width="3" height="18" fill="#8a6b45" stroke="#2b2620" stroke-width="2"/><rect x="18" y="3" width="3" height="18" fill="#8a6b45" stroke="#2b2620" stroke-width="2"/><path d="M8 6v15M12 6v15M16 6v15" stroke="#b58fb0" stroke-width="1.8"/></svg>',
@@ -1000,7 +1002,7 @@ function firstTime(k,msg){if(S.msgShown[k])return;S.msgShown[k]=1;toast('💡 '+
 
 /* build bar */
 const bbar=document.getElementById('buildbar');
-function costStr(c){return Object.entries(c).map(([k,v])=>v+' '+iconHTML(k)).join(' ')}
+function costStr(c){return Object.entries(c).map(([k,v])=>'<span class="cp">'+v+' '+iconHTML(k)+'</span>').join('')}
 const ERA={kiln:1,glassworks:1,forge:1,loom:2,gilder:2};
 function renderBuildBar(){
   bbar.innerHTML='';
