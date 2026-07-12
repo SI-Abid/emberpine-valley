@@ -1324,8 +1324,9 @@ addEventListener('keydown',e=>{const tg=e.target;if(tg&&(tg.tagName==='INPUT'||t
   if(k==='b')toggleBuildPanel();
   if(k==='escape'){
     if(paused){setPaused(false);return}
-    if(buildPanelOpen){closeBuildPanel();return}
-    const open=S.buildSel||S.selV||popup.style.display==='block';
+    const panelWasOpen=buildPanelOpen;
+    if(buildPanelOpen)closeBuildPanel();
+    const open=panelWasOpen||S.buildSel||S.selV||popup.style.display==='block';
     S.buildSel=null;renderBuildBar();popup.style.display='none';S.selV=null;
     if(!open)setPaused(true);
   }});
