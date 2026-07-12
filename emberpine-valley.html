@@ -284,6 +284,7 @@
   <div class="saved">💾 Progress saved — safe to close the tab</div>
   <button id="resumeBtn" class="px">▶ RESUME</button>
   <button id="pauseSndBtn"></button>
+  <button id="resetBtn" style="background:#b0563b;color:#fff8e6">🗑️ RESET GAME</button>
   <div class="fine">Your settlement is stored in this browser. Come back any time — the valley will be waiting.</div>
 </div></div>
 
@@ -2040,6 +2041,13 @@ function setPaused(p){
 function togglePause(){setPaused(!paused)}
 document.getElementById('pauseBtn').onclick=togglePause;
 document.getElementById('resumeBtn').onclick=()=>setPaused(false);
+document.getElementById('resetBtn').onclick=async()=>{
+  if(!confirm('Reset the game? All progress in this browser will be permanently erased.'))return;
+  try{Object.keys(localStorage).filter(k=>k.startsWith('emberpine:')).forEach(k=>localStorage.removeItem(k))}catch(e){}
+  try{if(window.storage){for(const k of ['save-v1','presence'])await window.storage.set(k,'null');}}catch(e){}
+  saveSoon=()=>{};saveGame=()=>{};try{clearTimeout(saveTimer)}catch(e){}
+  location.reload();
+};
 // save (and pause) when the tab is hidden or closed, so no progress is lost
 addEventListener('visibilitychange',()=>{if(document.hidden&&running){saveGame();setPaused(true)}});
 addEventListener('pagehide',()=>{if(running)saveGame()});
