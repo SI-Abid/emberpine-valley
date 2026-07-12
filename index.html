@@ -509,7 +509,7 @@ function villagerTick(v,dt){
       if(p&&p.length){v.path=p}else v.state='sleep';
       return;
     }
-    if(v.state!=='sleep'){
+    if(v.state!=='sleep'&&v.state!=='toHall'){
       if(Math.hypot(v.x-hp.x,v.y-hp.y)>4.5){const p=findPath(v.x,v.y,hp.x,hp.y,true);if(p){v.path=p;v.state='toHome';return}}
       v.state='sleep';
       if(Math.random()<dt*.9)parts.push({x:v.x,y:v.y-.7,vx:.12,vy:-.3,life:1.5,max:1.5,color:'zzz',sz:1});
@@ -609,8 +609,8 @@ function countB(type){let n=0;for(const k in S.buildings)if(S.buildings[k].type=
 function popCap(){let cap=2;for(const k in S.buildings){const b=S.buildings[k];if(b.mine&&BUILDS[b.type]&&BUILDS[b.type].home)cap+=BUILDS[b.type].cap}return cap}
 function homeless(){return S.villagers.filter(v=>!v.home||(v.home!=='hall'&&!S.buildings[v.home]))}
 function moveIn(bKey){
-  const b=S.buildings[bKey];if(!b||!BUILDS[b.type].home)return;
-  let free=BUILDS[b.type].cap - S.villagers.filter(v=>v.home===bKey).length;
+  const b=S.buildings[bKey];if(!b||!BUILDS[b.type]||!BUILDS[b.type].home)return;
+  let free=BUILDS[b.type].cap - S.villagers.filter(v=>v.home===bKey).length - S.spawnQ.filter(q=>q.home===bKey).length;
   if(free<=0)return;
   const hs=homeless().sort((a,c)=>((a.x-b.x)**2+(a.y-b.y)**2)-((c.x-b.x)**2+(c.y-b.y)**2));
   for(const v of hs){if(free<=0)break;v.home=bKey;free--}
@@ -1144,7 +1144,7 @@ function renderRoster(){
   for(const v of S.villagers){
     const row=document.createElement('div');row.className='vill';
     const st={idle:'resting 💤',toWork:'walking 👣',working:'working ⚒️',toHall:'hauling 📦',toCrate:'stashing 📦',toPickup:'collecting 📦',sleep:'sleeping 😴',toHome:'walking home 🏡'}[v.state]||'resting';
-    row.innerHTML='<div class="vdot" style="background:'+v.color+'"></div><div class="vname">'+v.name+(v.hasTool?' 🛠️':'')+(v.hungry?' 🥺':'')+((!v.home||(v.home!=='hall'&&!S.buildings[v.home]))?' 🛌❓':'')+' <span class="vlv">Lv'+vLvl(v)+'</span><div class="vstat">'+st+'</div></div>';
+    row.innerHTML='<div class="vdot" style="background:'+v.color+'"></div><div class="vname">'+escapeHtml(v.name)+(v.hasTool?' 🛠️':'')+(v.hungry?' 🥺':'')+((!v.home||(v.home!=='hall'&&!S.buildings[v.home]))?' 🛌❓':'')+' <span class="vlv">Lv'+vLvl(v)+'</span><div class="vstat">'+st+'</div></div>';
     const sel=document.createElement('select');
     for(const j in JOBS){const o=document.createElement('option');o.value=j;o.textContent=JOBS[j].label;if(v.job===j)o.selected=true;sel.appendChild(o)}
     sel.onchange=()=>{setJob(v,sel.value)};
@@ -1178,7 +1178,7 @@ function openBuildingPopup(b,px,py){
   let extra='';
   if(B.home){
     const occ=S.villagers.filter(v=>v.home===key(b.x,b.y));
-    extra='<div class="desc">🛌 '+(occ.length?occ.map(v=>v.name.split(' ')[0]).join(', '):'Empty — settlers arriving')+'</div>';
+    extra='<div class="desc">🛌 '+(occ.length?occ.map(v=>escapeHtml(v.name.split(' ')[0])).join(', '):'Empty — settlers arriving')+'</div>';
     const next=NEXT_HOME[b.type];
     if(next&&b.mine&&S.town.tier>=(TIER[next]||0)){
       extra+='<button id="upgradeBtn" class="wgive"'+(canAfford(BUILDS[next].cost)?'':' disabled')+'>Upgrade → '+BUILDS[next].name+' · '+costStr(BUILDS[next].cost)+'</button>';
@@ -1263,7 +1263,7 @@ async function loadGame(){
   const s=await store.get('save-v1');
   if(!s)return false;
   Object.assign(S.inv,s.inv||{});S.me.name=s.name||'';S.me.id=s.id;S.score=s.score||0;S.won=s.won;S.msgShown=s.msgShown||{};
-  S.quest=s.quest||0;S.town=s.town||{tier:0};S.muted=!!s.muted;S.wonderRewarded=!!s.wonderRewarded;S.playSec=s.playSec||0;
+  S.quest=s.quest||0;S.town=s.town||{tier:0};S.town.tier=Math.min(Math.max(S.town.tier|0,0),3);S.muted=!!s.muted;S.wonderRewarded=!!s.wonderRewarded;S.playSec=s.playSec||0;
   S.lastMeal=(s.lastMeal!==undefined)?s.lastMeal:Math.floor(now()/1000/DAYLEN);
   if(s.stats){S.stats.jobs=s.stats.jobs||0;Object.assign(S.stats.g,s.stats.g||{});Object.assign(S.stats.b,s.stats.b||{});S.stats.vnameUse=s.stats.vnameUse||{};S.stats.fedDay=s.stats.fedDay?1:0}
   if(s.x&&passable(s.x|0,s.y|0)){S.me.x=s.x;S.me.y=s.y;S.cam.x=s.x;S.cam.y=s.y}
