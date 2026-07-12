@@ -506,7 +506,7 @@ function villagerTick(v,dt){
     if(v.state==='toHome'){
       if(Math.hypot(v.x-hp.x,v.y-hp.y)<=1.6){v.state='sleep';return}
       const p=findPath(v.x,v.y,hp.x,hp.y,true);
-      if(p){v.path=p}else v.state='sleep';
+      if(p&&p.length){v.path=p}else v.state='sleep';
       return;
     }
     if(v.state!=='sleep'){

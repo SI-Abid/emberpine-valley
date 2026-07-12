@@ -59,9 +59,7 @@
   .vdot{width:14px;height:14px;border-radius:50%;border:2px solid var(--ink);flex:none}
   .vname{font-size:12px;font-weight:800;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .vill select{font-size:11px;font-weight:700;border:1.5px solid var(--ink);border-radius:6px;background:#fff8e6;padding:2px 3px;font-family:inherit}
-  #recruitBtn{display:block;width:calc(100% - 12px);margin:2px 6px 8px;padding:7px;border-radius:8px;border:2px solid var(--ink);
-    background:var(--amber);font-weight:800;font-size:12px}
-  #recruitBtn:disabled{opacity:.5;cursor:not-allowed}
+  #popHint{display:block;width:calc(100% - 12px);margin:2px 6px 8px;padding:7px;font-weight:800;font-size:12px;text-align:center}
   #rosterTab{position:fixed;right:10px;top:70px;z-index:19;background:var(--parch);border:3px solid var(--ink);border-radius:10px;
     padding:8px 10px;font-weight:800;font-size:13px;box-shadow:0 4px 0 var(--shadow)}
 
@@ -226,7 +224,7 @@
 <div id="roster" class="hid">
   <h3 class="px"><span>GUILD ROSTER</span><button id="rosterClose" style="background:none;border:none;color:var(--parch);font-weight:800">✕</button></h3>
   <div id="rosterList"></div>
-  <button id="recruitBtn">🍞 Recruit villager</button>
+  <div id="popHint"></div>
 </div>
 
 <div id="buildbar"></div>
@@ -356,7 +354,8 @@ const S={
   cam:{x:HALL.x,y:HALL.y}, sel:null, buildSel:null, selV:null,
   others:{}, score:0, won:false, msgShown:{}, quest:0, muted:false,
   monu:null, playSec:0, celebrateUntil:0,
-  stats:{g:{},b:{},jobs:0},
+  stats:{g:{},b:{},jobs:0,fedDay:0},
+  town:{tier:0}, spawnQ:[], lastMeal:0,
 };
 const RES_INFO={
   tree:{yield:'wood',n:3,time:1.6,emoji:'🪓'}, stone:{yield:'stone',n:3,time:2.0,emoji:'⛏️'},
@@ -392,6 +391,14 @@ const BUILDS={
   torch:{name:'Torch',ico:'🕯️',cost:{wood:4},desc:'Lights the night — villagers keep working near torches'},
   path:{name:'Path',ico:'🛤️',cost:{stone:1},desc:'Settlers and villagers walk 35% faster on paths'},
   crate:{name:'Crate',ico:'📦',cost:{plank:4},desc:'Workers stash goods here (holds 12) — haulers ferry them to the Hall'},
+  cottage:{name:'Cottage',ico:'🐱',cost:{plank:6,stone:2},desc:'A home for 1 settler — settlers move in when built',home:true,cap:1},
+  house:{name:'House',ico:'🏠',cost:{plank:12,stone:6,bread:4},desc:'A home for 2 settlers',home:true,cap:2},
+  manor:{name:'Manor',ico:'🏛',cost:{brick:20,glass:8,bread:6},desc:'A home for 3 settlers',home:true,cap:3},
+  well:{name:'Well',ico:'⛲',cost:{stone:10},desc:'Fresh water for the town — required to reach Village',civic:true},
+  tavern:{name:'Tavern',ico:'🍺',cost:{plank:16,bread:8},desc:'Songs and suppers — required to reach Town',civic:true},
+  plaza:{name:'Plaza',ico:'🎪',cost:{stone:12,plank:6},desc:'A gathering square — required to reach Town',civic:true},
+  chapel:{name:'Chapel',ico:'⛪',cost:{brick:20,glass:10},desc:'A quiet spire — required to reach City',civic:true},
+  statue:{name:'Statue',ico:'🗿',cost:{stone:10,goldbar:2},desc:'A founder in gold — required to reach City',civic:true},
   monument:{name:'Monument Foundation',ico:'🗿',cost:{stone:40,plank:20},desc:'Lay the Foundation, then raise it through five eras'},
 };
 const MONUMENT_STAGES=[
@@ -442,6 +449,11 @@ function findPath(sx,sy,tx,ty,adjacent){
   }
   return null;
 }
+function homeTarget(v){
+  if(v.home==='hall')return HALL;
+  if(v.home){const b=S.buildings[v.home];if(b)return b;v.home=null}
+  return HALL;
+}
 function claimedRes(self){ // work tiles (resources, farms, docks) already targeted by other villagers
   const c={};
   for(const v of S.villagers){
@@ -468,15 +480,19 @@ function nearestB(px,py,type,claimed){
 
 /* ============ villagers ============ */
 let vid=0;
+const ROMAN=['II','III','IV','V','VI','VII','VIII','IX','X','XI','XII','XIII','XIV','XV','XVI'];
 function makeVillager(){
   const r=hash2(vid*7+3,S.villagers.length,SEED^vid);
-  const v={id:++vid,name:pick(VNAMES,r)+' '+pick(['Jr.','II','the Keen','of the Glen','Quickhand','Stoutheart',''],hash2(vid,9,SEED)),
-    color:pick(VCOLORS,hash2(vid,4,SEED)),x:HALL.x+0.5+(vid%3)-1,y:HALL.y+3.5+((vid/3)|0)%2,
-    job:'idle',state:'idle',path:[],target:null,carry:0,work:0,speed:2.2,hasTool:false,wander:0,xp:0};
+  const base=pick(VNAMES,r);
+  const used=(S.stats.vnameUse=S.stats.vnameUse||{});
+  const n=(used[base]=(used[base]||0)+1);
+  const name=n===1?base:base+' '+ROMAN[Math.min(n-2,ROMAN.length-1)];
+  const v={id:++vid,name,color:pick(VCOLORS,hash2(vid,4,SEED)),x:HALL.x+0.5+(vid%3)-1,y:HALL.y+3.5+((vid/3)|0)%2,
+    job:'idle',state:'idle',path:[],target:null,carry:0,work:0,speed:2.2,hasTool:false,wander:0,xp:0,home:null};
   S.villagers.push(v);return v;
 }
 function villagerTick(v,dt){
-  const spd=v.speed*(v.hasTool?1.6:1)*(1+.07*(vLvl(v)-1))*(onPath(v.x,v.y)?1.35:1);
+  const spd=v.speed*(v.hasTool?1.6:1)*(1+.07*(vLvl(v)-1))*(onPath(v.x,v.y)?1.35:1)*(v.hungry?0.75:1);
   if(v.path&&v.path.length){
     const t=v.path[0],dx=t.x-v.x,dy=t.y-v.y,d=Math.hypot(dx,dy);
     if(d<.08)v.path.shift();else{v.x+=dx/d*spd*dt;v.y+=dy/d*spd*dt}
@@ -484,22 +500,31 @@ function villagerTick(v,dt){
   }
   const sleepy=v.job!=='idle'&&darknessNow()>.52&&!torchNear(v.x,v.y);
   if(sleepy){
-    if(v.state==='working'||v.state==='toWork'){v.work=0;const p=findPath(v.x,v.y,HALL.x,HALL.y,true);if(p){v.path=p;v.state='toHall'}else v.state='sleep';return}
-    if(v.state==='toCrate'||v.state==='toPickup'){const p=findPath(v.x,v.y,HALL.x,HALL.y,true);if(p){v.path=p;v.state='toHall'}else v.state='sleep';return}
-    if(v.state!=='toHall'){
-      if(Math.hypot(v.x-HALL.x,v.y-HALL.y)>4.5){const p=findPath(v.x,v.y,HALL.x,HALL.y,true);if(p){v.path=p;v.state='toHall';return}}
+    const hp=homeTarget(v);
+    if(v.state==='working'||v.state==='toWork'){v.work=0;const p=findPath(v.x,v.y,hp.x,hp.y,true);if(p){v.path=p;v.state='toHome'}else v.state='sleep';return}
+    if(v.state==='toCrate'||v.state==='toPickup'){const p=findPath(v.x,v.y,hp.x,hp.y,true);if(p){v.path=p;v.state='toHome'}else v.state='sleep';return}
+    if(v.state==='toHome'){
+      if(Math.hypot(v.x-hp.x,v.y-hp.y)<=1.6){v.state='sleep';return}
+      const p=findPath(v.x,v.y,hp.x,hp.y,true);
+      if(p&&p.length){v.path=p}else v.state='sleep';
+      return;
+    }
+    if(v.state!=='sleep'){
+      if(Math.hypot(v.x-hp.x,v.y-hp.y)>4.5){const p=findPath(v.x,v.y,hp.x,hp.y,true);if(p){v.path=p;v.state='toHome';return}}
       v.state='sleep';
       if(Math.random()<dt*.9)parts.push({x:v.x,y:v.y-.7,vx:.12,vy:-.3,life:1.5,max:1.5,color:'zzz',sz:1});
       return;
     }
-  } else if(v.state==='sleep')v.state='idle';
+    if(Math.random()<dt*.9)parts.push({x:v.x,y:v.y-.7,vx:.12,vy:-.3,life:1.5,max:1.5,color:'zzz',sz:1});
+    return;
+  } else if(v.state==='sleep'||v.state==='toHome')v.state='idle';
   const J=JOBS[v.job];
   if(v.state==='toWork'){ v.state='working'; v.work=0; return }
   if(v.state==='working'){
     const info=RES_INFO[v.target?.type||'tree'];
     const stationary=info===RES_INFO.wheatplot||info===RES_INFO.fishspot;
     if(!stationary&&v.target&&!resAt(v.target.x,v.target.y)){v.work=0;v.target=null;v.state='idle';return}
-    v.work+=dt*(v.hasTool?1.6:1)*(1+.05*(vLvl(v)-1));
+    v.work+=dt*(v.hasTool?1.6:1)*(1+.05*(vLvl(v)-1))*(v.hungry?0.75:1);
     if(v.work>=info.time){
       v.work=0;v.carry={what:info.yield,n:info.n};
       spawnBurst(v.x-.5,v.y-.5,'#e8d9a8',4);
@@ -541,8 +566,10 @@ function villagerTick(v,dt){
   // idle: look for work or wander
   if(v.carry&&v.state==='idle'){const ph=findPath(v.x,v.y,HALL.x,HALL.y,true);if(ph){v.path=ph;v.state='toHall';return}}
   if(v.job==='hauler'){
-    const c=crateWithItems(v.x,v.y);
-    if(c){const p=findPath(v.x,v.y,c.x,c.y,true);if(p){v.crate=key(c.x,c.y);v.path=p;v.state='toPickup';return}}
+    if(!v.hungry){
+      const c=crateWithItems(v.x,v.y);
+      if(c){const p=findPath(v.x,v.y,c.x,c.y,true);if(p){v.crate=key(c.x,c.y);v.path=p;v.state='toPickup';return}}
+    }
   } else if(v.job!=='idle'){
     let tgt=null;
     if(v.job==='farmer'||v.job==='fisher'){
@@ -579,6 +606,31 @@ const RECIPES={
   gilder:{in:{goldbar:1,glass:1},out:'ornament'},
 };
 function countB(type){let n=0;for(const k in S.buildings)if(S.buildings[k].type===type&&S.buildings[k].mine)n++;return n}
+function popCap(){let cap=2;for(const k in S.buildings){const b=S.buildings[k];if(b.mine&&BUILDS[b.type]&&BUILDS[b.type].home)cap+=BUILDS[b.type].cap}return cap}
+function homeless(){return S.villagers.filter(v=>!v.home||(v.home!=='hall'&&!S.buildings[v.home]))}
+function moveIn(bKey){
+  const b=S.buildings[bKey];if(!b||!BUILDS[b.type].home)return;
+  let free=BUILDS[b.type].cap - S.villagers.filter(v=>v.home===bKey).length;
+  if(free<=0)return;
+  const hs=homeless().sort((a,c)=>((a.x-b.x)**2+(a.y-b.y)**2)-((c.x-b.x)**2+(c.y-b.y)**2));
+  for(const v of hs){if(free<=0)break;v.home=bKey;free--}
+  for(let i=0;i<free;i++)S.spawnQ.push({home:bKey,in:2*(i+1)});
+  renderRoster();
+}
+function spawnQueueTick(dt){
+  if(!S.spawnQ.length)return;
+  for(let i=S.spawnQ.length-1;i>=0;i--){
+    const q=S.spawnQ[i];q.in-=dt;
+    if(q.in<=0){
+      S.spawnQ.splice(i,1);
+      const b=S.buildings[q.home];if(!b)continue;
+      const v=makeVillager();v.home=q.home;
+      toast('👋 '+v.name+' joins the guild!');sfx('recruit');
+      spawnBurst(b.x,b.y,'#ffe9b8',8);
+      renderHUD();questTick();checkTownTier();saveSoon();
+    }
+  }
+}
 function productionTick(dt){
   for(const t in RECIPES){
     const n=countB(t);if(!n)continue;
@@ -596,6 +648,21 @@ function productionTick(dt){
       }
     }
   }
+}
+function dawnMealTick(){
+  const day=Math.floor(now()/1000/DAYLEN);
+  if(day<=S.lastMeal)return;
+  S.lastMeal=day;
+  const order=['berry','fish','egg','bread'];
+  let fed=0,hungry=0;
+  for(const v of S.villagers){
+    let ate=false;
+    for(const k of order){if((S.inv[k]||0)>0){S.inv[k]--;ate=true;break}}
+    v.hungry=!ate;if(ate)fed++;else hungry++;
+  }
+  if(hungry===0&&S.villagers.length>=4)S.stats.fedDay=1;
+  renderHUD();renderRoster();questTick();saveSoon();
+  if(S.villagers.length)toast(hungry===0?('🍞 The guild breaks fast — '+fed+' fed'):('⚠️ '+hungry+' villager'+(hungry>1?'s':'')+' went hungry!'));
 }
 function equipTools(){
   for(const v of S.villagers){ if(!v.hasTool&&S.inv.tool>0){v.hasTool=true;S.inv.tool--;toast('🛠️ '+v.name.split(' ')[0]+' equipped a tool!')} }
@@ -659,6 +726,7 @@ function placeBuilding(type,x,y){
   if(type==='dock'&&![[1,0],[-1,0],[0,1],[0,-1]].some(([dx,dy])=>terrAt(x+dx,y+dy)===0)){toast('The dock must touch water 🌊');return}
   for(const[k,v]of Object.entries(B.cost))S.inv[k]-=v;
   S.buildings[key(x,y)]={type,x,y,mine:true};
+  if(B.home)moveIn(key(x,y));
   S.stats.b[type]=(S.stats.b[type]||0)+1;S.score+=15;sfx('build');spawnBurst(x,y,'#e8a33d',10);questTick();
   toast(B.name+' built!');
   if(type==='monument'){
@@ -669,6 +737,7 @@ function placeBuilding(type,x,y){
   }
   if(type==='farm')firstTime('farm','Assign a villager as 🌾 Farmer and they\u2019ll work your farm.');
   if(type==='monument')S.buildSel=null;      // monument leaves the bar once placed
+  checkTownTier();
   renderBuildBar();saveSoon();
 }
 
@@ -968,6 +1037,14 @@ const ICON_SVG={
  crate:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="14" rx="1.5" fill="#8a6b45" stroke="#2b2620" stroke-width="2"/><path d="M3 12h18M9 6v14M15 6v14" stroke="#6b4f30" stroke-width="1.6"/></svg>',
  hall:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M2 9l10-6 10 6z" fill="#b0563b" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><rect x="3" y="9" width="18" height="2" fill="#8a6b45" stroke="#2b2620" stroke-width="1.6"/><rect x="5" y="11" width="2.4" height="9" fill="#f0e6c8" stroke="#2b2620" stroke-width="1.6"/><rect x="10.8" y="11" width="2.4" height="9" fill="#f0e6c8" stroke="#2b2620" stroke-width="1.6"/><rect x="16.6" y="11" width="2.4" height="9" fill="#f0e6c8" stroke="#2b2620" stroke-width="1.6"/><rect x="3" y="20" width="18" height="2" fill="#8a6b45"/><path d="M18 3v4l2.6-1.3z" fill="#e8a33d" stroke="#2b2620" stroke-width="1.4" stroke-linejoin="round"/><rect x="17.6" y="1" width="1" height="7" fill="#6b4f30"/></svg>',
  monument:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 22V19H6V16H8V13L12 3L16 13V16H18V19H20V22Z" fill="#9a978e" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><path d="M4 19H20M6 16H18" fill="none" stroke="#6f6d66" stroke-width="1.4"/><path d="M12 3L10.2 7.5H13.8Z" fill="#e8a33d"/></svg>',
+ cottage:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M5 13 12 3 19 13z" fill="#b0563b" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><rect x="7" y="13" width="10" height="8" fill="#f0e6c8" stroke="#2b2620" stroke-width="2"/><rect x="10.5" y="16" width="3" height="5" fill="#8a6b45" stroke="#2b2620" stroke-width="1.4"/></svg>',
+ house:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="15" y="3" width="2.4" height="6" fill="#7a6a5a" stroke="#2b2620" stroke-width="1.6"/><path d="M3 12 12 4 21 12z" fill="#b0563b" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><rect x="5" y="12" width="14" height="9" fill="#f0e6c8" stroke="#2b2620" stroke-width="2"/><rect x="7" y="14.5" width="3" height="3" fill="#bcd6e0" stroke="#2b2620" stroke-width="1.4"/><rect x="14" y="14.5" width="3" height="3" fill="#bcd6e0" stroke="#2b2620" stroke-width="1.4"/><rect x="10.8" y="17.5" width="2.4" height="3.5" fill="#8a6b45" stroke="#2b2620" stroke-width="1.2"/></svg>',
+ manor:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M2 12 7 5 12 12z" fill="#b0563b" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><path d="M12 12 17 5 22 12z" fill="#b0563b" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><rect x="3" y="12" width="18" height="8" fill="#f0e6c8" stroke="#2b2620" stroke-width="2"/><rect x="6" y="14.5" width="3" height="3" fill="#bcd6e0" stroke="#2b2620" stroke-width="1.4"/><rect x="15" y="14.5" width="3" height="3" fill="#bcd6e0" stroke="#2b2620" stroke-width="1.4"/><rect x="10.8" y="16" width="2.4" height="4" fill="#8a6b45" stroke="#2b2620" stroke-width="1.2"/><rect x="11.5" y="3" width="1" height="4" fill="#6b4f30"/><path d="M12.5 3l2.4 1.2-2.4 1.2z" fill="#e8a33d" stroke="#2b2620" stroke-width="1"/></svg>',
+ well:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="4" y="12" width="2" height="9" fill="#8a6b45" stroke="#2b2620" stroke-width="1.6"/><rect x="18" y="12" width="2" height="9" fill="#8a6b45" stroke="#2b2620" stroke-width="1.6"/><path d="M3 8 12 2 21 8z" fill="#b0563b" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><ellipse cx="12" cy="16" rx="8" ry="5" fill="#9a978e" stroke="#2b2620" stroke-width="2"/><rect x="10.6" y="9" width="1" height="4" fill="#6b4f30"/><rect x="9.6" y="13.6" width="4.8" height="3.6" rx=".7" fill="#7a6a5a" stroke="#2b2620" stroke-width="1.3"/></svg>',
+ tavern:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M1 11 9.5 5 18 11z" fill="#b0563b" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><rect x="2" y="11" width="16" height="9" fill="#f0e6c8" stroke="#2b2620" stroke-width="2"/><rect x="7.5" y="14" width="3" height="6" fill="#8a6b45" stroke="#2b2620" stroke-width="1.4"/><path d="M19 7v4" stroke="#2b2620" stroke-width="1.6" stroke-linecap="round"/><rect x="17.5" y="11" width="3.6" height="3.6" rx=".6" fill="#e8a33d" stroke="#2b2620" stroke-width="1.4"/><path d="M21.1 12.2a1.3 1.3 0 0 1 0 2.4" fill="none" stroke="#2b2620" stroke-width="1.2"/></svg>',
+ plaza:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#c9b389" stroke="#2b2620" stroke-width="2"/><path d="M12 2v20M2 12h20M4.5 4.5l15 15M19.5 4.5l-15 15" stroke="#9a978e" stroke-width="1.4"/><circle cx="12" cy="12" r="2.4" fill="#e8a33d" stroke="#2b2620" stroke-width="1.6"/></svg>',
+ chapel:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="7" y="9" width="10" height="12" fill="#f0e6c8" stroke="#2b2620" stroke-width="2"/><path d="M7 9 12 2 17 9z" fill="#9a978e" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="2" r="1" fill="#f4c542"/><circle cx="12" cy="12.5" r="2.2" fill="#b58fb0" stroke="#2b2620" stroke-width="1.4"/><path d="M12 10.3v4.4M9.8 12.5h4.4" stroke="#2b2620" stroke-width=".8"/><path d="M10 21v-3.5a2 2 0 0 1 4 0V21z" fill="#2b2620"/></svg>',
+ statue:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="5" y="18" width="14" height="4" fill="#9a978e" stroke="#2b2620" stroke-width="2"/><rect x="7" y="14" width="10" height="4" fill="#9a978e" stroke="#2b2620" stroke-width="2"/><circle cx="12" cy="8" r="2.6" fill="#e8a33d" stroke="#2b2620" stroke-width="2"/><path d="M9 14c0-3 1.5-5 3-5s3 2 3 5z" fill="#e8a33d" stroke="#2b2620" stroke-width="2"/><path d="M14.5 9.5 18 6" stroke="#e8a33d" stroke-width="2.2" stroke-linecap="round"/></svg>',
 };
 function iconHTML(k,cls){return '<span class="ic'+(cls?' '+cls:'')+'" title="'+(NICE[k]||'')+'">'+(ICON_SVG[k]||ICON_SVG._missing)+'</span>'}
 const iconImg={};
@@ -988,11 +1065,16 @@ function chipHtml(k){return '<div class="res" id="res-'+k+'" title="'+NICE[k]+'"
 function renderHUD(){
   const rawChips=RAW.map(chipHtml).join('')+NEWRAW.filter(ownsGood).map(chipHtml).join('');
   const craftChips=CRAFT.map(chipHtml).join('')+NEWCRAFT.filter(ownsGood).map(chipHtml).join('');
+  const edible=(S.inv.berry||0)+(S.inv.fish||0)+(S.inv.egg||0)+(S.inv.bread||0), foodShort=edible<S.villagers.length;
   hud.innerHTML=rawChips+'<div class="hsep"></div>'+craftChips
-   +'<div class="hsep"></div><div class="res" title="Villagers">'+iconHTML('villagers','ico')+S.villagers.length+'</div>'
+   +'<div class="hsep"></div><div class="res" title="'+(foodShort?'Not enough food for the next meal':'Villagers / housing capacity')+'">'+iconHTML('villagers','ico')+S.villagers.length+'/'+popCap()+(foodShort?' ⚠️':'')+'</div>'
+   +'<div class="res" id="tierChip" title="Town tier"></div>'
    +'<div class="res" id="clockChip" title="Time of day"></div>';
-  updateClock();
+  updateClock();updateTierChip();
 }
+function updateTierChip(){const el=document.getElementById('tierChip');if(!el)return;
+  const tt=TOWN_TIERS[S.town.tier];
+  el.innerHTML='<span class="ico">'+tt.emoji+'</span>Emberpine '+tt.tier}
 function updateClock(){const el=document.getElementById('clockChip');if(!el)return;const p=dayPhase();
   el.innerHTML='<span class="ico">'+(p<.08?'🌅':p<.42?'☀️':p<.58?'🌇':p<.92?'🌙':'🌅')+'</span>'}
 setInterval(updateClock,4000);
@@ -1006,18 +1088,41 @@ function firstTime(k,msg){if(S.msgShown[k])return;S.msgShown[k]=1;toast('💡 '+
 const bbar=document.getElementById('buildbar');
 function costStr(c){return Object.entries(c).map(([k,v])=>'<span class="cp">'+v+' '+iconHTML(k)+'</span>').join(' ')}
 const ERA={kiln:1,glassworks:1,forge:1,loom:2,gilder:2};
+const TIER={house:1,manor:2,tavern:1,plaza:1,chapel:2,statue:2};
+const NEXT_HOME={cottage:'house',house:'manor'};
+const TOWN_TIERS=[
+ {tier:'Hamlet',emoji:'⛺',ok:()=>true,bonus:0},
+ {tier:'Village',emoji:'🗺️',ok:()=>S.villagers.length>=6&&countB('well')>=1,bonus:50},
+ {tier:'Town',emoji:'🏘️',ok:()=>S.villagers.length>=10&&countB('tavern')>=1&&countB('plaza')>=1,bonus:100},
+ {tier:'City',emoji:'🏰',ok:()=>S.villagers.length>=16&&countB('chapel')>=1&&countB('statue')>=1,bonus:250},
+];
+function checkTownTier(){
+  while(S.town.tier<TOWN_TIERS.length-1&&TOWN_TIERS[S.town.tier+1].ok()){
+    S.town.tier++;
+    const tt=TOWN_TIERS[S.town.tier];
+    S.score+=tt.bonus;
+    toast(tt.emoji+' Emberpine is now a '+tt.tier+'!');sfx('quest');
+    if(S.town.tier===3){
+      monuFxUntil=now()+10000;
+      spawnFireworks(HALL.x+.5,HALL.y-1);spawnFireworks(HALL.x-1,HALL.y);spawnFireworks(HALL.x+2,HALL.y-.5);
+    }
+    renderBuildBar();renderHUD();saveSoon();
+  }
+}
 function renderBuildBar(){
   bbar.innerHTML='';
   const cs=completedStages();
   for(const t in BUILDS){
     if(t==='monument'&&S.monu)continue;                 // Foundation already placed
-    const B=BUILDS[t], req=ERA[t]||0, eraLocked=cs<req;
+    const B=BUILDS[t], eraReq=ERA[t]||0, eraLocked=cs<eraReq;
+    const tierReq=TIER[t]||0, tierLocked=S.town.tier<tierReq;
     const btn=document.createElement('button');
-    if(eraLocked){
+    if(eraLocked||tierLocked){
       btn.className='bbtn eralock';
-      btn.innerHTML='<span class="bi">'+iconHTML(t)+'</span><span class="bn">'+B.name+'</span><span class="bc">🔒 '+MONUMENT_STAGES[req].name+'</span>';
-      btn.title='Unlocks when the '+MONUMENT_STAGES[req].name+' is complete';
-      btn.onclick=()=>toast('🔒 Complete the '+MONUMENT_STAGES[req].name+' first');
+      const lockName=eraLocked?MONUMENT_STAGES[eraReq].name:TOWN_TIERS[tierReq].tier;
+      btn.innerHTML='<span class="bi">'+iconHTML(t)+'</span><span class="bn">'+B.name+'</span><span class="bc">🔒 '+lockName+'</span>';
+      btn.title=eraLocked?('Unlocks when the '+lockName+' is complete'):('Unlocks when the town reaches '+lockName);
+      btn.onclick=()=>toast(eraLocked?('🔒 Complete the '+lockName+' first'):('🔒 Reach '+lockName+' first'));
     }else{
       btn.className='bbtn'+(S.buildSel===t?' sel':'')+(canAfford(B.cost)?'':' locked');
       btn.innerHTML='<span class="bi">'+iconHTML(t)+'</span><span class="bn">'+B.name+'</span><span class="bc">'+costStr(B.cost)+'</span>';
@@ -1038,26 +1143,15 @@ function renderRoster(){
   rosterList.innerHTML='';
   for(const v of S.villagers){
     const row=document.createElement('div');row.className='vill';
-    const st={idle:'resting 💤',toWork:'walking 👣',working:'working ⚒️',toHall:'hauling 📦',toCrate:'stashing 📦',toPickup:'collecting 📦',sleep:'sleeping 😴'}[v.state]||'resting';
-    row.innerHTML='<div class="vdot" style="background:'+v.color+'"></div><div class="vname">'+v.name+(v.hasTool?' 🛠️':'')+' <span class="vlv">Lv'+vLvl(v)+'</span><div class="vstat">'+st+'</div></div>';
+    const st={idle:'resting 💤',toWork:'walking 👣',working:'working ⚒️',toHall:'hauling 📦',toCrate:'stashing 📦',toPickup:'collecting 📦',sleep:'sleeping 😴',toHome:'walking home 🏡'}[v.state]||'resting';
+    row.innerHTML='<div class="vdot" style="background:'+v.color+'"></div><div class="vname">'+v.name+(v.hasTool?' 🛠️':'')+(v.hungry?' 🥺':'')+((!v.home||(v.home!=='hall'&&!S.buildings[v.home]))?' 🛌❓':'')+' <span class="vlv">Lv'+vLvl(v)+'</span><div class="vstat">'+st+'</div></div>';
     const sel=document.createElement('select');
     for(const j in JOBS){const o=document.createElement('option');o.value=j;o.textContent=JOBS[j].label;if(v.job===j)o.selected=true;sel.appendChild(o)}
     sel.onchange=()=>{setJob(v,sel.value)};
     row.appendChild(sel);rosterList.appendChild(row);
   }
-  const rb=document.getElementById('recruitBtn');
-  const cost=recruitCost();
-  rb.innerHTML='Recruit villager · '+costStr(cost);
-  rb.disabled=!canAfford(cost);
+  document.getElementById('popHint').textContent='🏠 '+S.villagers.length+'/'+popCap()+' housed capacity — build homes to attract settlers';
 }
-function recruitCost(){const n=S.villagers.length;if(n<4)return{berry:8*(n-1)||8};if(n<6)return{fish:5+3*(n-4)};return{bread:Math.min(10,n-3)}}
-document.getElementById('recruitBtn').onclick=()=>{
-  const c=recruitCost();if(!canAfford(c))return;
-  for(const[k,v]of Object.entries(c))S.inv[k]-=v;
-  const v=makeVillager();toast('👋 '+v.name+' joins the guild!');sfx('recruit');questTick();
-  spawnBurst(HALL.x,HALL.y+2,'#ffe9b8',8);
-  renderHUD();renderRoster();saveSoon();
-};
 setInterval(()=>{if(!roster.classList.contains('hid')&&!rosterList.contains(document.activeElement))renderRoster()},2000);
 function setJob(v,j){v.job=j;v.state='idle';v.path=[];v.target=null;
   if(j!=='idle'){S.stats.jobs=(S.stats.jobs||0)+1;questTick()}
@@ -1081,8 +1175,27 @@ function openVillagerPopup(v,px,py){
 function openBuildingPopup(b,px,py){
   if(b.type==='monument'&&S.monu){openMonumentPopup(px,py);return}
   const B=BUILDS[b.type];
-  popup.innerHTML='<button class="close">✕</button><h4 class="px">'+iconHTML(b.type)+' '+B.name+'</h4><div class="sub">'+(b.mine?'YOUR WORKS':'ANOTHER SETTLER\u2019S WORKS')+'</div><div class="desc">'+B.desc+'</div>';
+  let extra='';
+  if(B.home){
+    const occ=S.villagers.filter(v=>v.home===key(b.x,b.y));
+    extra='<div class="desc">🛌 '+(occ.length?occ.map(v=>v.name.split(' ')[0]).join(', '):'Empty — settlers arriving')+'</div>';
+    const next=NEXT_HOME[b.type];
+    if(next&&b.mine&&S.town.tier>=(TIER[next]||0)){
+      extra+='<button id="upgradeBtn" class="wgive"'+(canAfford(BUILDS[next].cost)?'':' disabled')+'>Upgrade → '+BUILDS[next].name+' · '+costStr(BUILDS[next].cost)+'</button>';
+    }
+  }
+  popup.innerHTML='<button class="close">✕</button><h4 class="px">'+iconHTML(b.type)+' '+B.name+'</h4><div class="sub">'+(b.mine?'YOUR WORKS':'ANOTHER SETTLER\u2019S WORKS')+'</div><div class="desc">'+B.desc+'</div>'+extra;
   popup.querySelector('.close').onclick=()=>popup.style.display='none';
+  const ub=popup.querySelector('#upgradeBtn');
+  if(ub)ub.onclick=()=>{
+    const next=NEXT_HOME[b.type],NB=BUILDS[next];
+    if(!canAfford(NB.cost))return;
+    for(const[k,v]of Object.entries(NB.cost))S.inv[k]-=v;
+    b.type=next;S.stats.b[next]=(S.stats.b[next]||0)+1;S.score+=15;
+    sfx('build');spawnBurst(b.x,b.y,'#e8a33d',10);
+    moveIn(key(b.x,b.y));renderHUD();renderBuildBar();questTick();checkTownTier();saveSoon();
+    openBuildingPopup(b,px,py);
+  };
   popup.style.display='block';
   popup.style.left=clamp(px-120,8,VW-256)+'px';
   popup.style.top=clamp(py-150,8,VH-200)+'px';
@@ -1142,22 +1255,25 @@ let saveTimer=null;
 function saveSoon(){clearTimeout(saveTimer);saveTimer=setTimeout(saveGame,1200)}
 async function saveGame(){
   await store.set('save-v1',{inv:S.inv,name:S.me.name,id:S.me.id,x:S.me.x,y:S.me.y,score:S.score,won:S.won,msgShown:S.msgShown,quest:S.quest,stats:S.stats,muted:S.muted,wonderRewarded:!!S.wonderRewarded,
-    monu:S.monu, playSec:S.playSec,
-    villagers:S.villagers.map(v=>({name:v.name,color:v.color,job:v.job,hasTool:v.hasTool,xp:v.xp||0})),
+    monu:S.monu, playSec:S.playSec, town:S.town, lastMeal:S.lastMeal,
+    villagers:S.villagers.map(v=>({name:v.name,color:v.color,job:v.job,hasTool:v.hasTool,xp:v.xp||0,home:v.home||null,hungry:!!v.hungry})),
     buildings:Object.values(S.buildings).filter(b=>b.mine).map(b=>({type:b.type,x:b.x,y:b.y,store:b.store}))});
 }
 async function loadGame(){
   const s=await store.get('save-v1');
   if(!s)return false;
   Object.assign(S.inv,s.inv||{});S.me.name=s.name||'';S.me.id=s.id;S.score=s.score||0;S.won=s.won;S.msgShown=s.msgShown||{};
-  S.quest=s.quest||0;S.muted=!!s.muted;S.wonderRewarded=!!s.wonderRewarded;S.playSec=s.playSec||0;
-  if(s.stats){S.stats.jobs=s.stats.jobs||0;Object.assign(S.stats.g,s.stats.g||{});Object.assign(S.stats.b,s.stats.b||{})}
+  S.quest=s.quest||0;S.town=s.town||{tier:0};S.muted=!!s.muted;S.wonderRewarded=!!s.wonderRewarded;S.playSec=s.playSec||0;
+  S.lastMeal=(s.lastMeal!==undefined)?s.lastMeal:Math.floor(now()/1000/DAYLEN);
+  if(s.stats){S.stats.jobs=s.stats.jobs||0;Object.assign(S.stats.g,s.stats.g||{});Object.assign(S.stats.b,s.stats.b||{});S.stats.vnameUse=s.stats.vnameUse||{};S.stats.fedDay=s.stats.fedDay?1:0}
   if(s.x&&passable(s.x|0,s.y|0)){S.me.x=s.x;S.me.y=s.y;S.cam.x=s.x;S.cam.y=s.y}
   for(const b of (s.buildings||[]))S.buildings[key(b.x,b.y)]={...b,mine:true};
   if(s.monu) S.monu=s.monu;
   else if(Object.values(S.buildings).some(b=>b.type==='monument')) S.monu={stage:2,given:{},lit:false}; // v1 migration: Foundation complete
   else S.monu=null;
-  for(const vs of (s.villagers||[])){const v=makeVillager();v.name=vs.name;v.color=vs.color;v.job=vs.job;v.hasTool=vs.hasTool;v.xp=vs.xp||0}
+  for(const vs of (s.villagers||[])){const v=makeVillager();v.name=vs.name;v.color=vs.color;v.job=vs.job;v.hasTool=vs.hasTool;v.xp=vs.xp||0;v.home=vs.home||null;v.hungry=!!vs.hungry}
+  for(const k in S.buildings)if(BUILDS[S.buildings[k].type]&&BUILDS[S.buildings[k].type].home&&S.buildings[k].mine)moveIn(k);
+  checkTownTier();
   return true;
 }
 
@@ -1218,8 +1334,8 @@ function darknessNow(){const l=.5+.5*Math.sin(dayPhase()*Math.PI*2);let d=(1-l)*
 let parts=[],rainFx=[],smokeT=0,critterT=0;
 function spawnBurst(x,y,color,n){n=n||6;for(let i=0;i<n;i++)parts.push({x:x+.5,y:y+.5,vx:(Math.random()-.5)*2.4,vy:-1-Math.random()*1.6,g:5,life:.55+Math.random()*.25,max:.8,color,sz:3})}
 function ambienceTick(dt){
-  if(monuFxUntil>now()){const mon=monBuilding();
-    if(mon&&Math.random()<dt*3)spawnFireworks(mon.x+.5+(Math.random()-.5)*2, mon.y-1+(Math.random()-.5));}
+  if(monuFxUntil>now()){const mon=monBuilding()||{x:HALL.x,y:HALL.y};
+    if(Math.random()<dt*3)spawnFireworks(mon.x+.5+(Math.random()-.5)*2, mon.y-1+(Math.random()-.5));}
   if(now()>weather.next){weather.rain=!weather.rain;
     weather.next=now()+(weather.rain?30000+Math.random()*40000:70000+Math.random()*140000);
     toast(weather.rain?'\u{1F327}\uFE0F Rain drifts over the valley\u2026':'\u{1F324}\uFE0F The rain clears');}
@@ -1314,6 +1430,12 @@ const QUESTS=[
  {t:'Craft an ornament',icon:'\u{1F48E}',p:()=>[Math.min(1,S.stats.g.ornament||0),1],c:()=>(S.stats.g.ornament||0)>=1,r:{bread:5}},
  {t:'Raise the Spire',icon:'\u{1F5FC}',p:()=>[completedStages()>=4?1:0,1],c:()=>completedStages()>=4,r:{bread:10}},
  {t:'Light the Eternal Flame',icon:'\u{1F525}',p:()=>[S.won?1:0,1],c:()=>!!S.won,r:null},
+ {t:'Build a cottage',icon:'⛺',p:()=>[countB('cottage')>0?1:0,1],c:()=>countB('cottage')>0,r:{plank:4}},
+ {t:'House 4 settlers',icon:'\u{1F3E0}',p:()=>[Math.min(4,S.villagers.filter(v=>v.home&&v.home!=='hall').length),4],c:()=>S.villagers.filter(v=>v.home&&v.home!=='hall').length>=4,r:{berry:6}},
+ {t:'Dig a well and reach Village',icon:'⛲',p:()=>[S.town.tier>=1?1:0,1],c:()=>S.town.tier>=1,r:{stone:8}},
+ {t:'Keep everyone fed for a full day',icon:'\u{1F35E}',p:()=>[S.stats.fedDay?1:0,1],c:()=>!!S.stats.fedDay,r:{bread:5}},
+ {t:'Reach Town',icon:'\u{1F3D8}️',p:()=>[S.town.tier>=2?1:0,1],c:()=>S.town.tier>=2,r:{brick:10}},
+ {t:'Reach City',icon:'\u{1F3F0}',p:()=>[S.town.tier>=3?1:0,1],c:()=>S.town.tier>=3,r:null},
 ];
 let questBusy=false;
 function questTick(){
@@ -1721,6 +1843,7 @@ function playPad(){
 /* ============ boot & main loop ============ */
 async function boot(){
   const had=await loadGame();
+  if(!had)S.lastMeal=Math.floor(now()/1000/DAYLEN);
   if(!S.me.id)S.me.id='p'+Math.random().toString(36).slice(2,8);
   const ni=document.getElementById('nameInput');
   if(S.me.name)ni.value=S.me.name;
@@ -1733,7 +1856,7 @@ async function boot(){
     try{ni.blur();if(document.activeElement&&document.activeElement.blur)document.activeElement.blur()}catch(e){}
     for(const k in keys)keys[k]=false;
     document.getElementById('splash').style.display='none';
-    if(!had||S.villagers.length===0){makeVillager();makeVillager();toast('Two villagers await your orders 👥')}
+    if(!had||S.villagers.length===0){const a=makeVillager(),b2=makeVillager();a.home='hall';b2.home='hall';toast('Two villagers await your orders 👥')}
     renderHUD();renderBuildBar();renderQuest();renderSnd();chatLastT=now();
     syncWorld().then(()=>{syncPresence();syncChat();syncWonder()});
     saveGame();
@@ -1771,6 +1894,8 @@ function loop(t){
       S.playSec+=dt;
       playerTick(dt);
       for(const v of S.villagers)villagerTick(v,dt);
+      spawnQueueTick(dt);
+      dawnMealTick();
       productionTick(dt);ambienceTick(dt);
       render();
     }catch(err){
