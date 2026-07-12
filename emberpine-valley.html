@@ -791,8 +791,8 @@ const TCOL=['#2e6e8c','#d9c98a','#7cb56b','#639e58','#8d8a80'];
 const TCOL2=['#2a647f','#d0bf7f','#75ad64','#5c9552','#83807a'];
 
 /* ============ v4 terrain atlas — Kenney Tiny Town + Roguelike/RPG (CC0) ============ */
-const ATLAS_FRAMES={"water0":[0,0],"water1":[16,0],"sand0":[32,0],"sand1":[48,0],"grass0":[0,16],"grass1":[16,16],"grass2":[32,16],"gdark0":[48,16],"gdark1":[0,32],"rock0":[16,32],"rock1":[32,32],"sand_nw":[0,48],"sand_n":[16,48],"sand_ne":[32,48],"sand_w":[48,48],"sand_e":[0,64],"sand_sw":[16,64],"sand_s":[32,64],"sand_se":[48,64],"bld_house":[64,0,16,48],"bld_tavern":[64,48,16,48],"bld_hall":[64,96,16,48],"bld_cottage":[80,0,16,48],"bld_manor":[80,48,16,48],"bld_crate":[80,96,16,16]};
-const ATLAS_B64='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';
+const ATLAS_FRAMES={"water0":[0,0],"water1":[16,0],"sand0":[32,0],"sand1":[48,0],"grass0":[0,16],"grass1":[16,16],"grass2":[32,16],"gdark0":[48,16],"gdark1":[0,32],"rock0":[16,32],"rock1":[32,32],"sand_nw":[0,48],"sand_n":[16,48],"sand_ne":[32,48],"sand_w":[48,48],"sand_e":[0,64],"sand_sw":[16,64],"sand_s":[32,64],"sand_se":[48,64]};
+const ATLAS_B64='iVBORw0KGgoAAAANSUhEUgAAAEAAAABQCAYAAACpv3NFAAAEbElEQVR4nO2bz0sbQRTHXzRoD4KaBJWqhEWhUC8ePPSoF/+Akqv0UBAL/QeC14r/Q6AHkd76B+gpvbR4EStFqNI0Df6KwailPaQFbQ9ltrOzs5M3OzO7s4mfi5t1dufNd95782aMqefv9/5AjKx/ex1n99ATa+8WcC8Ae2NmcMBYZybfTXNaqaPb+gQ4+P4zdMftBqjybhnGp8bQbbWGQFQD5HFaqUvNPKHrc0BapvHM4ECssyxCxu1ppDxAZvBRJTxVjIWArZ7CwhUgKbOnA64ASZk9HUS6CtjoWZEKYKNndX0d0PUCpJ1UKVYDSo7a8zf1H0rPa/OA/kwO+jM537UMxVYDiq2GsE2t2vT8VMWaEHj2rsy9Zsk7WahVm5B3slr6Tb368ELLkRiZEWIgucZAZr1n4S0AANyVCwAAsP5gpO2zqiEgtRkSQQarc3aiQHsIhBn8ynkvnO0cwF25AHflApztHMDKea9u07gYywEyySrvZGFjfsH9vDG/EJkXaQsBljDJisx6XnFplMGYAADy4RBH7rBmGcSAqRNkSYwA2DpBFqMhQEMqw19Xl55rDMVWA+DJjFsnPIQCFFsNVJ3QDi0eoLs8jRItAmAy/tHuIRztHvquAdoLaLJO0FYKYwkSCrNkkgRIu741pTCWoEFilkATdUJaVcHM58dKzy8uLuIbP/Lfmns6l1Lp3/WAvqEMAAD8vrnyXLdjaWlJpX+4uLhQel4V5RCIewCquAJ8/VQBAICJyWHPdafjCkAGe3J83RUDJ/jqgG4aPICgEDo5vvb87FQCBZiYHO6KcBCWwp0+eIAEbYdNcS8AtmHfUMatEOnrpNMD0D0Zn0caAJfxO7VS9FWCQZiqFEdHR7W9KwzSmyHds765uan1fbJEfiJkkuWq/DGZ9mUwaQejwhBgB0P/BZhH3snCGoxACW65bTDPi/o1ATcEiAFr4D13X4UG9z77+6A22OeD+hUJQQ5VZcPAJ0Ct2gw0kOa0Ug/9BeWw71qFRqAIy9VeKDm30gL4cgBm8AC4b2ez39/PTc+69+nfYYUU2VZy+GHXDo8AuhMYO7D97S3ld4psxE4ejUeAMC+QgQgyPjUWOnyw4YnFFwJh/u0kKrC2Kf3PkK7EZgITtnELodz0rJuwbMCkPa4AtWoTSs6tkU50Isr2xP5QOYBOLvvbW1oyti5Ye4ISIRFGJlTcUvi/siPW5QHann+eyi+GiDDEAzDjiHQZ1IFuGyP/fkAUyHhwqvHmpfR5QFCyDLMfjwPa/vtjcV0vSuoyKi1A0DqchARKoG0N5QG8wdLC2FZJ0ttv1lOlBRC5ehK8gLVRehkkZ34iSNVmS0ElsgPtATL1tcp+3yS8sEQLIDMg02cKYXPM5ZePvnta6wCSG2ycfQKbv6wuhFhPIp917lbRAhCXa1fsYIshTJiwnhR0pogNOZ5t0nsB0dk8C7s3IAYE7RloA3ltsM8H9csDJQC7vzZZ8pI/cESFdTkg6v0EqhCyOaur8hffmu1tDCHUsAAAAABJRU5ErkJggg==';
 let atlasReady=false;
 const atlasImg=new Image();
 if(ATLAS_B64){atlasImg.onload=()=>{atlasReady=true};atlasImg.src='data:image/png;base64,'+ATLAS_B64;}
@@ -887,21 +887,10 @@ function drawBuilding(b,sx,sy,sz){
     return;
   }
   if(b.type==='monument'){drawMonument(b,sx,sy,sz);return;}
-  const bf=ATLAS_FRAMES&&ATLAS_FRAMES['bld_'+b.type];
-  if(atlasReady&&bf){                       // Sunnyside billboard: 1 tile wide, extends upward
-    const bh=sz*bf[3]/16;
-    cx.fillStyle='rgba(0,0,0,.22)';cx.beginPath();cx.ellipse(sx+sz/2,sy+sz*.85,sz*.42,sz*.11,0,0,7);cx.fill();
-    cx.drawImage(atlasImg,bf[0],bf[1],bf[2],bf[3],sx,sy+sz-bh,sz,bh);
-    if(b.type==='crate'){const tot=Object.values(b.store||{}).reduce((a,c2)=>a+c2,0);
-      cx.fillStyle='#2b2620';cx.fillRect(sx+5,sy+sz-6,sz-10,4);
-      cx.fillStyle='#e8a33d';cx.fillRect(sx+5,sy+sz-6,(sz-10)*Math.min(1,tot/12),4);}
-    if(!b.mine&&b.type!=='hall'){cx.globalAlpha=.3;cx.fillStyle='#fff';cx.fillRect(sx,sy+sz-bh,sz,bh);cx.globalAlpha=1}
-    return;
-  }
   cx.fillStyle='rgba(0,0,0,.22)';cx.fillRect(sx+3,sy+sz*.75,sz-6,sz*.2);
   cx.fillStyle=BCOLS[b.type];cx.fillRect(sx+3,sy+4,sz-6,sz-9);
   cx.strokeStyle='#2b2620';cx.lineWidth=2;cx.strokeRect(sx+3,sy+4,sz-6,sz-9);
-  drawIcon(cx,b.type==='hall'?'hall':b.type,sx+sz/2,sy+sz/2,sz*.88);
+  drawIcon(cx,b.type==='hall'?'hall':b.type,sx+sz/2,sy+sz/2,sz*.55);
   if(b.type==='crate'){const tot=Object.values(b.store||{}).reduce((a,c2)=>a+c2,0);
     cx.fillStyle='#2b2620';cx.fillRect(sx+5,sy+sz-9,sz-10,4);
     cx.fillStyle='#e8a33d';cx.fillRect(sx+5,sy+sz-9,(sz-10)*Math.min(1,tot/12),4);}
@@ -994,32 +983,11 @@ function render(){
     cx.fillRect(sx,sy,TSZ,TSZ);
     cx.strokeStyle='#2b2620';cx.strokeRect(sx,sy,TSZ,TSZ);
   }
-  /* row-interleaved draw: billboard buildings occlude people behind them */
-  const rowP={};
-  const addP=(py,fn)=>{const r=Math.floor(py);(rowP[r]=rowP[r]||[]).push({py,fn})};
-  for(const id in S.others){const o=S.others[id];if(id!==S.me.id&&now()-o.t<70000)addP(o.y,()=>{drawPerson(o.x,o.y,'#5b8fb0',o.name,false,false,true);if(o.emote&&now()-o.emote.t<4000)drawEmote(o.x,o.y,o.emote.e)});}
-  for(const v of S.villagers)addP(v.y,()=>{
-    if(S.selV===v.id&&popup.style.display==='block'){
-      const vsx=(v.x-S.cam.x)*TSZ+VW/2,vsy=(v.y-S.cam.y)*TSZ+VH/2;
-      cx.strokeStyle='#ffe9b8';cx.lineWidth=2;cx.setLineDash([4,3]);
-      cx.beginPath();cx.arc(vsx,vsy,15*ZOOM,0,7);cx.stroke();cx.setLineDash([]);
-    }
-    drawPerson(v.x,v.y,v.color,v.name.split(' ')[0]+' · '+JOBS[v.job].label.slice(0,2),false,v.state==='working',false);
-    if(v.state==='working'){const info=RES_INFO[v.target?.type||'tree'];drawProgress(v.x,v.y,v.work/info.time,info.emoji)}
-  });
-  addP(S.me.y,()=>{
-    drawPerson(S.me.x,S.me.y,'#e8a33d',S.me.name||'You',true,!!S.me.harvest,false);
-    if(myEmote&&now()-myEmote.t<4000)drawEmote(S.me.x,S.me.y,myEmote.e);
-    if(S.me.harvest){const h=S.me.harvest;drawProgress(S.me.x,S.me.y,h.t/RES_INFO[h.type].time,RES_INFO[h.type].emoji)}
-  });
-  for(let y=ty0;y<=ty1;y++){
-    for(let x=tx0;x<=tx1;x++){
-      const sx=(x-S.cam.x)*TSZ+VW/2, sy=(y-S.cam.y)*TSZ+VH/2;
-      const r=resAt(x,y); if(r&&!(x===WONDER.x&&y===WONDER.y))drawRes(r,x,y,sx,sy,TSZ);
-      if(x===HALL.x&&y===HALL.y)drawBuilding({type:'hall',mine:true},sx,sy,TSZ);
-      const b=S.buildings[key(x,y)]; if(b)drawBuilding(b,sx,sy,TSZ);
-    }
-    const ps=rowP[y]; if(ps){ps.sort((a,b)=>a.py-b.py);for(const p of ps)p.fn();}
+  for(let y=ty0;y<=ty1;y++)for(let x=tx0;x<=tx1;x++){
+    const sx=(x-S.cam.x)*TSZ+VW/2, sy=(y-S.cam.y)*TSZ+VH/2;
+    const r=resAt(x,y); if(r&&!(x===WONDER.x&&y===WONDER.y))drawRes(r,x,y,sx,sy,TSZ);
+    if(x===HALL.x&&y===HALL.y)drawBuilding({type:'hall',mine:true},sx,sy,TSZ);
+    const b=S.buildings[key(x,y)]; if(b)drawBuilding(b,sx,sy,TSZ);
   }
   drawWonder();
   drawCritters();
@@ -1039,7 +1007,20 @@ function render(){
       cx.font='700 10px Nunito';cx.fillStyle='#ffe9b8';cx.fillText('relic',ex,ey+13);cx.globalAlpha=1;
     }
   }
+  for(const id in S.others){const o=S.others[id];if(id!==S.me.id&&now()-o.t<70000){drawPerson(o.x,o.y,'#5b8fb0',o.name,false,false,true);if(o.emote&&now()-o.emote.t<4000)drawEmote(o.x,o.y,o.emote.e)}}
+  for(const v of S.villagers){
+    if(S.selV===v.id&&popup.style.display==='block'){
+      const sx=(v.x-S.cam.x)*TSZ+VW/2,sy=(v.y-S.cam.y)*TSZ+VH/2;
+      cx.strokeStyle='#ffe9b8';cx.lineWidth=2;cx.setLineDash([4,3]);
+      cx.beginPath();cx.arc(sx,sy,15*ZOOM,0,7);cx.stroke();cx.setLineDash([]);
+    }
+    drawPerson(v.x,v.y,v.color,v.name.split(' ')[0]+' \u00B7 '+JOBS[v.job].label.slice(0,2),false,v.state==='working',false);
+    if(v.state==='working'){const info=RES_INFO[v.target?.type||'tree'];drawProgress(v.x,v.y,v.work/info.time,info.emoji)}
+  }
   if(now()<S.celebrateUntil)for(const v of S.villagers)drawEmote(v.x,v.y,'🎉');
+  drawPerson(S.me.x,S.me.y,'#e8a33d',S.me.name||'You',true,!!S.me.harvest,false);
+  if(myEmote&&now()-myEmote.t<4000)drawEmote(S.me.x,S.me.y,myEmote.e);
+  if(S.me.harvest){const h=S.me.harvest;drawProgress(S.me.x,S.me.y,h.t/RES_INFO[h.type].time,RES_INFO[h.type].emoji)}
   drawParts();
   /* --- day/night lighting --- */
   const dark=darknessNow();
