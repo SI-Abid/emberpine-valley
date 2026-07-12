@@ -515,8 +515,11 @@ function villagerTick(v,dt){
       if(Math.random()<dt*.9)parts.push({x:v.x,y:v.y-.7,vx:.12,vy:-.3,life:1.5,max:1.5,color:'zzz',sz:1});
       return;
     }
-    if(Math.random()<dt*.9)parts.push({x:v.x,y:v.y-.7,vx:.12,vy:-.3,life:1.5,max:1.5,color:'zzz',sz:1});
-    return;
+    if(v.state==='sleep'){
+      if(Math.random()<dt*.9)parts.push({x:v.x,y:v.y-.7,vx:.12,vy:-.3,life:1.5,max:1.5,color:'zzz',sz:1});
+      return;
+    }
+    // state==='toHall': fall through so goods are delivered at the hall; sleep starts next tick
   } else if(v.state==='sleep'||v.state==='toHome')v.state='idle';
   const J=JOBS[v.job];
   if(v.state==='toWork'){ v.state='working'; v.work=0; return }
