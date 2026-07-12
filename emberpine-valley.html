@@ -784,20 +784,53 @@ function placeBuilding(type,x,y){
 const cv=document.getElementById('game'),cx=cv.getContext('2d');
 const lightCv=document.createElement('canvas'),lcx=lightCv.getContext('2d');
 let VW=0,VH=0,DPR=1,ZOOM=1,TSZ=TILE;
-function resize(){DPR=Math.min(2,window.devicePixelRatio||1);VW=innerWidth;VH=innerHeight;cv.width=VW*DPR;cv.height=VH*DPR;cv.style.width=VW+'px';cv.style.height=VH+'px';lightCv.width=VW;lightCv.height=VH}
+function resize(){DPR=Math.min(2,window.devicePixelRatio||1);VW=innerWidth;VH=innerHeight;cv.width=VW*DPR;cv.height=VH*DPR;cv.style.width=VW+'px';cv.style.height=VH+'px';lightCv.width=VW;lightCv.height=VH;cx.imageSmoothingEnabled=false}
 addEventListener('resize',resize);resize();
 addEventListener('blur',()=>{for(const k in keys)keys[k]=false;joyVec.x=0;joyVec.y=0});
 const TCOL=['#2e6e8c','#d9c98a','#7cb56b','#639e58','#8d8a80'];
 const TCOL2=['#2a647f','#d0bf7f','#75ad64','#5c9552','#83807a'];
-function drawTile(x,y,sx,sy,sz){
-  const t=terrAt(x,y);
-  cx.fillStyle=hash2(x,y,5)>.5?TCOL[t]:TCOL2[t];
-  cx.fillRect(sx,sy,sz+1,sz+1);
-  if(t===0){
-    const w=Math.sin(now()/700+x*1.3+y*2.1);
-    if(w>0.75){cx.fillStyle='rgba(255,255,255,.18)';cx.fillRect(sx+sz*.2,sy+sz*.45,sz*.5,2)}
+
+/* ============ v4 terrain atlas — Kenney Tiny Town + Roguelike/RPG (CC0) ============ */
+const ATLAS_FRAMES={"water0":[0,0],"water1":[16,0],"sand0":[32,0],"sand1":[48,0],"grass0":[0,16],"grass1":[16,16],"grass2":[32,16],"gdark0":[48,16],"gdark1":[0,32],"rock0":[16,32],"rock1":[32,32],"sand_nw":[0,48],"sand_n":[16,48],"sand_ne":[32,48],"sand_w":[48,48],"sand_e":[0,64],"sand_sw":[16,64],"sand_s":[32,64],"sand_se":[48,64]};
+const ATLAS_B64='iVBORw0KGgoAAAANSUhEUgAAAEAAAABQCAYAAACpv3NFAAAEbElEQVR4nO2bz0sbQRTHXzRoD4KaBJWqhEWhUC8ePPSoF/+Akqv0UBAL/QeC14r/Q6AHkd76B+gpvbR4EStFqNI0Df6KwailPaQFbQ9ltrOzs5M3OzO7s4mfi5t1dufNd95782aMqefv9/5AjKx/ex1n99ATa+8WcC8Ae2NmcMBYZybfTXNaqaPb+gQ4+P4zdMftBqjybhnGp8bQbbWGQFQD5HFaqUvNPKHrc0BapvHM4ECssyxCxu1ppDxAZvBRJTxVjIWArZ7CwhUgKbOnA64ASZk9HUS6CtjoWZEKYKNndX0d0PUCpJ1UKVYDSo7a8zf1H0rPa/OA/kwO+jM537UMxVYDiq2GsE2t2vT8VMWaEHj2rsy9Zsk7WahVm5B3slr6Tb368ELLkRiZEWIgucZAZr1n4S0AANyVCwAAsP5gpO2zqiEgtRkSQQarc3aiQHsIhBn8ynkvnO0cwF25AHflApztHMDKea9u07gYywEyySrvZGFjfsH9vDG/EJkXaQsBljDJisx6XnFplMGYAADy4RBH7rBmGcSAqRNkSYwA2DpBFqMhQEMqw19Xl55rDMVWA+DJjFsnPIQCFFsNVJ3QDi0eoLs8jRItAmAy/tHuIRztHvquAdoLaLJO0FYKYwkSCrNkkgRIu741pTCWoEFilkATdUJaVcHM58dKzy8uLuIbP/Lfmns6l1Lp3/WAvqEMAAD8vrnyXLdjaWlJpX+4uLhQel4V5RCIewCquAJ8/VQBAICJyWHPdafjCkAGe3J83RUDJ/jqgG4aPICgEDo5vvb87FQCBZiYHO6KcBCWwp0+eIAEbYdNcS8AtmHfUMatEOnrpNMD0D0Zn0caAJfxO7VS9FWCQZiqFEdHR7W9KwzSmyHds765uan1fbJEfiJkkuWq/DGZ9mUwaQejwhBgB0P/BZhH3snCGoxACW65bTDPi/o1ATcEiAFr4D13X4UG9z77+6A22OeD+hUJQQ5VZcPAJ0Ct2gw0kOa0Ug/9BeWw71qFRqAIy9VeKDm30gL4cgBm8AC4b2ez39/PTc+69+nfYYUU2VZy+GHXDo8AuhMYO7D97S3ld4psxE4ejUeAMC+QgQgyPjUWOnyw4YnFFwJh/u0kKrC2Kf3PkK7EZgITtnELodz0rJuwbMCkPa4AtWoTSs6tkU50Isr2xP5QOYBOLvvbW1oyti5Ye4ISIRFGJlTcUvi/siPW5QHann+eyi+GiDDEAzDjiHQZ1IFuGyP/fkAUyHhwqvHmpfR5QFCyDLMfjwPa/vtjcV0vSuoyKi1A0DqchARKoG0N5QG8wdLC2FZJ0ttv1lOlBRC5ehK8gLVRehkkZ34iSNVmS0ElsgPtATL1tcp+3yS8sEQLIDMg02cKYXPM5ZePvnta6wCSG2ycfQKbv6wuhFhPIp917lbRAhCXa1fsYIshTJiwnhR0pogNOZ5t0nsB0dk8C7s3IAYE7RloA3ltsM8H9csDJQC7vzZZ8pI/cESFdTkg6v0EqhCyOaur8hffmu1tDCHUsAAAAABJRU5ErkJggg==';
+let atlasReady=false;
+const atlasImg=new Image();
+if(ATLAS_B64){atlasImg.onload=()=>{atlasReady=true};atlasImg.src='data:image/png;base64,'+ATLAS_B64;}
+// per-terrain frame variants; grass2 (flowers) kept rare
+const TVAR=[['water0','water1'],['sand0','sand1'],['grass0','grass0','grass0','grass0','grass0','grass0','grass0','grass1','grass1','grass1','grass1','grass2'],['gdark0','gdark1'],['rock0','rock1']];
+// 4-bit mask of grass-side neighbors (N=1,E=2,S=4,W=8) -> grass-edged sand tile
+const SAND_EDGE={1:'sand_n',2:'sand_e',4:'sand_s',8:'sand_w',9:'sand_nw',3:'sand_ne',12:'sand_sw',6:'sand_se'};
+function tileFrame(x,y,t){
+  if(t===1){
+    const m=(terrAt(x,y-1)>=2?1:0)|(terrAt(x+1,y)>=2?2:0)|(terrAt(x,y+1)>=2?4:0)|(terrAt(x-1,y)>=2?8:0);
+    const e=SAND_EDGE[m]; if(e&&ATLAS_FRAMES[e])return ATLAS_FRAMES[e];
   }
-  if(t===2&&hash2(x,y,77)>.86){cx.fillStyle='rgba(255,255,255,.14)';cx.fillRect(sx+sz*.3,sy+sz*.3,2,2);cx.fillRect(sx+sz*.6,sy+sz*.55,2,2)}
+  const v=TVAR[t];
+  return ATLAS_FRAMES[v[(hash2(x,y,5)*v.length)|0]];
+}
+function drawTile(x,y,sx,sy,w,h){
+  const t=terrAt(x,y);
+  if(atlasReady){
+    const f=tileFrame(x,y,t);
+    cx.drawImage(atlasImg,f[0],f[1],16,16,sx,sy,w,h);
+  }else{
+    cx.fillStyle=hash2(x,y,5)>.5?TCOL[t]:TCOL2[t];
+    cx.fillRect(sx,sy,w+1,h+1);
+    if(t===2&&hash2(x,y,77)>.86){cx.fillStyle='rgba(255,255,255,.14)';cx.fillRect(sx+w*.3,sy+h*.3,2,2);cx.fillRect(sx+w*.6,sy+h*.55,2,2)}
+  }
+  if(t===0){
+    const nb=(terrAt(x,y-1)>0)|((terrAt(x+1,y)>0)<<1)|((terrAt(x,y+1)>0)<<2)|((terrAt(x-1,y)>0)<<3);
+    if(nb){ // shoreline foam, gently breathing
+      cx.fillStyle='rgba(255,255,255,'+(.16+.1*Math.sin(now()/650+x*.9+y*1.7)).toFixed(3)+')';
+      const fw=Math.max(2,h*.1);
+      if(nb&1)cx.fillRect(sx,sy,w,fw);
+      if(nb&2)cx.fillRect(sx+w-fw,sy,fw,h);
+      if(nb&4)cx.fillRect(sx,sy+h-fw,w,fw);
+      if(nb&8)cx.fillRect(sx,sy,fw,h);
+    }
+    const wv=Math.sin(now()/700+x*1.3+y*2.1);
+    if(wv>0.75){cx.fillStyle='rgba(255,255,255,.18)';cx.fillRect(sx+w*.2,sy+h*.45,w*.5,2)}
+  }
 }
 function drawRes(r,x,y,sx,sy,sz){
   const cxm=sx+sz/2;
@@ -935,8 +968,12 @@ function render(){
   cx.fillStyle='#163026';cx.fillRect(0,0,VW,VH);
   const tx0=Math.floor(S.cam.x-VW/2/TSZ)-1, ty0=Math.floor(S.cam.y-VH/2/TSZ)-1;
   const tx1=tx0+Math.ceil(VW/TSZ)+2, ty1=ty0+Math.ceil(VH/TSZ)+2;
-  for(let y=ty0;y<=ty1;y++)for(let x=tx0;x<=tx1;x++){
-    drawTile(x,y,(x-S.cam.x)*TSZ+VW/2,(y-S.cam.y)*TSZ+VH/2,TSZ);
+  for(let y=ty0;y<=ty1;y++){
+    const ry0=Math.round((y-S.cam.y)*TSZ+VH/2), ry1=Math.round((y+1-S.cam.y)*TSZ+VH/2);
+    for(let x=tx0;x<=tx1;x++){
+      const rx0=Math.round((x-S.cam.x)*TSZ+VW/2), rx1=Math.round((x+1-S.cam.x)*TSZ+VW/2);
+      drawTile(x,y,rx0,ry0,rx1-rx0,ry1-ry0);   // edge-snapped: no seams at fractional zoom
+    }
   }
   if(S.buildSel&&hoverTile){
     const sx=(hoverTile.x-S.cam.x)*TSZ+VW/2, sy=(hoverTile.y-S.cam.y)*TSZ+VH/2;
