@@ -205,6 +205,8 @@
   .wnum{font-size:10px;opacity:.75;min-width:52px;text-align:right}
   .wgive{border:2px solid var(--ink);background:var(--amber);border-radius:8px;padding:2px 7px;font-weight:800;font-size:10.5px}
   .wtop{font-size:11px;font-weight:700;padding:2px 0}
+  .demoBtn{display:block;width:100%;margin-top:9px;border:2px solid var(--clay);background:#fff8e6;color:var(--clay);border-radius:8px;padding:5px 7px;font-weight:800;font-size:11.5px}
+  .demoBtn.armed{background:var(--clay);color:#fff8e6}
   .touch #emoteRow{bottom:178px}
   .touch #chatTab{bottom:178px}
   @media (max-width:720px){
@@ -548,6 +550,7 @@ function villagerTick(v,dt){
   if(v.state==='working'){
     const info=RES_INFO[v.target?.type||'tree'];
     const stationary=info===RES_INFO.wheatplot||info===RES_INFO.fishspot;
+    if(stationary&&v.target){const fb=S.buildings[key(v.target.x,v.target.y)];if(!fb||(fb.type!=='farm'&&fb.type!=='dock')){v.work=0;v.target=null;v.state='idle';return}}
     if(!stationary&&v.target&&!resAt(v.target.x,v.target.y)){v.work=0;v.target=null;v.state='idle';return}
     v.work+=dt*(v.hasTool?1.6:1)*(1+.05*(vLvl(v)-1))*(v.hungry?0.75:1);
     if(v.work>=info.time){
@@ -1257,6 +1260,20 @@ function openVillagerPopup(v,px,py){
   popup.style.left=clamp(px-120,8,VW-256)+'px';
   popup.style.top=clamp(py-popup.offsetHeight-30,8,VH-240)+'px';
 }
+function demolishBuilding(b){
+  const kk=key(b.x,b.y);
+  if(!S.buildings[kk]||S.buildings[kk]!==b)return;
+  const B=BUILDS[b.type];
+  if(b.type==='crate'&&b.store){for(const k2 in b.store)S.inv[k2]=(S.inv[k2]||0)+b.store[k2]}
+  for(const[k,v]of Object.entries(B.cost))S.inv[k]=(S.inv[k]||0)+Math.floor(v/2);
+  if(B.home)S.spawnQ=S.spawnQ.filter(q=>q.home!==kk);
+  delete S.buildings[kk];
+  spawnBurst(b.x,b.y,'#9a978e',8);
+  sfx('chop');
+  toast(B.name+' demolished — half the materials recovered');
+  popup.style.display='none';
+  renderHUD();renderBuildBar();saveSoon();
+}
 function openBuildingPopup(b,px,py){
   if(b.type==='monument'&&S.monu){openMonumentPopup(px,py);return}
   const B=BUILDS[b.type];
@@ -1269,7 +1286,8 @@ function openBuildingPopup(b,px,py){
       extra+='<button id="upgradeBtn" class="wgive"'+(canAfford(BUILDS[next].cost)?'':' disabled')+'>Upgrade → '+BUILDS[next].name+' · '+costStr(BUILDS[next].cost)+'</button>';
     }
   }
-  popup.innerHTML='<button class="close">✕</button><h4 class="px">'+iconHTML(b.type)+' '+B.name+'</h4><div class="sub">'+(b.mine?'YOUR WORKS':'ANOTHER SETTLER\u2019S WORKS')+'</div><div class="desc">'+B.desc+'</div>'+extra;
+  const demo=(b.mine&&b.type!=='monument')?'<button id="demolishBtn" class="demoBtn">\u{1F5D1} Demolish</button>':'';
+  popup.innerHTML='<button class="close">✕</button><h4 class="px">'+iconHTML(b.type)+' '+B.name+'</h4><div class="sub">'+(b.mine?'YOUR WORKS':'ANOTHER SETTLER\u2019S WORKS')+'</div><div class="desc">'+B.desc+'</div>'+extra+demo;
   popup.querySelector('.close').onclick=()=>popup.style.display='none';
   const ub=popup.querySelector('#upgradeBtn');
   if(ub)ub.onclick=()=>{
@@ -1281,6 +1299,19 @@ function openBuildingPopup(b,px,py){
     moveIn(key(b.x,b.y));renderHUD();renderBuildBar();questTick();checkTownTier();saveSoon();
     openBuildingPopup(b,px,py);
   };
+  const db=popup.querySelector('#demolishBtn');
+  if(db){
+    let armTimer=null;
+    db.onclick=()=>{
+      if(db.dataset.armed==='1'){
+        clearTimeout(armTimer);
+        demolishBuilding(b);
+      }else{
+        db.dataset.armed='1';db.textContent='Tap again to demolish';db.classList.add('armed');
+        armTimer=setTimeout(()=>{db.dataset.armed='0';db.textContent='\u{1F5D1} Demolish';db.classList.remove('armed')},3000);
+      }
+    };
+  }
   popup.style.display='block';
   popup.style.left=clamp(px-120,8,VW-256)+'px';
   popup.style.top=clamp(py-150,8,VH-200)+'px';
