@@ -890,7 +890,7 @@ function drawBuilding(b,sx,sy,sz){
   cx.fillStyle='rgba(0,0,0,.22)';cx.fillRect(sx+3,sy+sz*.75,sz-6,sz*.2);
   cx.fillStyle=BCOLS[b.type];cx.fillRect(sx+3,sy+4,sz-6,sz-9);
   cx.strokeStyle='#2b2620';cx.lineWidth=2;cx.strokeRect(sx+3,sy+4,sz-6,sz-9);
-  drawIcon(cx,b.type==='hall'?'hall':b.type,sx+sz/2,sy+sz/2,sz*.55);
+  drawIcon(cx,b.type==='hall'?'hall':b.type,sx+sz/2,sy+sz/2,sz*.88);
   if(b.type==='crate'){const tot=Object.values(b.store||{}).reduce((a,c2)=>a+c2,0);
     cx.fillStyle='#2b2620';cx.fillRect(sx+5,sy+sz-9,sz-10,4);
     cx.fillStyle='#e8a33d';cx.fillRect(sx+5,sy+sz-9,(sz-10)*Math.min(1,tot/12),4);}
