@@ -394,6 +394,11 @@ const BUILDS={
   cottage:{name:'Cottage',ico:'🐱',cost:{plank:6,stone:2},desc:'A home for 1 settler — settlers move in when built',home:true,cap:1},
   house:{name:'House',ico:'🏠',cost:{plank:12,stone:6,bread:4},desc:'A home for 2 settlers',home:true,cap:2},
   manor:{name:'Manor',ico:'🏛',cost:{brick:20,glass:8,bread:6},desc:'A home for 3 settlers',home:true,cap:3},
+  well:{name:'Well',ico:'⛲',cost:{stone:10},desc:'Fresh water for the town — required to reach Village',civic:true},
+  tavern:{name:'Tavern',ico:'🍺',cost:{plank:16,bread:8},desc:'Songs and suppers — required to reach Town',civic:true},
+  plaza:{name:'Plaza',ico:'🎪',cost:{stone:12,plank:6},desc:'A gathering square — required to reach Town',civic:true},
+  chapel:{name:'Chapel',ico:'⛪',cost:{brick:20,glass:10},desc:'A quiet spire — required to reach City',civic:true},
+  statue:{name:'Statue',ico:'🗿',cost:{stone:10,goldbar:2},desc:'A founder in gold — required to reach City',civic:true},
   monument:{name:'Monument Foundation',ico:'🗿',cost:{stone:40,plank:20},desc:'Lay the Foundation, then raise it through five eras'},
 };
 const MONUMENT_STAGES=[
@@ -622,7 +627,7 @@ function spawnQueueTick(dt){
       const v=makeVillager();v.home=q.home;
       toast('👋 '+v.name+' joins the guild!');sfx('recruit');
       spawnBurst(b.x,b.y,'#ffe9b8',8);
-      renderHUD();questTick();saveSoon();
+      renderHUD();questTick();checkTownTier();saveSoon();
     }
   }
 }
@@ -732,6 +737,7 @@ function placeBuilding(type,x,y){
   }
   if(type==='farm')firstTime('farm','Assign a villager as 🌾 Farmer and they\u2019ll work your farm.');
   if(type==='monument')S.buildSel=null;      // monument leaves the bar once placed
+  checkTownTier();
   renderBuildBar();saveSoon();
 }
 
@@ -1054,9 +1060,13 @@ function renderHUD(){
   const edible=(S.inv.berry||0)+(S.inv.fish||0)+(S.inv.egg||0)+(S.inv.bread||0), foodShort=edible<S.villagers.length;
   hud.innerHTML=rawChips+'<div class="hsep"></div>'+craftChips
    +'<div class="hsep"></div><div class="res" title="'+(foodShort?'Not enough food for the next meal':'Villagers / housing capacity')+'">'+iconHTML('villagers','ico')+S.villagers.length+'/'+popCap()+(foodShort?' ⚠️':'')+'</div>'
+   +'<div class="res" id="tierChip" title="Town tier"></div>'
    +'<div class="res" id="clockChip" title="Time of day"></div>';
-  updateClock();
+  updateClock();updateTierChip();
 }
+function updateTierChip(){const el=document.getElementById('tierChip');if(!el)return;
+  const tt=TOWN_TIERS[S.town.tier];
+  el.innerHTML='<span class="ico">'+tt.emoji+'</span>Emberpine '+tt.tier}
 function updateClock(){const el=document.getElementById('clockChip');if(!el)return;const p=dayPhase();
   el.innerHTML='<span class="ico">'+(p<.08?'🌅':p<.42?'☀️':p<.58?'🌇':p<.92?'🌙':'🌅')+'</span>'}
 setInterval(updateClock,4000);
@@ -1072,6 +1082,25 @@ function costStr(c){return Object.entries(c).map(([k,v])=>'<span class="cp">'+v+
 const ERA={kiln:1,glassworks:1,forge:1,loom:2,gilder:2};
 const TIER={house:1,manor:2,tavern:1,plaza:1,chapel:2,statue:2};
 const NEXT_HOME={cottage:'house',house:'manor'};
+const TOWN_TIERS=[
+ {tier:'Hamlet',emoji:'⛺',ok:()=>true,bonus:0},
+ {tier:'Village',emoji:'🗺️',ok:()=>S.villagers.length>=6&&countB('well')>=1,bonus:50},
+ {tier:'Town',emoji:'🏘️',ok:()=>S.villagers.length>=10&&countB('tavern')>=1&&countB('plaza')>=1,bonus:100},
+ {tier:'City',emoji:'🏰',ok:()=>S.villagers.length>=16&&countB('chapel')>=1&&countB('statue')>=1,bonus:250},
+];
+function checkTownTier(){
+  while(S.town.tier<TOWN_TIERS.length-1&&TOWN_TIERS[S.town.tier+1].ok()){
+    S.town.tier++;
+    const tt=TOWN_TIERS[S.town.tier];
+    S.score+=tt.bonus;
+    toast(tt.emoji+' Emberpine is now a '+tt.tier+'!');sfx('quest');
+    if(S.town.tier===3){
+      monuFxUntil=now()+10000;
+      spawnFireworks(HALL.x+.5,HALL.y-1);spawnFireworks(HALL.x-1,HALL.y);spawnFireworks(HALL.x+2,HALL.y-.5);
+    }
+    renderBuildBar();renderHUD();saveSoon();
+  }
+}
 function renderBuildBar(){
   bbar.innerHTML='';
   const cs=completedStages();
@@ -1079,11 +1108,10 @@ function renderBuildBar(){
     if(t==='monument'&&S.monu)continue;                 // Foundation already placed
     const B=BUILDS[t], eraReq=ERA[t]||0, eraLocked=cs<eraReq;
     const tierReq=TIER[t]||0, tierLocked=S.town.tier<tierReq;
-    const TIER_NAMES=['Hamlet','Village','Town','City'];
     const btn=document.createElement('button');
     if(eraLocked||tierLocked){
       btn.className='bbtn eralock';
-      const lockName=eraLocked?MONUMENT_STAGES[eraReq].name:TIER_NAMES[tierReq];
+      const lockName=eraLocked?MONUMENT_STAGES[eraReq].name:TOWN_TIERS[tierReq].tier;
       btn.innerHTML='<span class="bi">'+iconHTML(t)+'</span><span class="bn">'+B.name+'</span><span class="bc">🔒 '+lockName+'</span>';
       btn.title=eraLocked?('Unlocks when the '+lockName+' is complete'):('Unlocks when the town reaches '+lockName);
       btn.onclick=()=>toast(eraLocked?('🔒 Complete the '+lockName+' first'):('🔒 Reach '+lockName+' first'));
@@ -1157,7 +1185,7 @@ function openBuildingPopup(b,px,py){
     for(const[k,v]of Object.entries(NB.cost))S.inv[k]-=v;
     b.type=next;S.stats.b[next]=(S.stats.b[next]||0)+1;S.score+=15;
     sfx('build');spawnBurst(b.x,b.y,'#e8a33d',10);
-    moveIn(key(b.x,b.y));renderHUD();renderBuildBar();questTick();saveSoon();
+    moveIn(key(b.x,b.y));renderHUD();renderBuildBar();questTick();checkTownTier();saveSoon();
     openBuildingPopup(b,px,py);
   };
   popup.style.display='block';
@@ -1237,6 +1265,7 @@ async function loadGame(){
   else S.monu=null;
   for(const vs of (s.villagers||[])){const v=makeVillager();v.name=vs.name;v.color=vs.color;v.job=vs.job;v.hasTool=vs.hasTool;v.xp=vs.xp||0;v.home=vs.home||null;v.hungry=!!vs.hungry}
   for(const k in S.buildings)if(BUILDS[S.buildings[k].type]&&BUILDS[S.buildings[k].type].home&&S.buildings[k].mine)moveIn(k);
+  checkTownTier();
   return true;
 }
 
@@ -1297,8 +1326,8 @@ function darknessNow(){const l=.5+.5*Math.sin(dayPhase()*Math.PI*2);let d=(1-l)*
 let parts=[],rainFx=[],smokeT=0,critterT=0;
 function spawnBurst(x,y,color,n){n=n||6;for(let i=0;i<n;i++)parts.push({x:x+.5,y:y+.5,vx:(Math.random()-.5)*2.4,vy:-1-Math.random()*1.6,g:5,life:.55+Math.random()*.25,max:.8,color,sz:3})}
 function ambienceTick(dt){
-  if(monuFxUntil>now()){const mon=monBuilding();
-    if(mon&&Math.random()<dt*3)spawnFireworks(mon.x+.5+(Math.random()-.5)*2, mon.y-1+(Math.random()-.5));}
+  if(monuFxUntil>now()){const mon=monBuilding()||{x:HALL.x,y:HALL.y};
+    if(Math.random()<dt*3)spawnFireworks(mon.x+.5+(Math.random()-.5)*2, mon.y-1+(Math.random()-.5));}
   if(now()>weather.next){weather.rain=!weather.rain;
     weather.next=now()+(weather.rain?30000+Math.random()*40000:70000+Math.random()*140000);
     toast(weather.rain?'\u{1F327}\uFE0F Rain drifts over the valley\u2026':'\u{1F324}\uFE0F The rain clears');}
