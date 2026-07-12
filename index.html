@@ -25,6 +25,7 @@
     padding:6px 10px;box-shadow:0 4px 0 var(--shadow), inset 0 0 0 2px rgba(255,255,255,.35);z-index:20;max-width:96vw}
   .res{display:flex;align-items:center;gap:4px;font-weight:800;font-size:13px;padding:2px 7px;border-radius:6px;background:rgba(255,255,255,.35)}
   .res .ico{font-size:15px;line-height:1}
+  .ic.ico{font-size:15px}
   .ic{display:inline-flex;vertical-align:-2px}
   .ic svg{width:1em;height:1em;display:block}
   .res.bump{animation:bump .3s ease}
@@ -626,7 +627,7 @@ function playerTick(dt){
       gain(info.yield,info.n);
       spawnBurst(h.x,h.y,h.type==='tree'?'#8a6b45':'#b8b4a6',7);
       markRemoved(h.x,h.y);
-      toast('+'+info.n+' '+ICONS[info.yield]);
+      toast('+'+info.n+' '+NICE[info.yield]);
       S.me.harvest=null;
       firstTime('gather','Nice! Open the 👥 Villagers panel to put someone else on the job.');
     }
@@ -933,6 +934,23 @@ const ICON_SVG={
  clay:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 17c0-5 3-9 8-9s8 4 8 9c0 2-3 3-8 3s-8-1-8-3z" fill="#b0563b" stroke="#2b2620" stroke-width="2"/><path d="M8 12c1-2 3-3 5-3" fill="none" stroke="#d98a6a" stroke-width="1.6" stroke-linecap="round"/></svg>',
  goldbar:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 9h12l3 8H3z" fill="#f4c542" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><path d="M7 12h7" stroke="#fff3c0" stroke-width="1.8" stroke-linecap="round"/></svg>',
  brick:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="11" rx="1.5" fill="#b0563b" stroke="#2b2620" stroke-width="2"/><path d="M3 12.5h18M9 7v5.5M15 12.5V18" stroke="#7d3a26" stroke-width="1.6"/></svg>',
+ ore:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 15c0-4 3-8 8-8s8 3 8 7c0 4-4 6-8 6s-8-1-8-5z" fill="#7a6a5a" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><circle cx="9" cy="12" r="1.8" fill="#cfc6ac"/><circle cx="14.5" cy="9.5" r="1.5" fill="#cfc6ac"/><circle cx="13" cy="15" r="1.4" fill="#cfc6ac"/></svg>',
+ berry:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 16c0-7 6-12 14-12-1 8-6 14-14 12z" fill="#5aa06a" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><circle cx="9" cy="14" r="2.4" fill="#5b8fb0" stroke="#2b2620" stroke-width="1.4"/><circle cx="14" cy="10.5" r="2.1" fill="#5b8fb0" stroke="#2b2620" stroke-width="1.4"/><circle cx="12" cy="16.5" r="1.9" fill="#5b8fb0" stroke="#2b2620" stroke-width="1.4"/></svg>',
+ fish:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M2 12c3-4 8-6 13-5 3 .6 5 2.4 5 5s-2 4.4-5 5c-5 1-10-1-13-5z" fill="#5b8fb0" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><path d="M16 8l4-3v14l-4-3z" fill="#5b8fb0" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><circle cx="7" cy="11.5" r="1.2" fill="#fff"/><circle cx="7.2" cy="11.5" r=".55" fill="#2b2620"/></svg>',
+ egg:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 3c4 4 7 9 7 13a7 7 0 0 1-14 0c0-4 3-9 7-13z" fill="#f0e6c8" stroke="#2b2620" stroke-width="2"/><circle cx="10" cy="14" r="1" fill="#8a6b45"/><circle cx="14.5" cy="12.5" r=".9" fill="#8a6b45"/><circle cx="12" cy="17" r=".8" fill="#8a6b45"/></svg>',
+ plank:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="2" y="10" width="20" height="6" rx="1.5" fill="#c9a468" stroke="#2b2620" stroke-width="2"/><path d="M4 13h16M4 15.2h10" stroke="#8a6b45" stroke-width="1.4" stroke-linecap="round"/></svg>',
+ ingot:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M7 8h10l4 9H3z" fill="#9a978e" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/></svg>',
+ wheat:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M7 21V11M12 21V8M17 21V11" stroke="#8a6b45" stroke-width="2" stroke-linecap="round"/><path d="M7 11c-2 0-3-2-3-4M7 11c2 0 3-2 3-4M12 8c-2 0-3.5-2-3.5-4.5M12 8c2 0 3.5-2 3.5-4.5M17 11c-2 0-3-2-3-4M17 11c2 0 3-2 3-4" fill="none" stroke="#e8a33d" stroke-width="1.8" stroke-linecap="round"/></svg>',
+ bread:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 15c0-5 4-9 9-9s9 4 9 9c0 3-4 4-9 4s-9-1-9-4z" fill="#d9a05f" stroke="#2b2620" stroke-width="2"/><path d="M9 8c1 2 1 5 0 7M15 8c-1 2-1 5 0 7" fill="none" stroke="#a86f3a" stroke-width="1.6" stroke-linecap="round"/></svg>',
+ tool:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M5 19l8-8" stroke="#8a6b45" stroke-width="3.2" stroke-linecap="round"/><path d="M11 9l3-3 6 6-3 3z" fill="#7a6a5a" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/></svg>',
+ sand:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M2 18c3-6 7-9 10-9s7 3 10 9z" fill="#e0c98a" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><circle cx="8" cy="15" r=".8" fill="#8a6b45"/><circle cx="12" cy="13" r=".8" fill="#8a6b45"/><circle cx="16" cy="15.5" r=".8" fill="#8a6b45"/></svg>',
+ goldore:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 19 3 12l6-7 9 2 3 8-5 4z" fill="#7a6a5a" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><path d="M7 13l3 3M11 8l2 5M15 11l2 4" stroke="#f4c542" stroke-width="1.8" stroke-linecap="round"/></svg>',
+ flax:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 21V5" stroke="#5aa06a" stroke-width="2.2" stroke-linecap="round"/><path d="M12 13c-3-1-4 1-5 3M12 16c3-1 4 1 5 3" fill="none" stroke="#5aa06a" stroke-width="1.6" stroke-linecap="round"/><circle cx="12" cy="5" r="2.2" fill="#5b8fb0" stroke="#2b2620" stroke-width="1.6"/><circle cx="7.5" cy="15" r="1.6" fill="#5b8fb0" stroke="#2b2620" stroke-width="1.4"/><circle cx="16.5" cy="18" r="1.6" fill="#5b8fb0" stroke="#2b2620" stroke-width="1.4"/></svg>',
+ glass:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M7 3h9l2 18H5z" fill="#bcd6e0" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><path d="M9 5l1 15" stroke="#fff" stroke-width="1.8" stroke-linecap="round" opacity=".8"/></svg>',
+ beam:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M5 4h14v4h-5v8h5v4H5v-4h5V8H5z" fill="#8d9199" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/></svg>',
+ cloth:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2" fill="#b58fb0" stroke="#2b2620" stroke-width="2"/><path d="M3 10h18M3 14h18" stroke="#8a5f86" stroke-width="1.5"/></svg>',
+ ornament:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 9h16l-8 12z" fill="#f4c542" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><path d="M4 9h16l-4-5H8z" fill="#e8a33d" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><path d="M12 9v12M8 9l4 12M16 9l-4 12" stroke="#2b2620" stroke-width="1" opacity=".5"/></svg>',
+ villagers:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="8" cy="7" r="3" fill="#e8a33d" stroke="#2b2620" stroke-width="2"/><path d="M2 20c0-4.5 3-7 6-7s6 2.5 6 7z" fill="#e8a33d" stroke="#2b2620" stroke-width="2"/><circle cx="17" cy="8" r="2.6" fill="#b0563b" stroke="#2b2620" stroke-width="2"/><path d="M12 20c.3-4 3-6.2 5.5-6.2s5.5 2.2 5.5 6.2z" fill="#b0563b" stroke="#2b2620" stroke-width="2"/></svg>',
 };
 function iconHTML(k,cls){return '<span class="ic'+(cls?' '+cls:'')+'" title="'+(NICE[k]||'')+'">'+(ICON_SVG[k]||ICON_SVG._missing)+'</span>'}
 const iconImg={};
@@ -949,12 +967,12 @@ const hud=document.getElementById('hud');
 const RAW=['wood','stone','ore','berry','fish','egg'],CRAFT=['plank','ingot','wheat','bread','tool'];
 const NEWRAW=['clay','sand','goldore','flax'], NEWCRAFT=['brick','glass','beam','cloth','goldbar','ornament'];
 function ownsGood(k){return (S.inv[k]||0)>0 || (S.stats.g[k]||0)>0}
-function chipHtml(k){return '<div class="res" id="res-'+k+'" title="'+NICE[k]+'"><span class="ico">'+ICONS[k]+'</span>'+S.inv[k]+'</div>'}
+function chipHtml(k){return '<div class="res" id="res-'+k+'" title="'+NICE[k]+'">'+iconHTML(k,'ico')+S.inv[k]+'</div>'}
 function renderHUD(){
   const rawChips=RAW.map(chipHtml).join('')+NEWRAW.filter(ownsGood).map(chipHtml).join('');
   const craftChips=CRAFT.map(chipHtml).join('')+NEWCRAFT.filter(ownsGood).map(chipHtml).join('');
   hud.innerHTML=rawChips+'<div class="hsep"></div>'+craftChips
-   +'<div class="hsep"></div><div class="res" title="Villagers"><span class="ico">👥</span>'+S.villagers.length+'</div>'
+   +'<div class="hsep"></div><div class="res" title="Villagers">'+iconHTML('villagers','ico')+S.villagers.length+'</div>'
    +'<div class="res" id="clockChip" title="Time of day"></div>';
   updateClock();
 }
@@ -969,7 +987,7 @@ function firstTime(k,msg){if(S.msgShown[k])return;S.msgShown[k]=1;toast('💡 '+
 
 /* build bar */
 const bbar=document.getElementById('buildbar');
-function costStr(c){return Object.entries(c).map(([k,v])=>v+ICONS[k]).join(' ')}
+function costStr(c){return Object.entries(c).map(([k,v])=>v+' '+iconHTML(k)).join(' ')}
 const ERA={kiln:1,glassworks:1,forge:1,loom:2,gilder:2};
 function renderBuildBar(){
   bbar.innerHTML='';
@@ -1012,7 +1030,7 @@ function renderRoster(){
   }
   const rb=document.getElementById('recruitBtn');
   const cost=recruitCost();
-  rb.textContent='Recruit villager · '+costStr(cost);
+  rb.innerHTML='Recruit villager · '+costStr(cost);
   rb.disabled=!canAfford(cost);
 }
 function recruitCost(){const n=S.villagers.length;if(n<4)return{berry:8*(n-1)||8};if(n<6)return{fish:5+3*(n-4)};return{bread:Math.min(10,n-3)}}
@@ -1222,7 +1240,7 @@ function ambienceTick(dt){
       const kinds=['ingot','plank','bread','tool','ore'];
       const kk=kinds[(Math.random()*kinds.length)|0], nn=2+((Math.random()*4)|0);
       S.score+=25;gain(kk,nn);sfx('quest');spawnBurst(ra.x,ra.y,'#ffe9b8',14);
-      toast('✨ Relic recovered! +'+nn+ICONS[kk]+' +25 pts');
+      toast('✨ Relic recovered! +'+nn+' '+NICE[kk]+' +25 pts');
     }
   }
   traderTick();
@@ -1288,7 +1306,7 @@ function questTick(){
     while(S.quest<QUESTS.length&&QUESTS[S.quest].c()&&guard++<10){
       const q=QUESTS[S.quest];S.quest++;
       let rw='';
-      if(q.r){for(const[k,v]of Object.entries(q.r)){S.inv[k]=(S.inv[k]||0)+v;rw+=' +'+v+ICONS[k]}renderHUD()}
+      if(q.r){for(const[k,v]of Object.entries(q.r)){S.inv[k]=(S.inv[k]||0)+v;rw+=' +'+v+' '+NICE[k]}renderHUD()}
       toast('\u{1F4DC} Quest complete: '+q.t+(rw?' \u2014'+rw:''));sfx('quest');
       spawnBurst(S.me.x-.5,S.me.y-.5,'#ffe9b8',10);
       S.score+=25;saveSoon();
@@ -1355,7 +1373,7 @@ function renderLedger(){
   const el=document.getElementById('ledgerList');if(!el)return;
   const rows=Object.entries(S.others).map(([id,o])=>({id,...o})).sort((a,b)=>(b.score||0)-(a.score||0)).slice(0,12);
   const rh=rows.map((o,i)=>'<div class="lrow'+(o.id===S.me.id?' meRow':'')+'"><span class="lrank">'+(i+1)+'</span><span class="ldot" style="background:'+((now()-o.t<70000)?'#5aa06a':'#8d8a80')+'"></span><span class="lname">'+escapeHtml(o.name||'?')+(o.won?' \u{1F451}':'')+'</span><b>'+(o.score||0)+'</b></div>').join('')||'<div class="cmsg dim">No settlers on record yet.</div>';
-  const tally=Object.entries(S.stats.g).filter(e=>e[1]>0).sort((a,b)=>b[1]-a[1]).slice(0,6).map(e=>ICONS[e[0]]+' '+e[1]).join('\u2002');
+  const tally=Object.entries(S.stats.g).filter(e=>e[1]>0).sort((a,b)=>b[1]-a[1]).slice(0,6).map(e=>iconHTML(e[0])+' '+e[1]).join('\u2002');
   const wp=Math.floor(wonderPct()*100);
   const wh='<div class="ltally" style="margin:0 0 6px;padding-top:0;border-top:none;border-bottom:2px solid rgba(43,38,32,.2);padding-bottom:6px"><b>🗿 VALLEY WONDER</b><div style="height:8px;border:1.5px solid var(--ink);border-radius:5px;background:#fff8e6;overflow:hidden;margin-top:3px"><div style="height:100%;background:var(--amber);width:'+wp+'%"></div></div><div style="font-size:10px;opacity:.75;margin-top:2px">'+(wonder.done?'Complete! 🎆':wp+'% · click the site to contribute')+'</div></div>';
   el.innerHTML=wh+rh+'<div class="ltally"><b>YOUR TALLY</b><div>'+(tally||'Nothing gathered yet')+'</div></div>';
@@ -1496,13 +1514,13 @@ function openMonumentPopup(px,py){
   }else if(cs>=4){
     const need=MONUMENT_STAGES[5].need.bread, can=(S.inv.bread||0)>=need;
     body='<div class="desc">The Spire is raised. Hold the feast to light the Eternal Flame.</div>'+
-      '<div class="wrow"><span>🍞</span><span class="wnum">'+(S.inv.bread||0)+'/'+need+'</span>'+
+      '<div class="wrow"><span>'+iconHTML('bread')+'</span><span class="wnum">'+(S.inv.bread||0)+'/'+need+'</span>'+
       '<button id="feastBtn" class="wgive"'+(can?'':' disabled')+'>🔥 Hold the Feast</button></div>';
   }else{
     const stage=S.monu.stage, st=MONUMENT_STAGES[stage];
     const rows=Object.entries(st.need).map(([k,need])=>{
       const given=S.monu.given[k]||0, have=S.inv[k]||0, ok=have>0&&given<need;
-      return '<div class="wrow"><span>'+ICONS[k]+'</span><div class="wbar"><div class="wfill" style="width:'+(100*Math.min(given,need)/need)+'%"></div></div>'+
+      return '<div class="wrow"><span>'+iconHTML(k)+'</span><div class="wbar"><div class="wfill" style="width:'+(100*Math.min(given,need)/need)+'%"></div></div>'+
              '<span class="wnum">'+given+'/'+need+'</span><button data-k="'+k+'" class="wgive"'+(ok?'':' disabled')+'>Give</button></div>';
     }).join('');
     body='<div class="desc">Raising the <b>'+st.name+'</b> · era '+(cs+1)+' of 5</div>'+rows;
@@ -1519,7 +1537,7 @@ function openWonderPopup(px,py){
   lastWX=px;lastWY=py;
   const rows=Object.entries(WONDER_GOAL).map(([k,g])=>{
     const got=Math.min(g,wonder.got[k]||0);
-    return '<div class="wrow"><span>'+ICONS[k]+'</span><div class="wbar"><div class="wfill" style="width:'+(100*got/g)+'%"></div></div><span class="wnum">'+got+'/'+g+'</span><button data-k="'+k+'" class="wgive">Give 10</button></div>';
+    return '<div class="wrow"><span>'+iconHTML(k)+'</span><div class="wbar"><div class="wfill" style="width:'+(100*got/g)+'%"></div></div><span class="wnum">'+got+'/'+g+'</span><button data-k="'+k+'" class="wgive">Give 10</button></div>';
   }).join('');
   const top=Object.values(wonder.contrib||{}).sort((a,b)=>b.n-a.n).slice(0,3)
     .map((c,i)=>'<div class="wtop">'+['🥇','🥈','🥉'][i]+' '+escapeHtml(c.name||'?')+' · '+c.n+'</div>').join('');
