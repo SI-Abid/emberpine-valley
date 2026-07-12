@@ -551,9 +551,19 @@ function villagerTick(v,dt){
     if(!stationary&&v.target&&!resAt(v.target.x,v.target.y)){v.work=0;v.target=null;v.state='idle';return}
     v.work+=dt*(v.hasTool?1.6:1)*(1+.05*(vLvl(v)-1))*(v.hungry?0.75:1);
     if(v.work>=info.time){
-      v.work=0;v.carry={what:info.yield,n:info.n};
+      v.work=0;
+      if(v.carry&&!v.carry.multi&&v.carry.what===info.yield)v.carry.n+=info.n;
+      else v.carry={what:info.yield,n:info.n};
       spawnBurst(v.x-.5,v.y-.5,'#e8d9a8',4);
       if(!stationary&&v.target){ markRemoved(v.target.x,v.target.y) }
+      if(!v.hungry&&v.carry.n<carryCap(v)){
+        if(stationary){v.state='working';return}
+        const nt=nearestRes(v.x|0,v.y|0,J.finds,claimedRes(v));
+        if(nt&&RES_INFO[nt.type].yield===v.carry.what){
+          const p=findPath(v.x,v.y,nt.x,nt.y,true);
+          if(p){v.target=nt;v.path=p;v.state='toWork';return}
+        }
+      }
       const c=nearestCrate(v.x,v.y,8);
       if(c){const pc=findPath(v.x,v.y,c.x,c.y,true);if(pc){v.crate=key(c.x,c.y);v.path=pc;v.state='toCrate';return}}
       const p=findPath(v.x,v.y,HALL.x,HALL.y,true);
@@ -1217,7 +1227,8 @@ function renderRoster(){
   rosterList.innerHTML='';
   for(const v of S.villagers){
     const row=document.createElement('div');row.className='vill';
-    const st={idle:'resting 💤',toWork:'walking 👣',working:'working ⚒️',toHall:'hauling 📦',toCrate:'stashing 📦',toPickup:'collecting 📦',sleep:'sleeping 😴',toHome:'walking home 🏡'}[v.state]||'resting';
+    let st={idle:'resting 💤',toWork:'walking 👣',working:'working ⚒️',toHall:'hauling 📦',toCrate:'stashing 📦',toPickup:'collecting 📦',sleep:'sleeping 😴',toHome:'walking home 🏡'}[v.state]||'resting';
+    if(v.carry&&v.carry.n)st+=' · 🎒'+v.carry.n+'/'+carryCap(v);
     row.innerHTML='<div class="vdot" style="background:'+v.color+'"></div><div class="vname">'+escapeHtml(v.name)+(v.hasTool?' 🛠️':'')+(v.hungry?' 🥺':'')+((!v.home||(v.home!=='hall'&&!S.buildings[v.home]))?' 🛌❓':'')+' <span class="vlv">Lv'+vLvl(v)+'</span><div class="vstat">'+st+'</div></div>';
     const sel=document.createElement('select');
     for(const j in JOBS){const o=document.createElement('option');o.value=j;o.textContent=JOBS[j].label;if(v.job===j)o.selected=true;sel.appendChild(o)}
@@ -1863,6 +1874,7 @@ function spawnFireworks(x,y){
 
 /* ============ helpers: levels, torch light, paths ============ */
 function vLvl(v){return Math.min(5,1+Math.floor((v.xp||0)/25))}
+function carryCap(v){return 4+2*(vLvl(v)-1)}
 function torchNear(x,y){for(const k in S.buildings){const b=S.buildings[k];if(b.type==='torch'&&(b.x+.5-x)**2+(b.y+.5-y)**2<20)return true}return false}
 function onPath(x,y){const b=S.buildings[key(Math.floor(x),Math.floor(y))];return !!(b&&b.type==='path')}
 function completedStages(){return S.monu?(S.monu.lit?5:S.monu.stage-1):0}
