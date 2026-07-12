@@ -13,7 +13,7 @@
 - Single self-contained `index.html`; no external files/CDNs/build step. All SVG as JS strings.
 - `emberpine-valley.html` must be byte-identical to `index.html` at final commit (`cp index.html emberpine-valley.html`).
 - No change to `store` / `save-v1` shape; `S` gains no new persisted fields.
-- SVG icons: `viewBox="0 0 24 24"`, ~2px safe margin, 2px ink outline `#2b2620`, flat fills only, **no external refs / filters / fonts** (external refs would taint the canvas). Aim <~400 bytes each.
+- SVG icons: `viewBox="0 0 24 24"` **with `xmlns="http://www.w3.org/2000/svg"`** (required — without it the data-URI `Image()` decode fails and `drawIcon` silently no-ops), ~2px safe margin, 2px ink outline `#2b2620`, flat fills only, **no external refs / filters / fonts** (external refs would taint the canvas). Aim <~400 bytes each.
 - Palette: wood `#8a6b45` · stone `#9a978e` · iron `#7a6a5a` · plant `#5aa06a` · water `#5b8fb0` · amber `#e8a33d` · clay `#b0563b` · bread `#d9a05f` · gold `#f4c542` · glass `#bcd6e0` · cloth `#b58fb0` · ink `#2b2620`.
 - Player emotes (`EMOTES`), toast/hint prose emoji, splash text: **stay emoji**. `toast()` uses `textContent`, so toasts can never carry HTML icons — where a toast currently embeds `ICONS[k]`, switch to the `NICE[k]` name (e.g. `+3 Wood`).
 - Verify in-browser via http.server (game blocks `file://`); force daylight in tests with `darknessNow=()=>0`.
