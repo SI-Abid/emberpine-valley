@@ -658,7 +658,7 @@ function placeBuilding(type,x,y){
   for(const[k,v]of Object.entries(B.cost))S.inv[k]-=v;
   S.buildings[key(x,y)]={type,x,y,mine:true};
   S.stats.b[type]=(S.stats.b[type]||0)+1;S.score+=15;sfx('build');spawnBurst(x,y,'#e8a33d',10);questTick();
-  toast(B.ico+' '+B.name+' built!');
+  toast(B.name+' built!');
   if(type==='monument'){
     S.monu={stage:2,given:{},lit:false};
     S.score+=MONUMENT_STAGES[1].bonus;                 // Foundation complete: +50
@@ -743,12 +743,10 @@ function drawBuilding(b,sx,sy,sz){
     return;
   }
   if(b.type==='monument'){drawMonument(b,sx,sy,sz);return;}
-  const ico=b.type==='hall'?'\u{1F3DB}\uFE0F':BUILDS[b.type].ico;
   cx.fillStyle='rgba(0,0,0,.22)';cx.fillRect(sx+3,sy+sz*.75,sz-6,sz*.2);
   cx.fillStyle=BCOLS[b.type];cx.fillRect(sx+3,sy+4,sz-6,sz-9);
   cx.strokeStyle='#2b2620';cx.lineWidth=2;cx.strokeRect(sx+3,sy+4,sz-6,sz-9);
-  cx.font=(sz*.55)+'px serif';cx.textAlign='center';cx.textBaseline='middle';
-  cx.fillText(ico,sx+sz/2,sy+sz/2);
+  drawIcon(cx,b.type==='hall'?'hall':b.type,sx+sz/2,sy+sz/2,sz*.55);
   if(b.type==='crate'){const tot=Object.values(b.store||{}).reduce((a,c2)=>a+c2,0);
     cx.fillStyle='#2b2620';cx.fillRect(sx+5,sy+sz-9,sz-10,4);
     cx.fillStyle='#e8a33d';cx.fillRect(sx+5,sy+sz-9,(sz-10)*Math.min(1,tot/12),4);}
@@ -951,6 +949,21 @@ const ICON_SVG={
  cloth:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2" fill="#b58fb0" stroke="#2b2620" stroke-width="2"/><path d="M3 10h18M3 14h18" stroke="#8a5f86" stroke-width="1.5"/></svg>',
  ornament:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 9h16l-8 12z" fill="#f4c542" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><path d="M4 9h16l-4-5H8z" fill="#e8a33d" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><path d="M12 9v12M8 9l4 12M16 9l-4 12" stroke="#2b2620" stroke-width="1" opacity=".5"/></svg>',
  villagers:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="8" cy="7" r="3" fill="#e8a33d" stroke="#2b2620" stroke-width="2"/><path d="M2 20c0-4.5 3-7 6-7s6 2.5 6 7z" fill="#e8a33d" stroke="#2b2620" stroke-width="2"/><circle cx="17" cy="8" r="2.6" fill="#b0563b" stroke="#2b2620" stroke-width="2"/><path d="M12 20c.3-4 3-6.2 5.5-6.2s5.5 2.2 5.5 6.2z" fill="#b0563b" stroke="#2b2620" stroke-width="2"/></svg>',
+ sawmill:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="3" y="15" width="18" height="6" rx="1" fill="#8a6b45" stroke="#2b2620" stroke-width="2"/><circle cx="12" cy="10" r="7" fill="#9a978e" stroke="#2b2620" stroke-width="2"/><path d="M12 3v2M12 15v2M5 10h2M17 10h2M6.5 4.5l1.5 1.5M17.5 4.5l-1.5 1.5M6.5 15.5l1.5-1.5M17.5 15.5l-1.5-1.5" stroke="#2b2620" stroke-width="1.6" stroke-linecap="round"/><circle cx="12" cy="10" r="2" fill="#7a6a5a"/></svg>',
+ smelter:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 21V9a8 8 0 0 1 16 0v12z" fill="#9a978e" stroke="#2b2620" stroke-width="2"/><path d="M9 21v-6a3 3 0 0 1 6 0v6z" fill="#2b2620"/><circle cx="12" cy="17" r="1.8" fill="#e8a33d"/></svg>',
+ farm:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="2" y="13" width="20" height="9" rx="1" fill="#8a6b45" stroke="#2b2620" stroke-width="2"/><path d="M2 16.5h20M2 19.5h20" stroke="#6b4f30" stroke-width="1.4"/><path d="M12 13V6" stroke="#3f7a45" stroke-width="2" stroke-linecap="round"/><path d="M12 8c-2-1-3 0-3 2M12 10c2-1 3 0 3 2" fill="none" stroke="#5aa06a" stroke-width="1.6" stroke-linecap="round"/></svg>',
+ dock:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M2 15h20" stroke="#5b8fb0" stroke-width="3" stroke-linecap="round"/><rect x="5" y="4" width="3" height="13" fill="#8a6b45" stroke="#2b2620" stroke-width="2"/><rect x="16" y="4" width="3" height="13" fill="#8a6b45" stroke="#2b2620" stroke-width="2"/><path d="M12 4v6a2 2 0 1 0 3 1.7" fill="none" stroke="#2b2620" stroke-width="2" stroke-linecap="round"/></svg>',
+ bakery:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 21v-6c0-4.5 4-8 9-8s9 3.5 9 8v6z" fill="#b0563b" stroke="#2b2620" stroke-width="2"/><path d="M7 21v-4a5 5 0 0 1 10 0v4z" fill="#2b2620"/><ellipse cx="12" cy="18.4" rx="3.4" ry="2" fill="#d9a05f" stroke="#2b2620" stroke-width="1.2"/><path d="M9.6 18l1 1M14.4 18l-1 1" stroke="#a86f3a" stroke-width="1"/></svg>',
+ workshop:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M2 12h4l3-3h9l2 3h2v3H2z" fill="#7a6a5a" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><rect x="9" y="15" width="6" height="4" fill="#7a6a5a" stroke="#2b2620" stroke-width="2"/><rect x="6" y="19" width="12" height="2" fill="#5a4c3f"/><rect x="13" y="2" width="9" height="2.6" rx="1" fill="#8a6b45" stroke="#2b2620" stroke-width="1.6" transform="rotate(45 17.5 3.3)"/><rect x="17" y=".5" width="5" height="5" rx="1" fill="#9a978e" stroke="#2b2620" stroke-width="1.8" transform="rotate(45 19.5 3)"/></svg>',
+ kiln:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 21c0-6 3.6-11 8-11s8 5 8 11z" fill="#b0563b" stroke="#2b2620" stroke-width="2"/><path d="M9 21v-4a3 3 0 0 1 6 0v4z" fill="#2b2620"/><circle cx="12" cy="18.4" r="1.5" fill="#e8a33d"/></svg>',
+ glassworks:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 2h4v5l4 6v5a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2v-5l4-6z" fill="#bcd6e0" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><path d="M10 2h4" stroke="#2b2620" stroke-width="2"/><path d="M3 21l7-9" stroke="#8a6b45" stroke-width="2" stroke-linecap="round"/></svg>',
+ forge:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M2 12h4l3-3h9l2 3h2v3H2z" fill="#7a6a5a" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><rect x="9" y="15" width="6" height="4" fill="#7a6a5a" stroke="#2b2620" stroke-width="2"/><rect x="6" y="19" width="12" height="2" fill="#5a4c3f"/><path d="M14 8l2-3M18 9l3-2M16 5l1-3" stroke="#e8a33d" stroke-width="1.8" stroke-linecap="round"/></svg>',
+ loom:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="3" rx="1" fill="#8a6b45" stroke="#2b2620" stroke-width="2"/><rect x="3" y="18" width="18" height="3" rx="1" fill="#8a6b45" stroke="#2b2620" stroke-width="2"/><rect x="3" y="3" width="3" height="18" fill="#8a6b45" stroke="#2b2620" stroke-width="2"/><rect x="18" y="3" width="3" height="18" fill="#8a6b45" stroke="#2b2620" stroke-width="2"/><path d="M8 6v15M12 6v15M16 6v15" stroke="#b58fb0" stroke-width="1.8"/></svg>',
+ gilder:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M5 20h14v-3H5z" fill="#9a978e" stroke="#2b2620" stroke-width="2"/><path d="M4 13l3 4h10l3-4-4 2-3-5-3 5-4-2z" fill="#f4c542" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="9" r="1.4" fill="#e8a33d"/></svg>',
+ torch:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="10.5" y="10" width="3" height="11" rx="1" fill="#8a6b45" stroke="#2b2620" stroke-width="2"/><path d="M12 2c3 3 4 6 3 8a3 3 0 1 1-6 0c-1-2 0-5 3-8z" fill="#e8a33d" stroke="#2b2620" stroke-width="2"/><path d="M12 5c1.5 1.6 2 3 1.5 4.2a1.5 1.5 0 1 1-3 0C10 8 10.7 6.5 12 5z" fill="#ffe9a0"/></svg>',
+ path:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><ellipse cx="6" cy="17" rx="4.5" ry="3" fill="#c9b389" stroke="#2b2620" stroke-width="2"/><ellipse cx="14" cy="10" rx="4.5" ry="3" fill="#c9b389" stroke="#2b2620" stroke-width="2"/><ellipse cx="18" cy="19" rx="3.6" ry="2.4" fill="#c9b389" stroke="#2b2620" stroke-width="2"/></svg>',
+ crate:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="14" rx="1.5" fill="#8a6b45" stroke="#2b2620" stroke-width="2"/><path d="M3 12h18M9 6v14M15 6v14" stroke="#6b4f30" stroke-width="1.6"/></svg>',
+ hall:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M2 9l10-6 10 6z" fill="#b0563b" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><rect x="3" y="9" width="18" height="2" fill="#8a6b45" stroke="#2b2620" stroke-width="1.6"/><rect x="5" y="11" width="2.4" height="9" fill="#f0e6c8" stroke="#2b2620" stroke-width="1.6"/><rect x="10.8" y="11" width="2.4" height="9" fill="#f0e6c8" stroke="#2b2620" stroke-width="1.6"/><rect x="16.6" y="11" width="2.4" height="9" fill="#f0e6c8" stroke="#2b2620" stroke-width="1.6"/><rect x="3" y="20" width="18" height="2" fill="#8a6b45"/><path d="M18 3v4l2.6-1.3z" fill="#e8a33d" stroke="#2b2620" stroke-width="1.4" stroke-linejoin="round"/><rect x="17.6" y="1" width="1" height="7" fill="#6b4f30"/></svg>',
 };
 function iconHTML(k,cls){return '<span class="ic'+(cls?' '+cls:'')+'" title="'+(NICE[k]||'')+'">'+(ICON_SVG[k]||ICON_SVG._missing)+'</span>'}
 const iconImg={};
@@ -998,12 +1011,12 @@ function renderBuildBar(){
     const btn=document.createElement('button');
     if(eraLocked){
       btn.className='bbtn eralock';
-      btn.innerHTML='<span class="bi">'+B.ico+'</span><span class="bn">'+B.name+'</span><span class="bc">🔒 '+MONUMENT_STAGES[req].name+'</span>';
+      btn.innerHTML='<span class="bi">'+iconHTML(t)+'</span><span class="bn">'+B.name+'</span><span class="bc">🔒 '+MONUMENT_STAGES[req].name+'</span>';
       btn.title='Unlocks when the '+MONUMENT_STAGES[req].name+' is complete';
       btn.onclick=()=>toast('🔒 Complete the '+MONUMENT_STAGES[req].name+' first');
     }else{
       btn.className='bbtn'+(S.buildSel===t?' sel':'')+(canAfford(B.cost)?'':' locked');
-      btn.innerHTML='<span class="bi">'+B.ico+'</span><span class="bn">'+B.name+'</span><span class="bc">'+costStr(B.cost)+'</span>';
+      btn.innerHTML='<span class="bi">'+iconHTML(t)+'</span><span class="bn">'+B.name+'</span><span class="bc">'+costStr(B.cost)+'</span>';
       btn.title=B.desc;
       btn.onclick=()=>{S.buildSel=S.buildSel===t?null:t;renderBuildBar();
         if(S.buildSel)toast('Tap a tile to place the '+B.name);popup.style.display='none'};
@@ -1064,7 +1077,7 @@ function openVillagerPopup(v,px,py){
 function openBuildingPopup(b,px,py){
   if(b.type==='monument'&&S.monu){openMonumentPopup(px,py);return}
   const B=BUILDS[b.type];
-  popup.innerHTML='<button class="close">✕</button><h4 class="px">'+B.ico+' '+B.name+'</h4><div class="sub">'+(b.mine?'YOUR WORKS':'ANOTHER SETTLER\u2019S WORKS')+'</div><div class="desc">'+B.desc+'</div>';
+  popup.innerHTML='<button class="close">✕</button><h4 class="px">'+iconHTML(b.type)+' '+B.name+'</h4><div class="sub">'+(b.mine?'YOUR WORKS':'ANOTHER SETTLER\u2019S WORKS')+'</div><div class="desc">'+B.desc+'</div>';
   popup.querySelector('.close').onclick=()=>popup.style.display='none';
   popup.style.display='block';
   popup.style.left=clamp(px-120,8,VW-256)+'px';
