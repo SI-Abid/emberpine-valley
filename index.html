@@ -1057,7 +1057,7 @@ document.getElementById('recruitBtn').onclick=()=>{
   spawnBurst(HALL.x,HALL.y+2,'#ffe9b8',8);
   renderHUD();renderRoster();saveSoon();
 };
-setInterval(()=>{if(!roster.classList.contains('hid'))renderRoster()},2000);
+setInterval(()=>{if(!roster.classList.contains('hid')&&!rosterList.contains(document.activeElement))renderRoster()},2000);
 function setJob(v,j){v.job=j;v.state='idle';v.path=[];v.target=null;
   if(j!=='idle'){S.stats.jobs=(S.stats.jobs||0)+1;questTick()}
   toast(JOBS[j].label+' — '+v.name.split(' ')[0]);saveSoon();
