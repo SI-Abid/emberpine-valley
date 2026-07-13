@@ -626,7 +626,7 @@ function villagerTick(v,dt){
     v.state='idle';return;
   }
   // idle: look for work or wander
-  if(v.carry&&v.state==='idle'){const ph=findPath(v.x,v.y,HALL.x,HALL.y,true);if(ph){v.path=ph;v.state='toHall';return}}
+  if(v.carry&&v.state==='idle'){if(!v.nextTry||now()>=v.nextTry){const ph=findPath(v.x,v.y,HALL.x,HALL.y,true);if(ph){v.nextTry=0;v.path=ph;v.state='toHall';return}v.nextTry=now()+4000}}
   if(v.job==='hauler'){
     if(!v.hungry){
       const c=crateWithItems(v.x,v.y);
@@ -649,7 +649,8 @@ function villagerTick(v,dt){
   v.wander-=dt;
   if(v.wander<=0){v.wander=2+hash2(v.id,now()%9999,1)*4;
     const nx=(v.x|0)+((Math.random()*3)|0)-1,ny=(v.y|0)+((Math.random()*3)|0)-1;
-    if(passable(nx,ny)&&(Math.abs(nx-HALL.x)<7&&Math.abs(ny-HALL.y)<7||Math.abs(nx-v.x)<3&&Math.abs(ny-v.y)<3))v.path=[{x:nx+.5,y:ny+.5}];
+    if(passable(nx,ny)&&Math.abs(nx-HALL.x)<7&&Math.abs(ny-HALL.y)<7)v.path=[{x:nx+.5,y:ny+.5}];
+    else if(Math.abs(v.x-HALL.x)>=7||Math.abs(v.y-HALL.y)>=7){const ph=findPath(v.x,v.y,HALL.x,HALL.y,true);if(ph)v.path=ph;}
   }
 }
 
@@ -658,7 +659,7 @@ let pendingOps=[];
 function markRemoved(x,y){ S.removed[key(x,y)]=now(); pendingOps.push({k:key(x,y),t:now()}); clearTimeout(window._opFlush);window._opFlush=setTimeout(()=>{try{syncWorld()}catch(e){}},400); }
 
 /* ============ production ============ */
-const prodTimers={sawmill:0,smelter:0,bakery:0,workshop:0,kiln:0,glassworks:0,forge:0,loom:0,gilder:0};
+const prodTimers={sawmill:0,smelter:0,bakery:0,workshop:0,kiln:0,glassworks:0,forge:0,loom:0,gilder:0},prodSeq={};
 const RECIPES={
   sawmill:{in:{wood:2},out:'plank'},
   smelter:[{in:{ore:1,wood:1},out:'ingot'},{in:{goldore:1,wood:1},out:'goldbar'}],
@@ -708,7 +709,8 @@ function productionTick(dt){
     while(prodTimers[t]>=rate){
       prodTimers[t]-=rate;
       const recs=Array.isArray(RECIPES[t])?RECIPES[t]:[RECIPES[t]];
-      const r=recs.find(rc=>Object.entries(rc.in).every(([k,v])=>S.inv[k]>=v));
+      const afford=recs.filter(rc=>Object.entries(rc.in).every(([k,v])=>S.inv[k]>=v));
+      const r=afford.length?afford[(prodSeq[t]=(prodSeq[t]||0)+1)%afford.length]:null;
       if(r){
         for(const[k,v]of Object.entries(r.in))S.inv[k]-=v;
         gain(r.out,1);
@@ -1395,7 +1397,7 @@ function demolishBuilding(b){
   const B=BUILDS[b.type];
   if(b.type==='crate'&&b.store){for(const k2 in b.store)S.inv[k2]=(S.inv[k2]||0)+b.store[k2]}
   for(const[k,v]of Object.entries(B.cost))S.inv[k]=(S.inv[k]||0)+Math.floor(v/2);
-  S.score=Math.max(0,S.score-15);            // reclaim the construction score: no build/demolish farming
+  S.score=Math.max(0,S.score-(b.sv||15));    // reclaim ALL construction/upgrade score: no farming
   if(B.home)S.spawnQ=S.spawnQ.filter(q=>q.home!==kk);
   delete S.buildings[kk];
   spawnBurst(b.x,b.y,'#9a978e',8);
@@ -1424,7 +1426,7 @@ function openBuildingPopup(b,px,py){
     const next=NEXT_HOME[b.type],NB=BUILDS[next];
     if(!canAfford(NB.cost))return;
     for(const[k,v]of Object.entries(NB.cost))S.inv[k]-=v;
-    b.type=next;S.stats.b[next]=(S.stats.b[next]||0)+1;S.score+=15;
+    b.type=next;S.stats.b[next]=(S.stats.b[next]||0)+1;S.score+=15;b.sv=(b.sv||15)+15;
     sfx('build');spawnBurst(b.x,b.y,'#e8a33d',10);
     moveIn(key(b.x,b.y));renderHUD();renderBuildBar();questTick();checkTownTier();saveSoon();
     openBuildingPopup(b,px,py);
@@ -1544,6 +1546,7 @@ async function syncPresence(){
   }catch(e){}
 }
 async function syncWorld(){
+  if(syncWorld._busy)return; syncWorld._busy=true; try{
   try{
     let ops=await store.get('worldops',true)||[];
     // apply remote ops
@@ -1555,6 +1558,7 @@ async function syncWorld(){
       await store.set('worldops',ops,true);
     }
   }catch(e){}
+  }finally{syncWorld._busy=false}
 }
 async function countOnline(){
   try{const p=await store.get('presence',true)||{};
@@ -1740,8 +1744,9 @@ function renderChat(msgs){
   const list=document.getElementById('chatList');if(!list)return;
   let fresh=false;
   for(const m of msgs){if(!chatKnown[m.id]){chatKnown[m.id]=1;if(m.pid!==S.me.id&&m.t>now()-120000)fresh=true}}
+  const _cst=list.scrollTop;
   list.innerHTML=msgs.slice(-30).map(m=>'<div class="cmsg'+(m.pid===S.me.id?' mine':'')+'"><b>'+escapeHtml(m.name||'?')+'</b> '+escapeHtml(m.m||'')+'</div>').join('')||'<div class="cmsg dim">No one has spoken by the campfire yet\u2026</div>';
-  if(list.scrollHeight-list.scrollTop-list.clientHeight<40||list.dataset.stick!=='0')list.scrollTop=list.scrollHeight;
+  if(list.dataset.stick!=='0')list.scrollTop=list.scrollHeight;else list.scrollTop=_cst;
   list.onscroll=()=>{list.dataset.stick=(list.scrollHeight-list.scrollTop-list.clientHeight<40)?'1':'0'};
   if(fresh&&!chatOpen){document.getElementById('chatBadge').style.display='block';sfx('chat')}
 }
