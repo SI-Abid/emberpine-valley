@@ -1664,6 +1664,7 @@ function renderTrader(){
   if(!trader.active){el.style.display='none';return}
   const o=trader.offer;
   el.style.display='flex';
+  try{el.style.top=(document.getElementById('hud').getBoundingClientRect().bottom+8)+'px'}catch(e){}  // sit below the HUD whatever its row count
   el.innerHTML='<span>\u{1F9F3} Trader:</span><b>'+costStr(o.give)+' \u2192 '+costStr(o.get)+'</b><button id="tradeBtn">Trade</button>';
   document.getElementById('tradeBtn').onclick=()=>{
     if(!canAfford(o.give)){toast('You can\u2019t afford that trade');return}
