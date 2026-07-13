@@ -650,7 +650,7 @@ function villagerTick(v,dt){
   if(v.wander<=0){v.wander=2+hash2(v.id,now()%9999,1)*4;
     const nx=(v.x|0)+((Math.random()*3)|0)-1,ny=(v.y|0)+((Math.random()*3)|0)-1;
     if(passable(nx,ny)&&Math.abs(nx-HALL.x)<7&&Math.abs(ny-HALL.y)<7)v.path=[{x:nx+.5,y:ny+.5}];
-    else if(Math.abs(v.x-HALL.x)>=7||Math.abs(v.y-HALL.y)>=7){const ph=findPath(v.x,v.y,HALL.x,HALL.y,true);if(ph)v.path=ph;}
+    else if((Math.abs(v.x-HALL.x)>=7||Math.abs(v.y-HALL.y)>=7)&&(!v.homeTry||now()>=v.homeTry)){const ph=findPath(v.x,v.y,HALL.x,HALL.y,true);if(ph){v.homeTry=0;v.path=ph}else v.homeTry=now()+10000;}
   }
 }
 
@@ -1509,7 +1509,7 @@ async function saveGame(){
   await store.set('save-v1',{island:ISLAND,inv:S.inv,name:S.me.name,id:S.me.id,x:S.me.x,y:S.me.y,score:S.score,won:S.won,msgShown:S.msgShown,quest:S.quest,stats:S.stats,muted:S.muted,wonderRewarded:!!S.wonderRewarded,
     monu:S.monu, playSec:S.playSec, town:S.town, lastMeal:S.lastMeal,
     villagers:S.villagers.map(v=>({name:v.name,color:v.color,job:v.job,hasTool:v.hasTool,xp:v.xp||0,home:v.home||null,hungry:!!v.hungry})),
-    buildings:Object.values(S.buildings).filter(b=>b.mine).map(b=>({type:b.type,x:b.x,y:b.y,store:b.store}))});
+    buildings:Object.values(S.buildings).filter(b=>b.mine).map(b=>({type:b.type,x:b.x,y:b.y,store:b.store,sv:b.sv}))});
 }
 async function loadGame(){
   let s=await store.get('save-v1');
