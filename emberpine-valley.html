@@ -169,11 +169,14 @@
   #trader button{border:2px solid var(--ink);background:var(--amber);border-radius:14px;padding:3px 10px;font-weight:800;font-size:12px}
   .sideBtns{position:fixed;right:10px;top:118px;display:flex;flex-direction:column;gap:6px;z-index:19}
   .sideBtns button{width:40px;height:40px;border-radius:50%;border:3px solid var(--ink);background:var(--parch);font-size:16px;box-shadow:0 3px 0 var(--shadow)}
-  #ledger{position:fixed;right:58px;top:118px;width:224px;z-index:21;background:linear-gradient(var(--parch),var(--parch2));border:3px solid var(--ink);border-radius:12px;box-shadow:0 5px 0 var(--shadow);overflow:hidden}
-  #ledger.hid{display:none}
-  #ledger h3{background:var(--pine2);color:var(--parch);padding:7px 10px;font-size:13px;display:flex;justify-content:space-between}
-  #ledger h3 button{background:none;border:none;color:var(--parch);font-weight:800}
+  #ledger,#goods{position:fixed;right:58px;top:118px;width:224px;z-index:21;background:linear-gradient(var(--parch),var(--parch2));border:3px solid var(--ink);border-radius:12px;box-shadow:0 5px 0 var(--shadow);overflow:hidden}
+  #ledger.hid,#goods.hid{display:none}
+  #ledger h3,#goods h3{background:var(--pine2);color:var(--parch);padding:7px 10px;font-size:13px;display:flex;justify-content:space-between}
+  #ledger h3 button,#goods h3 button{background:none;border:none;color:var(--parch);font-weight:800}
   #ledger h3 span:first-child{display:none}
+  #goodsList{max-height:46dvh;overflow-y:auto;padding:6px}
+  .res.more{cursor:pointer;background:rgba(43,38,32,.12)}
+  .res.more:hover{background:rgba(43,38,32,.2)}
   #ledgerViews{display:flex;gap:3px}
   .lvbtn{font-size:10px !important;padding:2px 7px !important;border-radius:6px !important;opacity:.65;font-family:inherit}
   .lvbtn.sel{background:rgba(255,255,255,.22) !important;opacity:1}
@@ -223,7 +226,7 @@
     #trader{top:52px;left:8px;transform:none;max-width:70vw;flex-wrap:wrap;font-size:11px;padding:4px 10px}
     .sideBtns{top:100px;right:8px}
     .sideBtns button{width:36px;height:36px;font-size:14px}
-    #ledger{top:100px;right:50px;width:206px}
+    #ledger,#goods{top:100px;right:50px;width:206px}
     #chat{width:236px}
   }
   #quest .qh{cursor:pointer}
@@ -268,6 +271,7 @@
 <div id="trader" style="display:none"></div>
 <div class="sideBtns">
   <button id="pauseBtn" title="Pause (Esc)">⏸️</button>
+  <button id="goodsTab" title="Goods & storage">🎒</button>
   <button id="ledgerTab" title="Valley ledger">🏆</button>
   <button id="sndBtn" title="Sound">🔊</button>
   <button id="zoomIn" title="Zoom in">➕</button>
@@ -276,6 +280,7 @@
 </div>
 <div id="emoteRow" class="hid"></div>
 <div id="ledger" class="hid"><h3 class="px"><span>VALLEY LEDGER</span><span id="ledgerViews"><button id="lvStand" class="lvbtn sel">Standings</button><button id="lvTroph" class="lvbtn">Trophies</button></span><button id="ledgerClose">✕</button></h3><div id="ledgerList"></div></div>
+<div id="goods" class="hid"><h3 class="px"><span>🎒 GOODS</span><button id="goodsClose">✕</button></h3><div id="goodsList"></div></div>
 <button id="chatTab">🔥<span id="chatBadge"></span></button>
 <div id="chat" class="hid">
   <h3 class="px"><span>CAMPFIRE</span><button id="chatClose">✕</button></h3>
@@ -424,16 +429,16 @@ const BUILDS={
   smelter:{name:'Smelter',ico:'🔥',cost:{stone:20,wood:10},desc:'1 ore + 1 wood → 1 ingot / 6s',rate:6},
   farm:{name:'Farm',ico:'🌾',cost:{wood:10},desc:'A farmer villager grows wheat here'},
   dock:{name:'Dock',ico:'🎣',cost:{plank:8},desc:'A fisher villager casts lines here — place it beside water'},
-  bakery:{name:'Bakery',ico:'🍞',cost:{plank:12,stone:10},desc:'2 wheat → 1 bread / 5s',rate:5},
-  workshop:{name:'Workshop',ico:'🛠️',cost:{plank:16,ingot:4},desc:'2 planks + 1 ingot → 1 tool / 8s. Tools make villagers 60% faster',rate:8},
-  kiln:{name:'Kiln',ico:'🔥',cost:{stone:20,wood:10},desc:'2 clay + 1 wood → 1 brick / 5s',rate:5},
+  bakery:{name:'Bakery',ico:'🍞',cost:{plank:12,stone:10},desc:'2 wheat → bread · wheat + 2 berry + egg → pie / 5s',rate:5},
+  workshop:{name:'Workshop',ico:'🛠️',cost:{plank:16,ingot:4},desc:'2 plank + ingot → tool (villagers 60% faster) · 2 leather + rope + ingot → backpack (+10 storage) / 8s',rate:8},
+  kiln:{name:'Kiln',ico:'🔥',cost:{stone:20,wood:10},desc:'2 clay + 1 wood → brick · 2 wood → charcoal / 5s',rate:5},
   glassworks:{name:'Glassworks',ico:'🪩',cost:{stone:16,plank:8},desc:'2 sand + 1 wood → 1 glass / 6s',rate:6},
-  forge:{name:'Forge',ico:'⚒️',cost:{stone:20,ingot:6},desc:'2 ingot + 1 plank → 1 beam / 7s',rate:7},
-  loom:{name:'Loom',ico:'🧵',cost:{plank:12,wood:8},desc:'2 flax → 1 cloth / 5s',rate:5},
-  gilder:{name:'Gilder',ico:'👑',cost:{brick:10,glass:4},desc:'1 goldbar + 1 glass → 1 ornament / 8s',rate:8},
+  forge:{name:'Forge',ico:'⚒️',cost:{stone:20,ingot:6},desc:'2 ingot + plank → beam · ingot + 2 charcoal → beam / 7s',rate:7},
+  loom:{name:'Loom',ico:'🧵',cost:{plank:12,wood:8},desc:'2 flax → cloth or rope / 5s',rate:5},
+  gilder:{name:'Gilder',ico:'👑',cost:{brick:10,glass:4},desc:'goldbar + glass → ornament · 2 goldbar + cloth → crown / 8s',rate:8},
   watchtower:{name:'Watchtower',ico:'🏹',cost:{plank:14,stone:10},desc:'Pelts raiders within 5 tiles',civic:true},
   fishmonger:{name:'Fishmonger',ico:'🐟',cost:{plank:10,stone:6},desc:'6 fish → 1 gold bar / 12s',rate:12},
-  smokehouse:{name:'Smokehouse',ico:'🍖',cost:{plank:10,stone:8},desc:'2 meat + 1 wood → 1 roast / 6s. Roasts feed villagers',rate:6},
+  smokehouse:{name:'Smokehouse',ico:'🍖',cost:{plank:10,stone:8},desc:'2 meat + 1 wood → roast · 2 hide → leather / 6s',rate:6},
   torch:{name:'Torch',ico:'🕯️',cost:{wood:4},desc:'Lights the night — villagers keep working near torches'},
   path:{name:'Path',ico:'🛤️',cost:{stone:1},desc:'Settlers and villagers walk 35% faster on paths'},
   crate:{name:'Crate',ico:'📦',cost:{plank:4},desc:'Workers stash goods here (holds 12) — haulers ferry them to the Hall. +30 town storage'},
@@ -729,13 +734,16 @@ function markRemoved(x,y){ S.removed[key(x,y)]=now(); pendingOps.push({k:key(x,y
 const prodTimers={fishmonger:0,smokehouse:0,sawmill:0,smelter:0,bakery:0,workshop:0,kiln:0,glassworks:0,forge:0,loom:0,gilder:0},prodSeq={};
 const RECIPES={
   sawmill:{in:{wood:2},out:'plank'},
-  smelter:[{in:{ore:1,wood:1},out:'ingot'},{in:{goldore:1,wood:1},out:'goldbar'}],
+  smelter:[{in:{ore:1,wood:1},out:'ingot'},{in:{ore:1,charcoal:1},out:'ingot'},{in:{goldore:1,wood:1},out:'goldbar'}],
   fishmonger:{in:{fish:6},out:'goldbar'},
-  smokehouse:{in:{meat:2,wood:1},out:'roast'},
-  bakery:{in:{wheat:2},out:'bread'}, workshop:{in:{plank:2,ingot:1},out:'tool'},
-  kiln:{in:{clay:2,wood:1},out:'brick'}, glassworks:{in:{sand:2,wood:1},out:'glass'},
-  forge:{in:{ingot:2,plank:1},out:'beam'}, loom:{in:{flax:2},out:'cloth'},
-  gilder:{in:{goldbar:1,glass:1},out:'ornament'},
+  smokehouse:[{in:{meat:2,wood:1},out:'roast'},{in:{hide:2},out:'leather'}],
+  bakery:[{in:{wheat:2},out:'bread'},{in:{wheat:1,berry:2,egg:1},out:'pie'}],
+  workshop:[{in:{plank:2,ingot:1},out:'tool'},{in:{leather:2,rope:1,ingot:1},out:'backpack'}],
+  kiln:[{in:{clay:2,wood:1},out:'brick'},{in:{wood:2},out:'charcoal'}],
+  glassworks:{in:{sand:2,wood:1},out:'glass'},
+  forge:[{in:{ingot:2,plank:1},out:'beam'},{in:{ingot:1,charcoal:2},out:'beam'}],
+  loom:[{in:{flax:2},out:'cloth'},{in:{flax:2},out:'rope'}],
+  gilder:[{in:{goldbar:1,glass:1},out:'ornament'},{in:{goldbar:2,cloth:1},out:'crown'}],
 };
 function countB(type){let n=0;for(const k in S.buildings)if(S.buildings[k].type===type&&S.buildings[k].mine)n++;return n}
 function popCap(){let cap=2;for(const k in S.buildings){const b=S.buildings[k];if(b.mine&&BUILDS[b.type]&&BUILDS[b.type].home)cap+=BUILDS[b.type].cap}return cap}
@@ -793,7 +801,7 @@ function dawnMealTick(){
   const day=Math.floor(now()/1000/DAYLEN);
   if(day<=S.lastMeal)return;
   S.lastMeal=day;
-  const order=['berry','fish','egg','meat','bread','roast'];
+  const order=['berry','fish','egg','meat','bread','pie','roast'];
   let fed=0,hungry=0;
   for(const v of S.villagers){
     let ate=false;
@@ -1552,6 +1560,12 @@ const ICON_SVG={
  meat:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 14c0-5 4-9 9-9 4 0 7 2.5 7 6 0 4-4 7-9 7-4 0-7-1.5-7-4z" fill="#b0563b" stroke="#2b2620" stroke-width="2"/><path d="M8 12c1.5-2.5 4-4 7-4" fill="none" stroke="#d98a6a" stroke-width="1.8" stroke-linecap="round"/><circle cx="5.5" cy="17.5" r="2.6" fill="#f0e6c8" stroke="#2b2620" stroke-width="2"/></svg>',
  hide:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 4c2-2 10-2 12 0l2 5-2 4 2 4-3 3c-3 2-7 2-10 0l-3-3 2-4-2-4z" fill="#c9915a" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><path d="M9 8c2 1 4 1 6 0M9 13c2 1 4 1 6 0" fill="none" stroke="#8a6b45" stroke-width="1.5" stroke-linecap="round"/></svg>',
  roast:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 13c0-4 4-7 9-7s9 3 9 7-4 6-9 6-9-2-9-6z" fill="#a86f3a" stroke="#2b2620" stroke-width="2"/><path d="M7 11c1.5-1.5 3.5-2.3 5.5-2.3" fill="none" stroke="#e0b070" stroke-width="1.8" stroke-linecap="round"/><path d="M9 4.5c.6.9.6 1.7 0 2.6M12.5 3.5c.6.9.6 1.7 0 2.6M16 4.5c.6.9.6 1.7 0 2.6" fill="none" stroke="#8d8a80" stroke-width="1.4" stroke-linecap="round"/></svg>',
+ charcoal:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M5 18 3 12l5-5 6-2 7 4-1 7-6 3z" fill="#3a3630" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><path d="M8 7l3 5-4 5M14 5l1 6 5 2" fill="none" stroke="#5a544c" stroke-width="1.4"/><circle cx="11" cy="13" r="1.2" fill="#e8663d"/></svg>',
+ rope:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7.5" fill="none" stroke="#c9a468" stroke-width="4.4"/><circle cx="12" cy="12" r="7.5" fill="none" stroke="#2b2620" stroke-width="1.4" stroke-dasharray="3 2.4"/><circle cx="12" cy="12" r="3" fill="none" stroke="#8a6b45" stroke-width="1.4"/><path d="M18.5 15.5 21 20" stroke="#c9a468" stroke-width="3.4" stroke-linecap="round"/><path d="M18.5 15.5 21 20" stroke="#2b2620" stroke-width="1" stroke-dasharray="2.4 2"/></svg>',
+ leather:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="3" fill="#a86f3a" stroke="#2b2620" stroke-width="2"/><path d="M4 10c3 1.5 13 1.5 16 0M4 14c3 1.5 13 1.5 16 0" fill="none" stroke="#7d4f26" stroke-width="1.4"/><circle cx="7" cy="8" r=".9" fill="#7d4f26"/><circle cx="17" cy="8" r=".9" fill="#7d4f26"/><circle cx="7" cy="16.5" r=".9" fill="#7d4f26"/><circle cx="17" cy="16.5" r=".9" fill="#7d4f26"/></svg>',
+ pie:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 13h18l-2 6H5z" fill="#d9a05f" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><path d="M3 13c0-2.5 4-4.5 9-4.5s9 2 9 4.5" fill="#e8b878" stroke="#2b2620" stroke-width="2"/><path d="M7 12.6c1-1.4 2-1.4 3 0 1-1.4 2-1.4 3 0 1-1.4 2-1.4 3 0" fill="none" stroke="#b0563b" stroke-width="1.6" stroke-linecap="round"/><path d="M10 5.5c.5.8.5 1.4 0 2.2M14 5.5c.5.8.5 1.4 0 2.2" fill="none" stroke="#8d8a80" stroke-width="1.3" stroke-linecap="round"/></svg>',
+ backpack:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0v11a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2z" fill="#a86f3a" stroke="#2b2620" stroke-width="2"/><path d="M9 4.6V3m6 1.6V3" stroke="#2b2620" stroke-width="2" stroke-linecap="round"/><rect x="8.5" y="13" width="7" height="5.5" rx="1.2" fill="#c9a468" stroke="#2b2620" stroke-width="1.6"/><path d="M6 10h12" stroke="#7d4f26" stroke-width="1.6"/><rect x="11" y="12" width="2" height="3" rx=".6" fill="#8a6b45" stroke="#2b2620" stroke-width="1"/></svg>',
+ crown:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 18h16v2.5H4z" fill="#f4c542" stroke="#2b2620" stroke-width="2"/><path d="M4 18 2.5 7l5.5 4 4-6.5L16 11l5.5-4L20 18z" fill="#f4c542" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="14" r="1.6" fill="#b0563b" stroke="#2b2620" stroke-width="1.2"/><circle cx="7" cy="14.5" r="1.1" fill="#5b8fb0" stroke="#2b2620" stroke-width="1"/><circle cx="17" cy="14.5" r="1.1" fill="#5b8fb0" stroke="#2b2620" stroke-width="1"/></svg>',
  villagers:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="8" cy="7" r="3" fill="#e8a33d" stroke="#2b2620" stroke-width="2"/><path d="M2 20c0-4.5 3-7 6-7s6 2.5 6 7z" fill="#e8a33d" stroke="#2b2620" stroke-width="2"/><circle cx="17" cy="8" r="2.6" fill="#b0563b" stroke="#2b2620" stroke-width="2"/><path d="M12 20c.3-4 3-6.2 5.5-6.2s5.5 2.2 5.5 6.2z" fill="#b0563b" stroke="#2b2620" stroke-width="2"/></svg>',
  sawmill:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="3" y="15" width="18" height="6" rx="1" fill="#8a6b45" stroke="#2b2620" stroke-width="2"/><circle cx="12" cy="10" r="7" fill="#9a978e" stroke="#2b2620" stroke-width="2"/><path d="M12 3v2M12 15v2M5 10h2M17 10h2M6.5 4.5l1.5 1.5M17.5 4.5l-1.5 1.5M6.5 15.5l1.5-1.5M17.5 15.5l-1.5-1.5" stroke="#2b2620" stroke-width="1.6" stroke-linecap="round"/><circle cx="12" cy="10" r="2" fill="#7a6a5a"/></svg>',
  smelter:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 21V9a8 8 0 0 1 16 0v12z" fill="#9a978e" stroke="#2b2620" stroke-width="2"/><path d="M9 21v-6a3 3 0 0 1 6 0v6z" fill="#2b2620"/><circle cx="12" cy="17" r="1.8" fill="#e8a33d"/></svg>',
@@ -1598,23 +1612,44 @@ const ICONS={wood:'🪵',stone:'🪨',ore:'⚙️',berry:'🫐',fish:'🐟',egg:
  ,clay:'🟤',sand:'⏳',goldore:'🟡',flax:'🌿',brick:'🧱',glass:'🪟',beam:'🏗️',cloth:'🧵',goldbar:'🪙',ornament:'💎'};
 const NICE={wood:'Wood',stone:'Stone',ore:'Ore',berry:'Berries',fish:'Fish',egg:'Eggs',plank:'Planks',ingot:'Ingots',wheat:'Wheat',bread:'Bread',tool:'Tools'
  ,clay:'Clay',sand:'Sand',goldore:'Gold Ore',flax:'Flax',brick:'Brick',glass:'Glass',beam:'Steel Beam',cloth:'Cloth',goldbar:'Gold Bar',ornament:'Ornament',villagers:'Villagers'
- ,meat:'Meat',hide:'Hide',roast:'Roast'
+ ,meat:'Meat',hide:'Hide',roast:'Roast',charcoal:'Charcoal',rope:'Rope',leather:'Leather',pie:'Pie',backpack:'Backpack',crown:'Crown'
  ,flowerbed:'Flower Bed',hedge:'Hedge',lamppost:'Lamp Post',bench:'Bench',fountain:'Fountain',banner:'Banner',gnome:'Garden Gnome'};
 const hud=document.getElementById('hud');
 const RAW=['wood','stone','ore','berry','fish','egg'],CRAFT=['plank','ingot','wheat','bread','tool'];
-const NEWRAW=['clay','sand','goldore','flax','meat','hide'], NEWCRAFT=['brick','glass','beam','cloth','goldbar','ornament','roast'];
+const NEWRAW=['clay','sand','goldore','flax','meat','hide'], NEWCRAFT=['brick','glass','beam','cloth','goldbar','ornament','roast','charcoal','rope','leather','pie','backpack','crown'];
 function ownsGood(k){return (S.inv[k]||0)>0 || (S.stats.g[k]||0)>0}
 function chipHtml(k){return '<div class="res" id="res-'+k+'" title="'+NICE[k]+'">'+iconHTML(k,'ico')+S.inv[k]+'</div>'}
+const HUD_PIN=['wood','stone','plank','bread'];
+const lastBump={};
 function renderHUD(){
-  const rawChips=RAW.map(chipHtml).join('')+NEWRAW.filter(ownsGood).map(chipHtml).join('');
-  const craftChips=CRAFT.map(chipHtml).join('')+NEWCRAFT.filter(ownsGood).map(chipHtml).join('');
-  const edible=(S.inv.berry||0)+(S.inv.fish||0)+(S.inv.egg||0)+(S.inv.bread||0), foodShort=edible<S.villagers.length;
-  hud.innerHTML=rawChips+'<div class="hsep"></div>'+craftChips
+  // compact bar: 4 staples + the goods you touched most recently; everything else lives in 🎒
+  const all=[...RAW,...CRAFT,...NEWRAW,...NEWCRAFT].filter(ownsGood);
+  const rest=all.filter(k=>!HUD_PIN.includes(k)).sort((a,b)=>(lastBump[b]||0)-(lastBump[a]||0));
+  const shown=[...HUD_PIN.filter(k=>all.includes(k)),...rest].slice(0,8);
+  const hidden=all.length-shown.length;
+  const edible=['berry','fish','egg','meat','bread','pie','roast'].reduce((a,k)=>a+(S.inv[k]||0),0), foodShort=edible<S.villagers.length;
+  hud.innerHTML=shown.map(chipHtml).join('')
+   +(hidden>0?'<div class="res more" onclick="toggleGoods()" title="All goods & storage">🎒 +'+hidden+'</div>':'')
    +'<div class="hsep"></div><div class="res" title="'+(foodShort?'Not enough food for the next meal':'Villagers / housing capacity')+'">'+iconHTML('villagers','ico')+S.villagers.length+'/'+popCap()+(foodShort?' ⚠️':'')+'</div>'
-   +'<div class="res" title="Storage used / capacity — crates and Warehouses add space">📦 '+invTotal()+'/'+storeCap()+(invTotal()>=storeCap()?' ⚠️':'')+'</div>'
+   +'<div class="res more" onclick="toggleGoods()" title="Storage used / capacity — crates, Warehouses and backpacks add space">📦 '+invTotal()+'/'+storeCap()+(invTotal()>=storeCap()?' ⚠️':'')+'</div>'
    +'<div class="res" id="tierChip" title="Town tier"></div>'
    +'<div class="res" id="seasonChip" title="Season"></div><div class="res" id="clockChip" title="Time of day"></div>';
   updateClock();updateTierChip();
+}
+function renderGoods(){
+  const el=document.getElementById('goodsList');if(!el)return;
+  const row=k=>'<div class="lrow"><span>'+iconHTML(k)+'</span><span class="lname">'+NICE[k]+'</span><b>'+(S.inv[k]||0)+'</b></div>';
+  const sec=(title,keys)=>{const rows=keys.filter(ownsGood).map(row).join('');
+    return rows?'<div style="font-size:10px;font-weight:800;opacity:.55;margin:7px 0 2px;letter-spacing:.5px">'+title+'</div>'+rows:''};
+  const it=invTotal(),cap=storeCap(),pc=Math.min(100,Math.floor(it/cap*100));
+  el.innerHTML='<div class="ltally" style="margin:0 0 6px;padding-top:0;border-top:none;border-bottom:2px solid rgba(43,38,32,.2);padding-bottom:6px"><b>📦 '+it+' / '+cap+' STORED</b><div style="height:8px;border:1.5px solid var(--ink);border-radius:5px;background:#fff8e6;overflow:hidden;margin-top:3px"><div style="height:100%;background:'+(it>=cap?'#b23b2e':'var(--amber)')+';width:'+pc+'%"></div></div><div style="font-size:10px;opacity:.75;margin-top:2px">crates +30 · warehouses +150 · backpacks +10</div></div>'
+    +(sec('RAW',[...RAW,...NEWRAW])+sec('CRAFTED',[...CRAFT,...NEWCRAFT])||'<div class="cmsg dim">Nothing gathered yet.</div>');
+}
+function toggleGoods(){
+  const g=document.getElementById('goods');
+  const opening=g.classList.contains('hid');
+  g.classList.toggle('hid');
+  if(opening){document.getElementById('ledger').classList.add('hid');renderGoods()}
 }
 function updateTierChip(){const el=document.getElementById('tierChip');if(!el)return;
   const tt=TOWN_TIERS[S.town.tier];
@@ -1625,7 +1660,7 @@ function updateClock(){
 setInterval(updateClock,4000);
 function invTotal(){let t=0;for(const k in S.inv)t+=(S.inv[k]||0);return t}
 function storeCap(){
-  let c=140+([0,60,150,300][S.town.tier]||0);
+  let c=140+([0,60,150,300][S.town.tier]||0)+10*(S.inv.backpack||0);
   for(const k in S.buildings){const b=S.buildings[k];if(!b.mine)continue;
     if(b.type==='crate')c+=30;else if(b.type==='warehouse')c+=150}
   return c;
@@ -1638,8 +1673,11 @@ function gain(what,n){
     if(now()>storeWarnT){storeWarnT=now()+8000;toast('\u{1F4E6} Storage full! Goods are going to waste — build crates or a Warehouse')}
     if(n<=0){renderHUD();return}
   }
-  S.inv[what]=(S.inv[what]||0)+n;S.stats.g[what]=(S.stats.g[what]||0)+n;if(S.legacy)S.legacy.g[what]=(S.legacy.g[what]||0)+n;S.score+=n;bumpRes(what);if(what==='tool')equipTools();questTick()}
-function bumpRes(k){renderHUD();const el=document.getElementById('res-'+k);if(el){el.classList.remove('bump');void el.offsetWidth;el.classList.add('bump')}saveSoon()}
+  S.inv[what]=(S.inv[what]||0)+n;S.stats.g[what]=(S.stats.g[what]||0)+n;if(S.legacy)S.legacy.g[what]=(S.legacy.g[what]||0)+n;S.score+=n*(GVAL[what]||1);bumpRes(what);if(what==='tool')equipTools();questTick()}
+const GVAL={pie:2,backpack:5,crown:20};   // premium goods score more per unit
+function bumpRes(k){lastBump[k]=now();renderHUD();const el=document.getElementById('res-'+k);if(el){el.classList.remove('bump');void el.offsetWidth;el.classList.add('bump')}
+  if(!document.getElementById('goods').classList.contains('hid'))renderGoods();
+  saveSoon()}
 function toast(msg){const t=document.createElement('div');t.className='toast';t.textContent=msg;
   document.getElementById('toasts').appendChild(t);setTimeout(()=>t.remove(),3000)}
 function firstTime(k,msg){if(S.msgShown[k])return;S.msgShown[k]=1;toast('💡 '+msg)}
@@ -2162,7 +2200,7 @@ function drawParts(){
   }
   for(const r of rainFx){cx.strokeStyle='rgba(190,210,235,.45)';cx.lineWidth=1.2;cx.beginPath();cx.moveTo(r.x,r.y);cx.lineTo(r.x-3,r.y-13);cx.stroke()}
 }
-const TRADES=[{give:{wood:12},get:{ingot:3}},{give:{stone:10},get:{plank:5}},{give:{berry:10},get:{wheat:6}},{give:{fish:6},get:{bread:4}},{give:{plank:8},get:{ore:8}},{give:{bread:3},get:{tool:1}},{give:{egg:6},get:{bread:4}},{give:{brick:10},get:{glass:6}},{give:{cloth:8},get:{ornament:1}},{give:{wood:15},get:{clay:4}},{give:{glass:6},get:{goldbar:2}},{give:{fish:10},get:{goldbar:1}},{give:{fish:15},get:{ornament:1}},{give:{meat:10},get:{bread:6}},{give:{hide:6},get:{cloth:2}},{give:{roast:5},get:{goldbar:1}}];
+const TRADES=[{give:{wood:12},get:{ingot:3}},{give:{stone:10},get:{plank:5}},{give:{berry:10},get:{wheat:6}},{give:{fish:6},get:{bread:4}},{give:{plank:8},get:{ore:8}},{give:{bread:3},get:{tool:1}},{give:{egg:6},get:{bread:4}},{give:{brick:10},get:{glass:6}},{give:{cloth:8},get:{ornament:1}},{give:{wood:15},get:{clay:4}},{give:{glass:6},get:{goldbar:2}},{give:{fish:10},get:{goldbar:1}},{give:{fish:15},get:{ornament:1}},{give:{meat:10},get:{bread:6}},{give:{hide:6},get:{cloth:2}},{give:{roast:5},get:{goldbar:1}},{give:{charcoal:8},get:{ingot:3}},{give:{rope:4},get:{tool:1}},{give:{pie:3},get:{goldbar:1}},{give:{crown:1},get:{ornament:3}}];
 const trader={active:false,offer:null,until:0,next:now()+75000};
 function traderTick(){
   if(!trader.active&&now()>trader.next){trader.active=true;trader.until=now()+60000;
@@ -2378,9 +2416,11 @@ function renderLedger(){
 }
 document.getElementById('ledgerTab').onclick=()=>{
   const hidden=document.getElementById('ledger').classList.toggle('hid');
-  if(!hidden){renderLedger();syncPresence().then(renderLedger)}
+  if(!hidden){document.getElementById('goods').classList.add('hid');renderLedger();syncPresence().then(renderLedger)}
 };
 document.getElementById('ledgerClose').onclick=()=>document.getElementById('ledger').classList.add('hid');
+document.getElementById('goodsTab').onclick=toggleGoods;
+document.getElementById('goodsClose').onclick=()=>document.getElementById('goods').classList.add('hid');
 function setLedgerView(v){ledgerView=v;
   document.getElementById('lvStand').classList.toggle('sel',v==='stand');
   document.getElementById('lvTroph').classList.toggle('sel',v==='troph');
