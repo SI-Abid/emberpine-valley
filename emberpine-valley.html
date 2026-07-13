@@ -1493,14 +1493,19 @@ document.getElementById('actBtn').addEventListener('touchstart',e=>{e.preventDef
 let saveTimer=null;
 function saveSoon(){clearTimeout(saveTimer);saveTimer=setTimeout(saveGame,1200)}
 async function saveGame(){
-  await store.set('save-v1',{inv:S.inv,name:S.me.name,id:S.me.id,x:S.me.x,y:S.me.y,score:S.score,won:S.won,msgShown:S.msgShown,quest:S.quest,stats:S.stats,muted:S.muted,wonderRewarded:!!S.wonderRewarded,
+  await store.set('save-v1',{island:ISLAND,inv:S.inv,name:S.me.name,id:S.me.id,x:S.me.x,y:S.me.y,score:S.score,won:S.won,msgShown:S.msgShown,quest:S.quest,stats:S.stats,muted:S.muted,wonderRewarded:!!S.wonderRewarded,
     monu:S.monu, playSec:S.playSec, town:S.town, lastMeal:S.lastMeal,
     villagers:S.villagers.map(v=>({name:v.name,color:v.color,job:v.job,hasTool:v.hasTool,xp:v.xp||0,home:v.home||null,hungry:!!v.hungry})),
     buildings:Object.values(S.buildings).filter(b=>b.mine).map(b=>({type:b.type,x:b.x,y:b.y,store:b.store}))});
 }
 async function loadGame(){
-  const s=await store.get('save-v1');
+  let s=await store.get('save-v1');
   if(!s)return false;
+  if(s.island&&s.island!==ISLAND){   // save leaked from another island: convert to a fresh arrival
+    const inv={};for(const k in (s.inv||{}))inv[k]=Math.min(s.inv[k]||0,25);inv.tool=(s.inv||{}).tool||0;
+    s={island:ISLAND,inv,name:s.name,id:s.id,x:0,y:0,score:s.score||0,won:false,msgShown:s.msgShown||{},quest:0,stats:s.stats,muted:s.muted,wonderRewarded:false,monu:null,playSec:s.playSec||0,town:{tier:0},lastMeal:Math.floor(now()/1000/DAYLEN),villagers:(s.villagers||[]).slice(0,3).map(v=>({...v,job:'idle',home:null,hungry:false})),buildings:[]};
+    store.set('save-v1',s);
+  }
   Object.assign(S.inv,s.inv||{});S.me.name=s.name||'';S.me.id=s.id;S.score=s.score||0;S.won=s.won;S.msgShown=s.msgShown||{};
   S.quest=s.quest||0;S.town=s.town||{tier:0};S.town.tier=Math.min(Math.max(S.town.tier|0,0),3);S.muted=!!s.muted;S.wonderRewarded=!!s.wonderRewarded;S.playSec=s.playSec||0;
   S.lastMeal=(s.lastMeal!==undefined)?s.lastMeal:Math.floor(now()/1000/DAYLEN);
@@ -2128,11 +2133,12 @@ async function setSail(){
   if(!S.won){toast('⛵ Light the Eternal Flame before setting sail');return}
   const nxt=ISLANDS[Math.min(ISLAND+1,ISLANDS.length-1)];
   if(!confirm('Set sail for '+nxt.name+'? You bring up to 3 crew, your tools, and 25 of each good. Your town, monument and quests start anew. Score carries over.'))return;
+  try{clearTimeout(saveTimer)}catch(e){}
+  saveSoon=()=>{};saveGame=async()=>{};        // neutralize BEFORE writing — a queued autosave was overwriting the clean save
   const inv={};for(const k in S.inv)inv[k]=Math.min(S.inv[k]||0,25);inv.tool=S.inv.tool||0;
   const crew=S.villagers.slice(0,3).map(v=>({name:v.name,color:v.color,job:'idle',hasTool:v.hasTool,xp:v.xp||0,home:null,hungry:false}));
-  await store.set('save-v1',{inv,name:S.me.name,id:S.me.id,x:0,y:0,score:S.score,won:false,msgShown:S.msgShown,quest:0,stats:S.stats,muted:S.muted,wonderRewarded:false,monu:null,playSec:S.playSec,town:{tier:0},lastMeal:Math.floor(now()/1000/DAYLEN),villagers:crew,buildings:[]});
+  await store.set('save-v1',{island:ISLAND+1,inv,name:S.me.name,id:S.me.id,x:0,y:0,score:S.score,won:false,msgShown:S.msgShown,quest:0,stats:S.stats,muted:S.muted,wonderRewarded:false,monu:null,playSec:S.playSec,town:{tier:0},lastMeal:Math.floor(now()/1000/DAYLEN),villagers:crew,buildings:[]});
   try{localStorage.setItem('emberpine:p:island',String(ISLAND+1))}catch(e){}
-  saveSoon=()=>{};saveGame=async()=>{};
   location.reload();
 }
 document.getElementById('sailBtn').onclick=setSail;
