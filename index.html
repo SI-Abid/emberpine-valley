@@ -672,13 +672,20 @@ function moveIn(bKey){
   for(let i=0;i<free;i++)S.spawnQ.push({home:bKey,in:2*(i+1)});
   renderRoster();
 }
+
+function reconcileHousing(){
+  for(const k in S.buildings){const b=S.buildings[k];if(b.mine&&BUILDS[b.type]&&BUILDS[b.type].home)moveIn(k)}
+  const hallRes=S.villagers.filter(v=>v.home==='hall'||!v.home).length+S.spawnQ.filter(q=>q.home==='hall').length;
+  for(let i=0;i<2-hallRes;i++)S.spawnQ.push({home:'hall',in:4*(i+1)});
+}
+setInterval(()=>{if(typeof running!=='undefined'&&running)reconcileHousing()},30000);
 function spawnQueueTick(dt){
   if(!S.spawnQ.length)return;
   for(let i=S.spawnQ.length-1;i>=0;i--){
     const q=S.spawnQ[i];q.in-=dt;
     if(q.in<=0){
       S.spawnQ.splice(i,1);
-      const b=S.buildings[q.home];if(!b)continue;
+      const b=q.home==='hall'?HALL:S.buildings[q.home];if(!b)continue;
       const v=makeVillager();v.home=q.home;
       toast('👋 '+v.name+' joins the guild!');sfx('recruit');
       spawnBurst(b.x,b.y,'#ffe9b8',8);
@@ -1505,6 +1512,7 @@ async function loadGame(){
   else S.monu=null;
   for(const vs of (s.villagers||[])){const v=makeVillager();v.name=vs.name;v.color=vs.color;v.job=vs.job;v.hasTool=vs.hasTool;v.xp=vs.xp||0;v.home=vs.home||null;v.hungry=!!vs.hungry}
   for(const k in S.buildings)if(BUILDS[S.buildings[k].type]&&BUILDS[S.buildings[k].type].home&&S.buildings[k].mine)moveIn(k);
+  reconcileHousing();
   checkTownTier();
   return true;
 }
