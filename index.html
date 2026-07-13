@@ -259,7 +259,7 @@
 <div id="joy"><div id="joyKnob"></div></div>
 <button id="actBtn">⛏️</button>
 
-<div id="verBadge">EMBERPINE v5</div>
+<div id="verBadge">EMBERPINE v9</div>
 <div id="quest"></div>
 <div id="trader" style="display:none"></div>
 <div class="sideBtns">
@@ -440,6 +440,13 @@ const BUILDS={
   chapel:{name:'Chapel',ico:'⛪',cost:{brick:20,glass:10},desc:'A quiet spire — required to reach City',civic:true},
   statue:{name:'Statue',ico:'🗿',cost:{stone:10,goldbar:2},desc:'A founder in gold — required to reach City',civic:true},
   monument:{name:'Monument Foundation',ico:'🗿',cost:{stone:40,plank:20},desc:'Lay the Foundation, then raise it through five eras'},
+  flowerbed:{name:'Flower Bed',ico:'🌷',cost:{wood:2},desc:'A splash of color — beauty counts near paths & homes',decor:2},
+  hedge:{name:'Hedge',ico:'🌿',cost:{wood:3},desc:'A trim green hedge',decor:2},
+  lamppost:{name:'Lamp Post',ico:'💡',cost:{wood:4,stone:2},desc:'A warm lantern glow · bonus near Well',decor:3},
+  bench:{name:'Bench',ico:'🪑',cost:{plank:3},desc:'A quiet place to rest',decor:3},
+  fountain:{name:'Fountain',ico:'⛲',cost:{stone:8,plank:2},desc:'A burbling centerpiece · bonus near Plaza',decor:6},
+  banner:{name:'Banner',ico:'🚩',cost:{cloth:2,wood:2},desc:'Town colors fluttering in the wind',decor:4},
+  gnome:{name:'Garden Gnome',ico:'🧙',cost:{stone:1,ore:1},desc:'He judges silently',decor:5},
 };
 const MONUMENT_STAGES=[
  null,
@@ -538,7 +545,7 @@ function makeVillager(){
   S.villagers.push(v);return v;
 }
 function villagerTick(v,dt){
-  const spd=v.speed*sMod('speed')*(v.hasTool?1.6:1)*(1+.07*(vLvl(v)-1))*(onPath(v.x,v.y)?1.35:1)*(v.hungry?0.75:1);
+  const spd=v.speed*sMod('speed')*(v.hasTool?1.6:1)*(1+.07*(vLvl(v)-1))*(onPath(v.x,v.y)?1.35:1)*(v.hungry?0.75:1)*(1+beautySpeedBonus());
   if(v.path&&v.path.length){
     const t=v.path[0],dx=t.x-v.x,dy=t.y-v.y,d=Math.hypot(dx,dy);
     if(d<.08)v.path.shift();else{v.x+=dx/d*spd*dt;v.y+=dy/d*spd*dt;if(Math.abs(dx)>.02)v.fx=dx<0?-1:1}
@@ -620,8 +627,8 @@ function villagerTick(v,dt){
   if(v.state==='toHall'){
     if(v.carry){
       const l0=vLvl(v);
-      if(v.carry.multi){let tot=0;for(const k2 in v.carry.multi){gain(k2,v.carry.multi[k2]);tot+=v.carry.multi[k2]}v.xp=(v.xp||0)+tot}
-      else{v.xp=(v.xp||0)+v.carry.n;gain(v.carry.what,v.carry.n)}
+      if(v.carry.multi){let tot=0;for(const k2 in v.carry.multi){gain(k2,v.carry.multi[k2]);tot+=v.carry.multi[k2]}v.xp=(v.xp||0)+Math.round(tot*(1+beautyXPBonus()))}
+      else{v.xp=(v.xp||0)+Math.round(v.carry.n*(1+beautyXPBonus()));gain(v.carry.what,v.carry.n)}
       v.carry=0;
       if(vLvl(v)>l0)toast('⭐ '+v.name.split(' ')[0]+' reached Lv'+vLvl(v)+'!');
     }
@@ -633,7 +640,7 @@ function villagerTick(v,dt){
       c.store=c.store||{};
       const tot=Object.values(c.store).reduce((a,b2)=>a+b2,0);
       const put=Math.min(v.carry.n,12-tot);
-      if(put>0){c.store[v.carry.what]=(c.store[v.carry.what]||0)+put;v.carry.n-=put;v.xp=(v.xp||0)+1;spawnBurst(c.x,c.y,'#e8d9a8',3);saveSoon()}
+      if(put>0){c.store[v.carry.what]=(c.store[v.carry.what]||0)+put;v.carry.n-=put;v.xp=(v.xp||0)+Math.round(1+beautyXPBonus());spawnBurst(c.x,c.y,'#e8d9a8',3);saveSoon()}
     }
     if(v.carry&&v.carry.n>0){const p=findPath(v.x,v.y,HALL.x,HALL.y,true);if(p){v.path=p;v.state='toHall';return}
       v.state='idle';return;   // keep the cargo: retry the trip next tick instead of vanishing goods
@@ -831,7 +838,7 @@ function placeBuilding(type,x,y){
   }
   if(type==='farm')firstTime('farm','Assign a villager as 🌾 Farmer and they\u2019ll work your farm.');
   if(type==='monument')S.buildSel=null;      // monument leaves the bar once placed
-  checkTownTier();
+  checkTownTier();beautyDirty();beautyTick();
   renderBuildBar();saveSoon();
 }
 
@@ -929,7 +936,8 @@ function drawRes(r,x,y,sx,sy,sz){
   }
 }
 const BCOLS={watchtower:'#8d7350',fishmonger:'#5b8fb0',sawmill:'#a8783f',smelter:'#8d5a4a',farm:'#c9b45a',dock:'#7a8ca0',bakery:'#d9a05f',workshop:'#7d8a99',torch:'#c9a05a',monument:'#b8b4a6',hall:'#8f6b45'
-,kiln:'#b5643c',glassworks:'#7fa9b0',forge:'#6a6f78',loom:'#b58fb0',gilder:'#c9a94a'};
+,kiln:'#b5643c',glassworks:'#7fa9b0',forge:'#6a6f78',loom:'#b58fb0',gilder:'#c9a94a'
+,flowerbed:'#e86a8a',hedge:'#5aa06a',lamppost:'#c9a05a',bench:'#c9a468',fountain:'#9db4c0',banner:'#b0563b',gnome:'#8d8a80'};
 function drawBuilding(b,sx,sy,sz){
   if(b.type==='path'){
     // connection-aware: merge flush with neighboring paths, inset only on open sides
@@ -953,6 +961,7 @@ function drawBuilding(b,sx,sy,sz){
     return;
   }
   if(b.type==='monument'){drawMonument(b,sx,sy,sz);return;}
+  if(BUILDS[b.type]&&BUILDS[b.type].decor){drawDecor(b,sx,sy,sz);return;}
   const bf=ATLAS_FRAMES&&ATLAS_FRAMES['bld_'+b.type];
   if(atlasReady&&bf){                       // compact 3/4-view sprite: 1 tile wide, roof extends up
     const bh=sz*bf[3]/16;
@@ -972,6 +981,63 @@ function drawBuilding(b,sx,sy,sz){
     cx.fillStyle='#2b2620';cx.fillRect(sx+5,sy+sz-9,sz-10,4);
     cx.fillStyle='#e8a33d';cx.fillRect(sx+5,sy+sz-9,(sz-10)*Math.min(1,tot/12),4);}
   if(!b.mine&&b.type!=='hall'){cx.globalAlpha=.35;cx.fillStyle='#fff';cx.fillRect(sx+3,sy+4,sz-6,sz-9);cx.globalAlpha=1}
+}
+const FB_PALS=[['#e86a8a','#f4c542','#f0f0e8'],['#f4c542','#b58fb0','#e86a8a'],['#f0f0e8','#5b8fb0','#f4c542'],['#e86a8a','#e8a33d','#b58fb0'],['#b58fb0','#f0f0e8','#e8a33d']];
+function drawDecor(b,sx,sy,sz){
+  const cxm=sx+sz/2, h=(b.x*7+b.y*13)%5;
+  cx.fillStyle='rgba(0,0,0,.16)';cx.beginPath();cx.ellipse(cxm,sy+sz*.8,sz*.3,sz*.08,0,0,7);cx.fill();
+  if(b.type==='flowerbed'){
+    cx.fillStyle='#7a5c3a';cx.strokeStyle='#2b2620';cx.lineWidth=1.5;
+    cx.beginPath();cx.ellipse(cxm,sy+sz*.64,sz*.34,sz*.2,0,0,7);cx.fill();cx.stroke();
+    const pal=FB_PALS[h];
+    for(let i=0;i<4;i++){const a=i*1.7+h;
+      const fx2=cxm+Math.cos(a)*sz*.2, fy2=sy+sz*.58+Math.sin(a)*sz*.09;
+      cx.strokeStyle='#3f7a45';cx.lineWidth=1.4;cx.beginPath();cx.moveTo(fx2,fy2);cx.lineTo(fx2,fy2-sz*.1);cx.stroke();
+      cx.fillStyle=pal[i%3];cx.beginPath();cx.arc(fx2,fy2-sz*.12,sz*.06,0,7);cx.fill();
+      cx.fillStyle='#ffe9a0';cx.beginPath();cx.arc(fx2,fy2-sz*.12,sz*.022,0,7);cx.fill();}
+  }else if(b.type==='hedge'){
+    cx.fillStyle='#4f9160';cx.strokeStyle='#2b2620';cx.lineWidth=1.6;
+    cx.beginPath();
+    cx.arc(sx+sz*.32,sy+sz*.6,sz*.2,0,7);cx.arc(cxm,sy+sz*.5,sz*.24,0,7);cx.arc(sx+sz*.68,sy+sz*.6,sz*.2,0,7);
+    cx.fill();cx.stroke();
+    cx.fillStyle='#6ab27a';cx.beginPath();cx.arc(cxm-sz*.06,sy+sz*.44,sz*.1,0,7);cx.fill();
+  }else if(b.type==='lamppost'){
+    cx.fillStyle='#4a4640';cx.fillRect(cxm-1.5,sy+sz*.22,3,sz*.58);
+    cx.fillRect(cxm-sz*.12,sy+sz*.78,sz*.24,3);
+    const fl=1+Math.sin(now()/90+sx)*.2, k=sz/TILE;
+    if(darknessNow()>.3){cx.fillStyle='rgba(255,224,140,.25)';cx.beginPath();cx.arc(cxm,sy+sz*.16,9*fl*k,0,7);cx.fill();}
+    cx.fillStyle='#2b2620';cx.fillRect(cxm-sz*.1,sy+sz*.06,sz*.2,sz*.18);
+    cx.fillStyle='#ffe9a0';cx.fillRect(cxm-sz*.06,sy+sz*.09,sz*.12,sz*.12);
+    cx.fillStyle='#e8a33d';cx.beginPath();cx.arc(cxm,sy+sz*.15,2.2*fl*k,0,7);cx.fill();
+  }else if(b.type==='bench'){
+    cx.strokeStyle='#6b4f30';cx.lineWidth=2;
+    cx.beginPath();cx.moveTo(cxm-sz*.24,sy+sz*.62);cx.lineTo(cxm-sz*.24,sy+sz*.8);cx.moveTo(cxm+sz*.24,sy+sz*.62);cx.lineTo(cxm+sz*.24,sy+sz*.8);cx.stroke();
+    cx.fillStyle='#c9a468';cx.strokeStyle='#2b2620';cx.lineWidth=1.5;
+    cx.fillRect(cxm-sz*.3,sy+sz*.56,sz*.6,sz*.09);cx.strokeRect(cxm-sz*.3,sy+sz*.56,sz*.6,sz*.09);
+    cx.fillRect(cxm-sz*.3,sy+sz*.36,sz*.6,sz*.08);cx.strokeRect(cxm-sz*.3,sy+sz*.36,sz*.6,sz*.08);
+  }else if(b.type==='fountain'){
+    cx.fillStyle='#9a978e';cx.strokeStyle='#2b2620';cx.lineWidth=2;
+    cx.beginPath();cx.ellipse(cxm,sy+sz*.6,sz*.34,sz*.2,0,0,7);cx.fill();cx.stroke();
+    const pl=1+Math.sin(now()/240+sx)*.12;
+    cx.fillStyle='#7fb4d9';cx.beginPath();cx.ellipse(cxm,sy+sz*.58,sz*.24*pl,sz*.13*pl,0,0,7);cx.fill();
+    cx.fillStyle='#bcd6e0';cx.fillRect(cxm-1,sy+sz*.2,2,sz*.36);
+    cx.beginPath();cx.arc(cxm,sy+sz*.2,sz*.05*pl,0,7);cx.fill();
+    cx.fillStyle='rgba(240,248,255,.8)';
+    cx.beginPath();cx.arc(cxm-sz*.1,sy+sz*.34+Math.sin(now()/180)*2,1.5,0,7);cx.arc(cxm+sz*.1,sy+sz*.38+Math.cos(now()/200)*2,1.5,0,7);cx.fill();
+  }else if(b.type==='banner'){
+    cx.fillStyle='#6b4f30';cx.fillRect(cxm-sz*.18,sy+sz*.08,3,sz*.74);
+    const wv=Math.sin(now()/300+sx)*sz*.05;
+    cx.fillStyle=['#b0563b','#5b8fb0','#5aa06a','#b58fb0','#e8a33d'][h];cx.strokeStyle='#2b2620';cx.lineWidth=1.5;
+    cx.beginPath();cx.moveTo(cxm-sz*.18+3,sy+sz*.1);cx.lineTo(cxm+sz*.3+wv,sy+sz*.2);cx.lineTo(cxm-sz*.18+3,sy+sz*.32);cx.closePath();cx.fill();cx.stroke();
+    cx.fillStyle='#f4c542';cx.beginPath();cx.arc(cxm-sz*.18+1.5,sy+sz*.07,2.4,0,7);cx.fill();
+  }else if(b.type==='gnome'){
+    cx.fillStyle='#8d8a80';cx.strokeStyle='#2b2620';cx.lineWidth=1.5;
+    cx.beginPath();cx.moveTo(cxm,sy+sz*.42);cx.lineTo(cxm-sz*.14,sy+sz*.78);cx.lineTo(cxm+sz*.14,sy+sz*.78);cx.closePath();cx.fill();cx.stroke();
+    cx.fillStyle='#e8c39a';cx.beginPath();cx.arc(cxm,sy+sz*.4,sz*.09,0,7);cx.fill();cx.stroke();
+    cx.fillStyle='#b0563b';cx.beginPath();cx.moveTo(cxm,sy+sz*.14);cx.lineTo(cxm-sz*.1,sy+sz*.38);cx.lineTo(cxm+sz*.1,sy+sz*.38);cx.closePath();cx.fill();cx.stroke();
+    cx.fillStyle='#f0f0e8';cx.beginPath();cx.ellipse(cxm,sy+sz*.5,sz*.05,sz*.08,0,0,7);cx.fill();
+  }
+  if(!b.mine){cx.globalAlpha=.3;cx.fillStyle='#fff';cx.fillRect(sx+2,sy+2,sz-4,sz-4);cx.globalAlpha=1}
 }
 function drawMonument(b,sx,sy,sz){
   const cs=completedStages();               // 0..5
@@ -1162,6 +1228,7 @@ function render(){
     const fl=.85+Math.sin(now()/120)*.1;
     for(const k in S.buildings){const b=S.buildings[k];
       if(b.type==='torch')punch(b.x+.5,b.y+.3,3.2,fl);
+      else if(b.type==='lamppost')punch(b.x+.5,b.y+.2,2.6,fl);
       else punch(b.x+.5,b.y+.5,1.5,.5);}
     for(const id in S.others){const o=S.others[id];if(id!==S.me.id&&now()-o.t<70000)punch(o.x,o.y,2.2,.7)}
     for(const p of parts)if(p.color==='fly')punch(p.x,p.y,.7,.8);
@@ -1249,6 +1316,13 @@ const ICON_SVG={
  plaza:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#c9b389" stroke="#2b2620" stroke-width="2"/><path d="M12 2v20M2 12h20M4.5 4.5l15 15M19.5 4.5l-15 15" stroke="#9a978e" stroke-width="1.4"/><circle cx="12" cy="12" r="2.4" fill="#e8a33d" stroke="#2b2620" stroke-width="1.6"/></svg>',
  chapel:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="7" y="9" width="10" height="12" fill="#f0e6c8" stroke="#2b2620" stroke-width="2"/><path d="M7 9 12 2 17 9z" fill="#9a978e" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="2" r="1" fill="#f4c542"/><circle cx="12" cy="12.5" r="2.2" fill="#b58fb0" stroke="#2b2620" stroke-width="1.4"/><path d="M12 10.3v4.4M9.8 12.5h4.4" stroke="#2b2620" stroke-width=".8"/><path d="M10 21v-3.5a2 2 0 0 1 4 0V21z" fill="#2b2620"/></svg>',
  statue:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="5" y="18" width="14" height="4" fill="#9a978e" stroke="#2b2620" stroke-width="2"/><rect x="7" y="14" width="10" height="4" fill="#9a978e" stroke="#2b2620" stroke-width="2"/><circle cx="12" cy="8" r="2.6" fill="#e8a33d" stroke="#2b2620" stroke-width="2"/><path d="M9 14c0-3 1.5-5 3-5s3 2 3 5z" fill="#e8a33d" stroke="#2b2620" stroke-width="2"/><path d="M14.5 9.5 18 6" stroke="#e8a33d" stroke-width="2.2" stroke-linecap="round"/></svg>',
+ flowerbed:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><ellipse cx="12" cy="17" rx="9" ry="4" fill="#7a5c3a" stroke="#2b2620" stroke-width="2"/><path d="M7 14v-3M12 13V9M17 14v-3" stroke="#5aa06a" stroke-width="1.8" stroke-linecap="round"/><circle cx="7" cy="10" r="2" fill="#e86a8a" stroke="#2b2620" stroke-width="1.4"/><circle cx="12" cy="8" r="2.2" fill="#f4c542" stroke="#2b2620" stroke-width="1.4"/><circle cx="17" cy="10" r="2" fill="#b58fb0" stroke="#2b2620" stroke-width="1.4"/></svg>',
+ hedge:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 19v-6a4 4 0 0 1 5-4 5 5 0 0 1 8 0 4 4 0 0 1 5 4v6z" fill="#5aa06a" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><path d="M8 12c1 1 3 1.5 4 1.5s3-.5 4-1.5" fill="none" stroke="#3f7a45" stroke-width="1.5" stroke-linecap="round"/></svg>',
+ lamppost:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="11" y="9" width="2" height="12" fill="#4a4640" stroke="#2b2620" stroke-width="1.6"/><rect x="8" y="20" width="8" height="2" rx="1" fill="#4a4640" stroke="#2b2620" stroke-width="1.4"/><rect x="9" y="3" width="6" height="6.5" rx="1.4" fill="#ffe9a0" stroke="#2b2620" stroke-width="2"/><path d="M12 1v2M9 6.2h6" stroke="#2b2620" stroke-width="1.4"/><circle cx="12" cy="6.2" r="1.4" fill="#e8a33d"/></svg>',
+ bench:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="3" rx="1" fill="#c9a468" stroke="#2b2620" stroke-width="2"/><rect x="3" y="13" width="18" height="3" rx="1" fill="#c9a468" stroke="#2b2620" stroke-width="2"/><path d="M5 16v5M19 16v5" stroke="#8a6b45" stroke-width="2.2" stroke-linecap="round"/></svg>',
+ fountain:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><ellipse cx="12" cy="17" rx="9" ry="4.4" fill="#9a978e" stroke="#2b2620" stroke-width="2"/><ellipse cx="12" cy="16.4" rx="6" ry="2.6" fill="#7fb4d9" stroke="#2b2620" stroke-width="1.5"/><path d="M12 14V6" stroke="#7fb4d9" stroke-width="2.4" stroke-linecap="round"/><path d="M12 6c-2 0-3 1.5-3.5 3M12 6c2 0 3 1.5 3.5 3" fill="none" stroke="#bcd6e0" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="5" r="1.4" fill="#bcd6e0" stroke="#2b2620" stroke-width="1.2"/></svg>',
+ banner:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="6" y="2" width="2" height="20" rx="1" fill="#8a6b45" stroke="#2b2620" stroke-width="1.6"/><path d="M8 4h12l-4 4 4 4H8z" fill="#b0563b" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><circle cx="7" cy="3" r="1.4" fill="#f4c542" stroke="#2b2620" stroke-width="1.2"/></svg>',
+ gnome:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 21c0-6 2.5-10 6-10s6 4 6 10z" fill="#9a978e" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="10.5" r="3" fill="#e8c39a" stroke="#2b2620" stroke-width="1.8"/><path d="M8.5 9.5 12 2l3.5 7.5z" fill="#b0563b" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><path d="M9.8 13c.6 1.4 3.8 1.4 4.4 0-1 2.4-3.4 2.4-4.4 0z" fill="#f0f0e8" stroke="#2b2620" stroke-width="1.2"/></svg>',
 };
 function iconHTML(k,cls){return '<span class="ic'+(cls?' '+cls:'')+'" title="'+(NICE[k]||'')+'">'+(ICON_SVG[k]||ICON_SVG._missing)+'</span>'}
 const iconImg={};
@@ -1260,7 +1334,8 @@ preloadIcons();
 const ICONS={wood:'🪵',stone:'🪨',ore:'⚙️',berry:'🫐',fish:'🐟',egg:'🥚',plank:'📏',ingot:'🔩',wheat:'🌾',bread:'🍞',tool:'🛠️'
  ,clay:'🟤',sand:'⏳',goldore:'🟡',flax:'🌿',brick:'🧱',glass:'🪟',beam:'🏗️',cloth:'🧵',goldbar:'🪙',ornament:'💎'};
 const NICE={wood:'Wood',stone:'Stone',ore:'Ore',berry:'Berries',fish:'Fish',egg:'Eggs',plank:'Planks',ingot:'Ingots',wheat:'Wheat',bread:'Bread',tool:'Tools'
- ,clay:'Clay',sand:'Sand',goldore:'Gold Ore',flax:'Flax',brick:'Brick',glass:'Glass',beam:'Steel Beam',cloth:'Cloth',goldbar:'Gold Bar',ornament:'Ornament',villagers:'Villagers'};
+ ,clay:'Clay',sand:'Sand',goldore:'Gold Ore',flax:'Flax',brick:'Brick',glass:'Glass',beam:'Steel Beam',cloth:'Cloth',goldbar:'Gold Bar',ornament:'Ornament',villagers:'Villagers'
+ ,flowerbed:'Flower Bed',hedge:'Hedge',lamppost:'Lamp Post',bench:'Bench',fountain:'Fountain',banner:'Banner',gnome:'Garden Gnome'};
 const hud=document.getElementById('hud');
 const RAW=['wood','stone','ore','berry','fish','egg'],CRAFT=['plank','ingot','wheat','bread','tool'];
 const NEWRAW=['clay','sand','goldore','flax'], NEWCRAFT=['brick','glass','beam','cloth','goldbar','ornament'];
@@ -1313,6 +1388,43 @@ function checkTownTier(){
     renderBuildBar();renderHUD();saveSoon();
   }
 }
+/* ============ town beauty ============ */
+const BEAUTY_TIERS=[
+ {name:'Plain',min:0,spd:0,xp:0},
+ {name:'Tidy',min:15,spd:.04,xp:.05},
+ {name:'Charming',min:35,spd:.08,xp:.10},
+ {name:'Picturesque',min:65,spd:.12,xp:.15},
+ {name:'Postcard-Perfect',min:100,spd:.16,xp:.20},
+];
+let beautyCache={t:0,v:0};
+function beautyDirty(){beautyCache.t=0}
+function beautyNear(b,r2,fn){for(const k in S.buildings){const o=S.buildings[k];const dx=o.x-b.x,dy=o.y-b.y;if(dx*dx+dy*dy<=r2&&fn(o))return true}return false}
+function beautyScore(){
+  if(now()-beautyCache.t<2000)return beautyCache.v;
+  const counts={};let sum=0;
+  const decor=Object.values(S.buildings).filter(b=>BUILDS[b.type]&&BUILDS[b.type].decor).sort((a,b)=>a.x*997+a.y-(b.x*997+b.y));
+  for(const b of decor){
+    const q=beautyNear(b,9,o=>o.type==='path'||(BUILDS[o.type]&&BUILDS[o.type].home))||((b.x-HALL.x)**2+(b.y-HALL.y)**2<=9);
+    if(!q)continue;
+    counts[b.type]=(counts[b.type]||0)+1;
+    let c=BUILDS[b.type].decor*Math.max(.2,Math.pow(.7,counts[b.type]-1));
+    if(b.type==='fountain'&&beautyNear(b,4,o=>o.type==='plaza'))c*=1.5;
+    if(b.type==='lamppost'&&beautyNear(b,4,o=>o.type==='well'))c*=1.5;
+    sum+=c;
+  }
+  beautyCache={t:now(),v:Math.round(sum)};
+  return beautyCache.v;
+}
+function beautyTier(){const s=beautyScore();let t=0;for(let i=0;i<BEAUTY_TIERS.length;i++)if(s>=BEAUTY_TIERS[i].min)t=i;return t}
+function beautySpeedBonus(){return BEAUTY_TIERS[beautyTier()].spd}
+function beautyXPBonus(){return BEAUTY_TIERS[beautyTier()].xp}
+let lastBeautyTier=-1;
+function beautyTick(){
+  const t=beautyTier();
+  if(lastBeautyTier===-1){lastBeautyTier=t;return}
+  if(t>lastBeautyTier){toast('🌷 Emberpine looks '+BEAUTY_TIERS[t].name+' now!');sfx('quest');renderHUD()}
+  lastBeautyTier=t;
+}
 // Categories for the build panel (key -> {label, ico, types:[...]}). Any BUILDS key not
 // listed here still appears, bucketed into a fallback "Other" category, so a forgotten
 // registration is visible rather than unbuildable.
@@ -1321,6 +1433,7 @@ const BUILD_CATS={
   production:{label:'Production',ico:'⚙️',types:['sawmill','smelter','farm','dock','bakery','workshop','kiln','glassworks','forge','loom','gilder','fishmonger']},
   civic:{label:'Civic',ico:'⛲',types:['well','tavern','plaza','chapel','statue','watchtower']},
   infra:{label:'Infra',ico:'🛤️',types:['torch','path','crate']},
+  decor:{label:'Decor',ico:'🌷',types:['flowerbed','hedge','lamppost','bench','fountain','banner','gnome']},
   monument:{label:'Monument',ico:'🗿',types:['monument']},
 };
 function buildCatList(){
@@ -1348,6 +1461,8 @@ function buildTileEl(t){
     btn.title=B.desc;
     btn.onclick=()=>{S.buildSel=S.buildSel===t?null:t;
       if(S.buildSel)toast('Tap a tile to place the '+B.name);
+      if(S.buildSel==='fountain')firstTime('decorFountain','Fountains glow brighter near the Plaza — place one within 2 tiles for a beauty bonus.');
+      if(S.buildSel==='lamppost')firstTime('decorLamp','Lamp posts shine near the Well — place one within 2 tiles for a beauty bonus.');
       popup.style.display='none';
       closeBuildPanel();
       renderBuildBar();
@@ -1442,6 +1557,7 @@ function demolishBuilding(b){
   sfx('chop');
   toast(B.name+' demolished — half the materials recovered');
   popup.style.display='none';
+  beautyDirty();lastBeautyTier=beautyTier();  // silent tier drop, no penalty toast
   renderHUD();renderBuildBar();saveSoon();
 }
 function openBuildingPopup(b,px,py){
@@ -1724,6 +1840,7 @@ function ambienceTick(dt){
     }
   }
   traderTick();
+  artistTick();beautyTick();
 }
 function drawParts(){
   for(const p of parts){
@@ -1746,6 +1863,19 @@ function traderTick(){
     trader.offer=TRADES[(Math.random()*TRADES.length)|0];
     toast('\u{1F9F3} A wandering trader sets up by the Hall!');sfx('trade');renderTrader();}
   if(trader.active&&now()>trader.until){trader.active=false;trader.next=now()+150000+Math.random()*150000;renderTrader();toast('\u{1F9F3} The trader packs up and leaves')}
+}
+const artist={active:false,until:0,next:now()+240000};
+function artistTick(){
+  const bt=beautyTier();
+  if(!artist.active&&bt>=3&&now()>artist.next){
+    artist.active=true;artist.until=now()+45000;
+    const n=bt>=4?2:1;gain('ornament',n);
+    toast('\u{1F3A8} A wandering artist strolls through and sketches your town! +'+n+' ornament');sfx('quest');
+    const pl=Object.values(S.buildings).find(b=>b.type==='plaza');
+    spawnBurst(pl?pl.x:HALL.x,pl?pl.y:HALL.y,'#f4c542',12);
+    saveSoon();
+  }
+  if(artist.active&&now()>artist.until){artist.active=false;artist.next=now()+(bt>=4?300000:420000)+Math.random()*300000}
 }
 function renderTrader(){
   const el=document.getElementById('trader');if(!el)return;
@@ -1866,7 +1996,10 @@ function renderLedger(){
   const tally=(fl?fl+'\u2002':'')+Object.entries(S.stats.g).filter(e=>e[1]>0).sort((a,b)=>b[1]-a[1]).slice(0,6).map(e=>iconHTML(e[0])+' '+e[1]).join('\u2002');
   const wp=Math.floor(wonderPct()*100);
   const wh='<div class="ltally" style="margin:0 0 6px;padding-top:0;border-top:none;border-bottom:2px solid rgba(43,38,32,.2);padding-bottom:6px"><b>🗿 VALLEY WONDER</b><div style="height:8px;border:1.5px solid var(--ink);border-radius:5px;background:#fff8e6;overflow:hidden;margin-top:3px"><div style="height:100%;background:var(--amber);width:'+wp+'%"></div></div><div style="font-size:10px;opacity:.75;margin-top:2px">'+(wonder.done?'Complete! 🎆':wp+'% · click the site to contribute')+'</div></div>';
-  el.innerHTML=wh+rh+'<div class="ltally"><b>YOUR TALLY</b><div>'+(tally||'Nothing gathered yet')+'</div></div>';
+  const bs=beautyScore(),bt=beautyTier(),bnx=BEAUTY_TIERS[bt+1];
+  const bp=bnx?Math.min(100,Math.floor(bs/bnx.min*100)):100;
+  const bh='<div class="ltally" style="margin:0 0 6px;padding-top:0;border-top:none;border-bottom:2px solid rgba(43,38,32,.2);padding-bottom:6px"><b>🌷 TOWN BEAUTY</b><div style="height:8px;border:1.5px solid var(--ink);border-radius:5px;background:#fff8e6;overflow:hidden;margin-top:3px"><div style="height:100%;background:var(--amber);width:'+bp+'%"></div></div><div style="font-size:10px;opacity:.75;margin-top:2px">'+BEAUTY_TIERS[bt].name+(bnx?' · '+(bnx.min-bs)+' more to '+bnx.name:' · the valley’s jewel 🎨')+'</div></div>';
+  el.innerHTML=wh+bh+rh+'<div class="ltally"><b>YOUR TALLY</b><div>'+(tally||'Nothing gathered yet')+'</div></div>';
 }
 document.getElementById('ledgerTab').onclick=()=>{
   const hidden=document.getElementById('ledger').classList.toggle('hid');
