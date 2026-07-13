@@ -2039,10 +2039,21 @@ function critterTick(dt){
     if(ok(Math.floor(c.x),Math.floor(ny)))c.y=ny;else c.vy*=-1;
   }
   for(let i=eggs.length-1;i>=0;i--){
-    if(Math.hypot(eggs[i].x-S.me.x,eggs[i].y-S.me.y)<.85){
-      gain('egg',1);sfx('pick');spawnBurst(eggs[i].x-.5,eggs[i].y-.5,'#fdf7ea',5);
-      toast('+1 🥚');eggs.splice(i,1);
+    const e=eggs[i];
+    if(Math.hypot(e.x-S.me.x,e.y-S.me.y)<.85){
+      gain('egg',1);sfx('pick');spawnBurst(e.x-.5,e.y-.5,'#fdf7ea',5);
+      toast('+1 🥚');eggs.splice(i,1);continue;
     }
+    const f=S.villagers.find(v=>v.job==='farmer'&&!(isInside(v)&&v.state==='sleep')&&Math.hypot(v.x-e.x,v.y-e.y)<.9);
+    if(f){gain('egg',1);f.xp=(f.xp||0)+1;spawnBurst(e.x-.5,e.y-.5,'#fdf7ea',4);eggs.splice(i,1);}
+  }
+  // idle farmers stroll to nearby eggs
+  if(eggs.length)for(const v of S.villagers){
+    if(v.job!=='farmer'||v.state!=='idle'||(v.path&&v.path.length))continue;
+    if(v.eggT&&now()<v.eggT)continue;
+    let be=null,bd=7;
+    for(const e of eggs){const d=Math.hypot(v.x-e.x,v.y-e.y);if(d<bd){bd=d;be=e}}
+    if(be){const p=findPath(v.x,v.y,Math.floor(be.x),Math.floor(be.y),true);if(p)v.path=p;v.eggT=now()+5000;}
   }
   if(wonder.done&&Math.random()<dt*.6)spawnBurst(WONDER.x-.5+Math.random(),WONDER.y-1+Math.random(),'#ffe9b8',2);
 }
