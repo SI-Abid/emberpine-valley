@@ -2106,6 +2106,7 @@ function setPaused(p){
   paused=p;
   document.getElementById('pause').style.display=p?'flex':'none';
   if(p){
+    const sb=document.getElementById('sailBtn2');if(sb)sb.style.display=S.won?'block':'none';
     for(const k in keys)keys[k]=false;joyVec.x=0;joyVec.y=0;
     S.buildSel=null;closeBuildPanel();renderBuildBar();popup.style.display='none';S.selV=null;
     renderSnd();saveGame();
