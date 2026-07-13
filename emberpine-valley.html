@@ -537,7 +537,7 @@ function makeVillager(){
   S.villagers.push(v);return v;
 }
 function villagerTick(v,dt){
-  const spd=v.speed*(v.hasTool?1.6:1)*(1+.07*(vLvl(v)-1))*(onPath(v.x,v.y)?1.35:1)*(v.hungry?0.75:1);
+  const spd=v.speed*sMod('speed')*(v.hasTool?1.6:1)*(1+.07*(vLvl(v)-1))*(onPath(v.x,v.y)?1.35:1)*(v.hungry?0.75:1);
   if(v.path&&v.path.length){
     const t=v.path[0],dx=t.x-v.x,dy=t.y-v.y,d=Math.hypot(dx,dy);
     if(d<.08)v.path.shift();else{v.x+=dx/d*spd*dt;v.y+=dy/d*spd*dt;if(Math.abs(dx)>.02)v.fx=dx<0?-1:1}
@@ -592,7 +592,8 @@ function villagerTick(v,dt){
     const stationary=info===RES_INFO.wheatplot||info===RES_INFO.fishspot;
     if(stationary&&v.target){const fb=S.buildings[key(v.target.x,v.target.y)];if(!fb||(fb.type!=='farm'&&fb.type!=='dock')){v.work=0;v.target=null;v.state='idle';return}}
     if(!stationary&&v.target&&!resAt(v.target.x,v.target.y)){v.work=0;v.target=null;v.state='idle';return}
-    v.work+=dt*(v.hasTool?1.6:1)*(1+.05*(vLvl(v)-1))*(v.hungry?0.75:1);
+    const sK=(v.target&&v.target.type==='wheatplot')?sMod('farm'):((v.target&&v.target.type==='fishspot')?sMod('fish'):1);
+    v.work+=dt*sK*(v.hasTool?1.6:1)*(1+.05*(vLvl(v)-1))*(v.hungry?0.75:1);
     if(v.work>=info.time){
       v.work=0;
       if(v.carry&&!v.carry.multi&&v.carry.what===info.yield)v.carry.n+=info.n;
@@ -1164,6 +1165,7 @@ function render(){
     if(wonderPct()>0)punch(WONDER.x+.5,WONDER.y,2.4,.85);
     cx.drawImage(lightCv,0,0);
   }
+  cx.fillStyle=season().tint;cx.fillRect(0,0,VW,VH);
   if(weather.rain){cx.fillStyle='rgba(60,90,130,.08)';cx.fillRect(0,0,VW,VH)}
   renderMini();
 }
@@ -1267,13 +1269,14 @@ function renderHUD(){
   hud.innerHTML=rawChips+'<div class="hsep"></div>'+craftChips
    +'<div class="hsep"></div><div class="res" title="'+(foodShort?'Not enough food for the next meal':'Villagers / housing capacity')+'">'+iconHTML('villagers','ico')+S.villagers.length+'/'+popCap()+(foodShort?' ⚠️':'')+'</div>'
    +'<div class="res" id="tierChip" title="Town tier"></div>'
-   +'<div class="res" id="clockChip" title="Time of day"></div>';
+   +'<div class="res" id="seasonChip" title="Season"></div><div class="res" id="clockChip" title="Time of day"></div>';
   updateClock();updateTierChip();
 }
 function updateTierChip(){const el=document.getElementById('tierChip');if(!el)return;
   const tt=TOWN_TIERS[S.town.tier];
   el.innerHTML='<span class="ico">'+tt.emoji+'</span>'+(islandInfo().short||islandInfo().name)+' '+tt.tier}
-function updateClock(){const el=document.getElementById('clockChip');if(!el)return;const p=dayPhase();
+function updateClock(){
+  const sc=document.getElementById('seasonChip');if(sc)sc.innerHTML='<span class="ico">'+season().emoji+'</span>'+season().name;const el=document.getElementById('clockChip');if(!el)return;const p=dayPhase();
   el.innerHTML='<span class="ico">'+(p<.08?'🌅':p<.42?'☀️':p<.58?'🌇':p<.92?'🌙':'🌅')+'</span>'}
 setInterval(updateClock,4000);
 function gain(what,n){S.inv[what]=(S.inv[what]||0)+n;S.stats.g[what]=(S.stats.g[what]||0)+n;S.score+=n;bumpRes(what);if(what==='tool')equipTools();questTick()}
@@ -1622,12 +1625,34 @@ function sfx(t){
 
 /* ============ ambience: day/night, weather, particles, trader ============ */
 const DAYLEN=240;
+const SEASONS=[
+ {name:'Spring',emoji:'\u{1F338}',tint:'rgba(140,220,140,.05)',mods:{farm:1.15,fish:1.25,speed:1}},
+ {name:'Summer',emoji:'\u2600\uFE0F',tint:'rgba(255,225,120,.04)',mods:{farm:1.3,fish:1,speed:1}},
+ {name:'Autumn',emoji:'\u{1F342}',tint:'rgba(200,120,50,.07)',mods:{farm:1,fish:1.1,speed:1}},
+ {name:'Winter',emoji:'\u2744\uFE0F',tint:'rgba(210,225,245,.09)',mods:{farm:.55,fish:.6,speed:.9}},
+];
+function seasonIdx(){return Math.floor(Math.floor(now()/1000/DAYLEN)/3)%4}
+function season(){return SEASONS[seasonIdx()]}
+function sMod(k){const v=season().mods[k];return v===undefined?1:v}
+let lastSeason=-1;
+function seasonTick(){
+  const i=seasonIdx();
+  if(lastSeason!==-1&&i!==lastSeason){toast(season().emoji+' '+season().name+' settles over the valley');sfx('quest');renderHUD()}
+  lastSeason=i;
+}
 function dayPhase(){return ((now()/1000)%DAYLEN)/DAYLEN}
 const weather={rain:false,next:now()+50000+Math.random()*90000};
-function darknessNow(){const l=.5+.5*Math.sin(dayPhase()*Math.PI*2);let d=(1-l)*.72;if(weather.rain)d=Math.min(.8,d+.1);return d}
+function darknessNow(){const l=.5+.5*Math.sin(dayPhase()*Math.PI*2);let d=(1-l)*.72;if(weather.rain)d=Math.min(.8,d+.1);if(seasonIdx()===3)d=Math.min(.85,d+.08);return d}
 let parts=[],rainFx=[],smokeT=0,critterT=0;
 function spawnBurst(x,y,color,n){n=n||6;for(let i=0;i<n;i++)parts.push({x:x+.5,y:y+.5,vx:(Math.random()-.5)*2.4,vy:-1-Math.random()*1.6,g:5,life:.55+Math.random()*.25,max:.8,color,sz:3})}
 function ambienceTick(dt){
+  seasonTick();
+  const si=seasonIdx();
+  if(si!==1&&Math.random()<dt*(si===3?14:5)){
+    const px=S.cam.x+(Math.random()-.5)*(VW/TSZ),py=S.cam.y-(VH/TSZ)/2-1;
+    const col=si===0?'#f4b8d0':(si===2?'#c97a3d':'#ffffff');
+    parts.push({x:px,y:py,vx:(Math.random()-.5)*.6+(si===2?.4:0),vy:.5+Math.random()*(si===3?.5:1.0),life:6,max:6,color:col,sz:si===3?2:2.5});
+  }
   if(monuFxUntil>now()){const mon=monBuilding()||{x:HALL.x,y:HALL.y};
     if(Math.random()<dt*3)spawnFireworks(mon.x+.5+(Math.random()-.5)*2, mon.y-1+(Math.random()-.5));}
   if(now()>weather.next){weather.rain=!weather.rain;
