@@ -312,13 +312,13 @@
 const ISLAND=(()=>{try{return Math.max(1,parseInt(localStorage.getItem('emberpine:p:island'))||1)}catch(e){return 1}})();
 const TILE=32, MW=110, MH=110, SEED_STR='EMBERPINE-'+ISLAND;
 const ISLANDS=[null,
- {name:'Emberpine Valley',desc:'A gentle green frontier.',mods:{}},
- {name:'Stonereach',desc:'Sparse forests — timber is precious here.',mods:{tree:.45,rock:1.35}},
- {name:'Gilded Shores',desc:'Rich sands and gold, but food is scarce.',mods:{berry:.45,gold:2.2,sand:1.4,recruit:1.5}},
- {name:'The Far Isles',desc:'Everything is harder. Everything counts.',mods:{tree:.6,berry:.6,recruit:1.75,gold:1.5}},
+ {name:'Emberpine Valley',short:'Emberpine',desc:'A gentle green frontier.',mods:{}},
+ {name:'Stonereach',short:'Stonereach',desc:'Sparse forests — timber is precious here.',mods:{tree:.45,rock:1.35}},
+ {name:'Gilded Shores',short:'Gilded',desc:'Rich sands and gold, but food is scarce.',mods:{berry:.45,gold:2.2,sand:1.4,recruit:1.5}},
+ {name:'The Far Isles',short:'Far Isles',desc:'Everything is harder. Everything counts.',mods:{tree:.6,berry:.6,recruit:1.75,gold:1.5}},
 ];
 function islandInfo(){return ISLANDS[Math.min(ISLAND,ISLANDS.length-1)]}
-function iMod(k){return (islandInfo().mods||{})[k]||1}
+function iMod(k){const v=(islandInfo().mods||{})[k];return v===undefined?1:v}
 function xmur3(str){let h=1779033703^str.length;for(let i=0;i<str.length;i++){h=Math.imul(h^str.charCodeAt(i),3432918353);h=h<<13|h>>>19}return()=>{h=Math.imul(h^(h>>>16),2246822507);h=Math.imul(h^(h>>>13),3266489909);return (h^=h>>>16)>>>0}}
 function hash2(x,y,s){let h=Math.imul(x,374761393)+Math.imul(y,668265263)+s|0;h=Math.imul(h^(h>>>13),1274126177);return ((h^(h>>>16))>>>0)/4294967295}
 const SEED=xmur3(SEED_STR)();
@@ -555,8 +555,8 @@ function villagerTick(v,dt){
       return;
     }
     if(v.state==='sleep'){
-      if(v.inside===undefined)v.inside=!!v.home&&Math.hypot(v.x-hp.x,v.y-hp.y)<=1.7;
-      if(v.inside){const hb=homeTarget(v);if(Math.random()<dt*.5)parts.push({x:hb.x+.5,y:hb.y-.4,vx:.12,vy:-.3,life:1.5,max:1.5,color:'zzz',sz:1});return}
+      v.inside=!!(v.home&&(v.home==='hall'||S.buildings[v.home]))&&Math.hypot(v.x-hp.x,v.y-hp.y)<=1.7;  // re-derive: home may be demolished/reassigned mid-sleep
+      if(v.inside){if(Math.random()<dt*.5)parts.push({x:hp.x+.5,y:hp.y-.4,vx:.12,vy:-.3,life:1.5,max:1.5,color:'zzz',sz:1});return}
       if(Math.random()<dt*.9)parts.push({x:v.x,y:v.y-.7,vx:.12,vy:-.3,life:1.5,max:1.5,color:'zzz',sz:1});
       return;
     }
@@ -669,14 +669,14 @@ function moveIn(bKey){
   if(free<=0)return;
   const hs=homeless().sort((a,c)=>((a.x-b.x)**2+(a.y-b.y)**2)-((c.x-b.x)**2+(c.y-b.y)**2));
   for(const v of hs){if(free<=0)break;v.home=bKey;free--}
-  for(let i=0;i<free;i++)S.spawnQ.push({home:bKey,in:2*(i+1)});
+  for(let i=0;i<free;i++)S.spawnQ.push({home:bKey,in:2*(i+1)*iMod('recruit')});
   renderRoster();
 }
 
 function reconcileHousing(){
   for(const k in S.buildings){const b=S.buildings[k];if(b.mine&&BUILDS[b.type]&&BUILDS[b.type].home)moveIn(k)}
   const hallRes=S.villagers.filter(v=>v.home==='hall'||!v.home).length+S.spawnQ.filter(q=>q.home==='hall').length;
-  for(let i=0;i<2-hallRes;i++)S.spawnQ.push({home:'hall',in:4*(i+1)});
+  for(let i=0;i<2-hallRes;i++)S.spawnQ.push({home:'hall',in:4*(i+1)*iMod('recruit')});
 }
 setInterval(()=>{if(typeof running!=='undefined'&&running)reconcileHousing()},30000);
 function spawnQueueTick(dt){
@@ -1062,8 +1062,8 @@ function render(){
     if(v.state==='working'){const info=RES_INFO[v.target?.type||'tree'];drawProgress(v.x,v.y,v.work/info.time,info.emoji)}
   });}
   addP(S.me.y,()=>{
-    const mMoved=Math.hypot(S.me.x-(S.me._px||S.me.x),S.me.y-(S.me._py||S.me.y))>0.004;
-    if(S.me.x!==S.me._px&&Math.abs(S.me.x-(S.me._px||S.me.x))>.002)S.me._fx=(S.me.x<(S.me._px||S.me.x))?-1:1;
+    const mMoved=Math.hypot(S.me.x-(S.me._px??S.me.x),S.me.y-(S.me._py??S.me.y))>0.004;
+    if(S.me.x!==S.me._px&&Math.abs(S.me.x-(S.me._px??S.me.x))>.002)S.me._fx=(S.me.x<(S.me._px??S.me.x))?-1:1;
     S.me._px=S.me.x;S.me._py=S.me.y;
     const meAnim=S.me.harvest?((S.me.harvest.type==='tree')?'axe':'mining'):(mMoved?'walk':'idle');
     drawPerson(S.me.x,S.me.y,'#e8a33d',S.me.name||'You',true,!!S.me.harvest,false,meAnim,S.me._fx||1);
@@ -1232,7 +1232,7 @@ function renderHUD(){
 }
 function updateTierChip(){const el=document.getElementById('tierChip');if(!el)return;
   const tt=TOWN_TIERS[S.town.tier];
-  el.innerHTML='<span class="ico">'+tt.emoji+'</span>'+islandInfo().name.split(' ')[0]+' '+tt.tier}
+  el.innerHTML='<span class="ico">'+tt.emoji+'</span>'+(islandInfo().short||islandInfo().name)+' '+tt.tier}
 function updateClock(){const el=document.getElementById('clockChip');if(!el)return;const p=dayPhase();
   el.innerHTML='<span class="ico">'+(p<.08?'🌅':p<.42?'☀️':p<.58?'🌇':p<.92?'🌙':'🌅')+'</span>'}
 setInterval(updateClock,4000);
@@ -1461,7 +1461,7 @@ cv.addEventListener('click',e=>{
   if(t.x===WONDER.x&&t.y===WONDER.y){openWonderPopup(e.clientX,e.clientY);return}
   // villager?
   let bestV=null,bd=1.2;
-  for(const v of S.villagers){const d=Math.hypot(v.x-(t.x+.5),v.y-(t.y+.5));if(d<bd){bd=d;bestV=v}}
+  for(const v of S.villagers){if(v.inside&&v.state==='sleep')continue;const d=Math.hypot(v.x-(t.x+.5),v.y-(t.y+.5));if(d<bd){bd=d;bestV=v}}
   if(bestV&&!S.buildSel){openVillagerPopup(bestV,e.clientX,e.clientY);return}
   if(S.buildSel){placeBuilding(S.buildSel,t.x,t.y);return}
   const b=S.buildings[key(t.x,t.y)];
@@ -1516,7 +1516,6 @@ async function loadGame(){
   else if(Object.values(S.buildings).some(b=>b.type==='monument')) S.monu={stage:2,given:{},lit:false}; // v1 migration: Foundation complete
   else S.monu=null;
   for(const vs of (s.villagers||[])){const v=makeVillager();v.name=vs.name;v.color=vs.color;v.job=vs.job;v.hasTool=vs.hasTool;v.xp=vs.xp||0;v.home=vs.home||null;v.hungry=!!vs.hungry}
-  for(const k in S.buildings)if(BUILDS[S.buildings[k].type]&&BUILDS[S.buildings[k].type].home&&S.buildings[k].mine)moveIn(k);
   reconcileHousing();
   checkTownTier();
   return true;
@@ -2146,7 +2145,7 @@ document.getElementById('sailBtn2').onclick=setSail;
 document.getElementById('resetBtn').onclick=async()=>{
   if(!confirm('Reset the game? All progress in this browser will be permanently erased.'))return;
   try{Object.keys(localStorage).filter(k=>k.startsWith('emberpine:')).forEach(k=>localStorage.removeItem(k))}catch(e){}
-  try{if(window.storage){for(const k of ['save-v1','presence'])await window.storage.set(k,'null');}}catch(e){}
+  try{await store.set('save-v1',null);await store.set('presence',null,true);}catch(e){}
   saveSoon=()=>{};saveGame=()=>{};try{clearTimeout(saveTimer)}catch(e){}
   location.reload();
 };
