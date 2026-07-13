@@ -1025,12 +1025,17 @@ function render(){
     if(myEmote&&now()-myEmote.t<4000)drawEmote(S.me.x,S.me.y,myEmote.e);
     if(S.me.harvest){const h=S.me.harvest;drawProgress(S.me.x,S.me.y,h.t/RES_INFO[h.type].time,RES_INFO[h.type].emoji)}
   });
+  // ground decals first: paths never occlude people or objects
+  for(let y=ty0;y<=ty1;y++)for(let x=tx0;x<=tx1;x++){
+    const b=S.buildings[key(x,y)];
+    if(b&&b.type==='path')drawBuilding(b,(x-S.cam.x)*TSZ+VW/2,(y-S.cam.y)*TSZ+VH/2,TSZ);
+  }
   for(let y=ty0;y<=ty1;y++){
     for(let x=tx0;x<=tx1;x++){
       const sx=(x-S.cam.x)*TSZ+VW/2, sy=(y-S.cam.y)*TSZ+VH/2;
       const r=resAt(x,y); if(r&&!(x===WONDER.x&&y===WONDER.y))drawRes(r,x,y,sx,sy,TSZ);
       if(x===HALL.x&&y===HALL.y)drawBuilding({type:'hall',mine:true},sx,sy,TSZ);
-      const b=S.buildings[key(x,y)]; if(b)drawBuilding(b,sx,sy,TSZ);
+      const b=S.buildings[key(x,y)]; if(b&&b.type!=='path')drawBuilding(b,sx,sy,TSZ);
     }
     const ps=rowP[y]; if(ps){ps.sort((q,w)=>q.py-w.py);for(const p of ps)p.fn();}
   }
