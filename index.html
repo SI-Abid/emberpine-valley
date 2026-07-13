@@ -427,6 +427,7 @@ const BUILDS={
   loom:{name:'Loom',ico:'🧵',cost:{plank:12,wood:8},desc:'2 flax → 1 cloth / 5s',rate:5},
   gilder:{name:'Gilder',ico:'👑',cost:{brick:10,glass:4},desc:'1 goldbar + 1 glass → 1 ornament / 8s',rate:8},
   watchtower:{name:'Watchtower',ico:'🏹',cost:{plank:14,stone:10},desc:'Pelts raiders within 5 tiles',civic:true},
+  fishmonger:{name:'Fishmonger',ico:'🐟',cost:{plank:10,stone:6},desc:'6 fish → 1 gold bar / 12s',rate:12},
   torch:{name:'Torch',ico:'🕯️',cost:{wood:4},desc:'Lights the night — villagers keep working near torches'},
   path:{name:'Path',ico:'🛤️',cost:{stone:1},desc:'Settlers and villagers walk 35% faster on paths'},
   crate:{name:'Crate',ico:'📦',cost:{plank:4},desc:'Workers stash goods here (holds 12) — haulers ferry them to the Hall'},
@@ -598,6 +599,7 @@ function villagerTick(v,dt){
       v.work=0;
       if(v.carry&&!v.carry.multi&&v.carry.what===info.yield)v.carry.n+=info.n;
       else v.carry={what:info.yield,n:info.n};
+      if(info===RES_INFO.fishspot)logFish(rollFish(),v.name.split(' ')[0]);
       spawnBurst(v.x-.5,v.y-.5,'#e8d9a8',4);
       if(!stationary&&v.target){ markRemoved(v.target.x,v.target.y) }
       if(!v.hungry&&v.carry.n<carryCap(v)){
@@ -678,10 +680,11 @@ let pendingOps=[];
 function markRemoved(x,y){ S.removed[key(x,y)]=now(); pendingOps.push({k:key(x,y),t:now()}); clearTimeout(window._opFlush);window._opFlush=setTimeout(()=>{try{syncWorld()}catch(e){}},400); }
 
 /* ============ production ============ */
-const prodTimers={sawmill:0,smelter:0,bakery:0,workshop:0,kiln:0,glassworks:0,forge:0,loom:0,gilder:0},prodSeq={};
+const prodTimers={fishmonger:0,sawmill:0,smelter:0,bakery:0,workshop:0,kiln:0,glassworks:0,forge:0,loom:0,gilder:0},prodSeq={};
 const RECIPES={
   sawmill:{in:{wood:2},out:'plank'},
   smelter:[{in:{ore:1,wood:1},out:'ingot'},{in:{goldore:1,wood:1},out:'goldbar'}],
+  fishmonger:{in:{fish:6},out:'goldbar'},
   bakery:{in:{wheat:2},out:'bread'}, workshop:{in:{plank:2,ingot:1},out:'tool'},
   kiln:{in:{clay:2,wood:1},out:'brick'}, glassworks:{in:{sand:2,wood:1},out:'glass'},
   forge:{in:{ingot:2,plank:1},out:'beam'}, loom:{in:{flax:2},out:'cloth'},
@@ -784,6 +787,7 @@ function playerTick(dt){
     const info=RES_INFO[h.type];
     if(h.t>=info.time){
       gain(info.yield,info.n);
+      if(h.type==='clay'&&Math.random()<.05){S.score+=12;toast('\u{1FAA9} A pearl in the clay! +12 pts');S.stats.pearls=(S.stats.pearls||0)+1}
       spawnBurst(h.x,h.y,h.type==='tree'?'#8a6b45':'#b8b4a6',7);
       markRemoved(h.x,h.y);
       toast('+'+info.n+' '+NICE[info.yield]);
@@ -924,7 +928,7 @@ function drawRes(r,x,y,sx,sy,sz){
       cx.fillStyle='#8fb6d8';cx.beginPath();cx.arc(bx,sy+sz*.4,2.4,0,7);cx.fill();}
   }
 }
-const BCOLS={watchtower:'#8d7350',sawmill:'#a8783f',smelter:'#8d5a4a',farm:'#c9b45a',dock:'#7a8ca0',bakery:'#d9a05f',workshop:'#7d8a99',torch:'#c9a05a',monument:'#b8b4a6',hall:'#8f6b45'
+const BCOLS={watchtower:'#8d7350',fishmonger:'#5b8fb0',sawmill:'#a8783f',smelter:'#8d5a4a',farm:'#c9b45a',dock:'#7a8ca0',bakery:'#d9a05f',workshop:'#7d8a99',torch:'#c9a05a',monument:'#b8b4a6',hall:'#8f6b45'
 ,kiln:'#b5643c',glassworks:'#7fa9b0',forge:'#6a6f78',loom:'#b58fb0',gilder:'#c9a94a'};
 function drawBuilding(b,sx,sy,sz){
   if(b.type==='path'){
@@ -1314,7 +1318,7 @@ function checkTownTier(){
 // registration is visible rather than unbuildable.
 const BUILD_CATS={
   homes:{label:'Homes',ico:'🏠',types:['cottage','house','manor']},
-  production:{label:'Production',ico:'⚙️',types:['sawmill','smelter','farm','dock','bakery','workshop','kiln','glassworks','forge','loom','gilder']},
+  production:{label:'Production',ico:'⚙️',types:['sawmill','smelter','farm','dock','bakery','workshop','kiln','glassworks','forge','loom','gilder','fishmonger']},
   civic:{label:'Civic',ico:'⛲',types:['well','tavern','plaza','chapel','statue','watchtower']},
   infra:{label:'Infra',ico:'🛤️',types:['torch','path','crate']},
   monument:{label:'Monument',ico:'🗿',types:['monument']},
@@ -1640,6 +1644,29 @@ function seasonTick(){
   if(lastSeason!==-1&&i!==lastSeason){toast(season().emoji+' '+season().name+' settles over the valley');sfx('quest');renderHUD()}
   lastSeason=i;
 }
+const FISH=[
+ {name:'Silverfin Perch',w:40,val:0},
+ {name:'Amber Trout',w:25,val:5},
+ {name:'Moonscale Carp',w:15,val:10,night:true},
+ {name:'Ember Pike',w:10,val:15,season:1},
+ {name:'Frostgill',w:7,val:20,season:3},
+ {name:'Emberfin Leviathan',w:3,val:40},
+];
+function rollFish(){
+  const night=darknessNow()>.45,si=seasonIdx();
+  const pool=FISH.filter(f=>(!f.night||night)&&(f.season===undefined||f.season===si));
+  let tot=pool.reduce((a,f)=>a+f.w,0),r=Math.random()*tot;
+  for(const f of pool){r-=f.w;if(r<=0)return f}
+  return pool[0];
+}
+function logFish(f,who){
+  S.stats.fishLog=S.stats.fishLog||{};
+  const first=!S.stats.fishLog[f.name];
+  S.stats.fishLog[f.name]=(S.stats.fishLog[f.name]||0)+1;
+  if(f.val>0){S.score+=f.val;
+    if(first||f.val>=20)toast('\u{1F41F} '+who+' caught a '+f.name+'! +'+f.val+' pts'+(first?' (new species!)':''));}
+  saveSoon();
+}
 function dayPhase(){return ((now()/1000)%DAYLEN)/DAYLEN}
 const weather={rain:false,next:now()+50000+Math.random()*90000};
 function darknessNow(){const l=.5+.5*Math.sin(dayPhase()*Math.PI*2);let d=(1-l)*.72;if(weather.rain)d=Math.min(.8,d+.1);if(seasonIdx()===3)d=Math.min(.85,d+.08);return d}
@@ -1712,7 +1739,7 @@ function drawParts(){
   }
   for(const r of rainFx){cx.strokeStyle='rgba(190,210,235,.45)';cx.lineWidth=1.2;cx.beginPath();cx.moveTo(r.x,r.y);cx.lineTo(r.x-3,r.y-13);cx.stroke()}
 }
-const TRADES=[{give:{wood:12},get:{ingot:3}},{give:{stone:10},get:{plank:5}},{give:{berry:10},get:{wheat:6}},{give:{fish:6},get:{bread:4}},{give:{plank:8},get:{ore:8}},{give:{bread:3},get:{tool:1}},{give:{egg:6},get:{bread:4}},{give:{brick:10},get:{glass:6}},{give:{cloth:8},get:{ornament:1}},{give:{wood:15},get:{clay:4}},{give:{glass:6},get:{goldbar:2}}];
+const TRADES=[{give:{wood:12},get:{ingot:3}},{give:{stone:10},get:{plank:5}},{give:{berry:10},get:{wheat:6}},{give:{fish:6},get:{bread:4}},{give:{plank:8},get:{ore:8}},{give:{bread:3},get:{tool:1}},{give:{egg:6},get:{bread:4}},{give:{brick:10},get:{glass:6}},{give:{cloth:8},get:{ornament:1}},{give:{wood:15},get:{clay:4}},{give:{glass:6},get:{goldbar:2}},{give:{fish:10},get:{goldbar:1}},{give:{fish:15},get:{ornament:1}}];
 const trader={active:false,offer:null,until:0,next:now()+75000};
 function traderTick(){
   if(!trader.active&&now()>trader.next){trader.active=true;trader.until=now()+60000;
@@ -1835,7 +1862,8 @@ function renderLedger(){
   const el=document.getElementById('ledgerList');if(!el)return;
   const rows=Object.entries(S.others).map(([id,o])=>({id,...o})).sort((a,b)=>(b.score||0)-(a.score||0)).slice(0,12);
   const rh=rows.map((o,i)=>'<div class="lrow'+(o.id===S.me.id?' meRow':'')+'"><span class="lrank">'+(i+1)+'</span><span class="ldot" style="background:'+((now()-o.t<70000)?'#5aa06a':'#8d8a80')+'"></span><span class="lname">'+escapeHtml(o.name||'?')+(o.won?' \u{1F451}':'')+'</span><b>'+(o.score||0)+'</b></div>').join('')||'<div class="cmsg dim">No settlers on record yet.</div>';
-  const tally=Object.entries(S.stats.g).filter(e=>e[1]>0).sort((a,b)=>b[1]-a[1]).slice(0,6).map(e=>iconHTML(e[0])+' '+e[1]).join('\u2002');
+  const fl=S.stats.fishLog?Object.entries(S.stats.fishLog).sort((q,w)=>w[1]-q[1]).slice(0,3).map(e=>'\u{1F41F}'+e[0].split(' ')[0]+' '+e[1]).join('\u2002'):'';
+  const tally=(fl?fl+'\u2002':'')+Object.entries(S.stats.g).filter(e=>e[1]>0).sort((a,b)=>b[1]-a[1]).slice(0,6).map(e=>iconHTML(e[0])+' '+e[1]).join('\u2002');
   const wp=Math.floor(wonderPct()*100);
   const wh='<div class="ltally" style="margin:0 0 6px;padding-top:0;border-top:none;border-bottom:2px solid rgba(43,38,32,.2);padding-bottom:6px"><b>🗿 VALLEY WONDER</b><div style="height:8px;border:1.5px solid var(--ink);border-radius:5px;background:#fff8e6;overflow:hidden;margin-top:3px"><div style="height:100%;background:var(--amber);width:'+wp+'%"></div></div><div style="font-size:10px;opacity:.75;margin-top:2px">'+(wonder.done?'Complete! 🎆':wp+'% · click the site to contribute')+'</div></div>';
   el.innerHTML=wh+rh+'<div class="ltally"><b>YOUR TALLY</b><div>'+(tally||'Nothing gathered yet')+'</div></div>';
@@ -2109,7 +2137,21 @@ function combatTick(dt){
   }
 }
 
-let critters=[],eggs=[];
+let critters=[],eggs=[],shore=[];
+let lastShoreDay=-1;
+function shoreTick(){
+  const day=Math.floor(now()/1000/DAYLEN);
+  if(day===lastShoreDay)return; lastShoreDay=day;
+  shore.length=0;
+  let tries=0,placed=0;
+  while(tries++<400&&placed<4){
+    const x=(Math.random()*MW)|0,y=(Math.random()*MH)|0;
+    if(terrAt(x,y)!==1)continue;
+    if(Math.hypot(x-HALL.x,y-HALL.y)>30)continue;
+    const r=Math.random();
+    shore.push({x:x+.5,y:y+.5,kind:r<.5?'shell':(r<.85?'wood':'bottle')});placed++;
+  }
+}
 function critterTick(dt){
   const farms=Object.values(S.buildings).filter(b=>b.type==='farm'&&b.mine);
   const chn=critters.reduce((a,c)=>a+(c.type==='chicken'?1:0),0);
@@ -2177,12 +2219,29 @@ function critterTick(dt){
     const f=S.villagers.find(v=>v.job==='farmer'&&!(isInside(v)&&v.state==='sleep')&&Math.hypot(v.x-e.x,v.y-e.y)<.9);
     if(f){gain('egg',1);f.xp=(f.xp||0)+1;spawnBurst(e.x-.5,e.y-.5,'#fdf7ea',4);eggs.splice(i,1);}
   }
+  shoreTick();
+  for(let i=shore.length-1;i>=0;i--){
+    const it=shore[i];
+    if(Math.hypot(it.x-S.me.x,it.y-S.me.y)<.85){
+      if(it.kind==='shell'){S.score+=3;toast('\u{1F41A} A pretty shell! +3 pts')}
+      else if(it.kind==='wood'){gain('wood',3);toast('\u{1FAB5} Driftwood! +3 wood')}
+      else{S.score+=15;const msgs=['\u201CThe flame never dies.\u201D','\u201CDig where the gulls circle.\u201D','\u201CWe sailed east and found only more sea.\u201D'];
+        toast('\u{1F4DC} Message in a bottle: '+msgs[(Math.random()*msgs.length)|0]+' +15 pts')}
+      sfx('pick');spawnBurst(it.x-.5,it.y-.5,'#fdf7ea',5);shore.splice(i,1);saveSoon();
+    }
+  }
   // idle farmers stroll to nearby eggs
   if(eggs.length)for(const v of S.villagers){
     if(v.job!=='farmer'||v.state!=='idle'||(v.path&&v.path.length))continue;
     if(v.eggT&&now()<v.eggT)continue;
     let be=null,bd=7;
-    for(const e of eggs){const d=Math.hypot(v.x-e.x,v.y-e.y);if(d<bd){bd=d;be=e}}
+    for(const it of shore){
+    const sx=(it.x-S.cam.x)*TSZ+VW/2, sy=(it.y-S.cam.y)*TSZ+VH/2;
+    if(sx<-20||sy<-20||sx>VW+20||sy>VH+20)continue;
+    cx.font=(11*ZOOM)+'px serif';cx.textAlign='center';cx.textBaseline='middle';
+    cx.fillText(it.kind==='shell'?'\u{1F41A}':(it.kind==='wood'?'\u{1FAB5}':'\u{1F37E}'),sx,sy);
+  }
+  for(const e of eggs){const d=Math.hypot(v.x-e.x,v.y-e.y);if(d<bd){bd=d;be=e}}
     if(be){const p=findPath(v.x,v.y,Math.floor(be.x),Math.floor(be.y),true);if(p)v.path=p;v.eggT=now()+5000;}
   }
   if(wonder.done&&Math.random()<dt*.6)spawnBurst(WONDER.x-.5+Math.random(),WONDER.y-1+Math.random(),'#ffe9b8',2);
