@@ -487,6 +487,11 @@ function findPath(sx,sy,tx,ty,adjacent){
   }
   return null;
 }
+function isInside(v){
+  if(v.state!=='sleep'||!v.home)return false;
+  if(v.home!=='hall'&&!S.buildings[v.home])return false;
+  const hp=homeTarget(v);return Math.hypot(v.x-hp.x,v.y-hp.y)<=1.7;
+}
 function homeTarget(v){
   if(v.home==='hall')return HALL;
   if(v.home){const b=S.buildings[v.home];if(b)return b;v.home=null}
@@ -555,7 +560,7 @@ function villagerTick(v,dt){
       return;
     }
     if(v.state==='sleep'){
-      v.inside=!!(v.home&&(v.home==='hall'||S.buildings[v.home]))&&Math.hypot(v.x-hp.x,v.y-hp.y)<=1.7;  // re-derive: home may be demolished/reassigned mid-sleep
+      v.inside=isInside(v);   // derived, never trusted across state changes
       if(v.inside){if(Math.random()<dt*.5)parts.push({x:hp.x+.5,y:hp.y-.4,vx:.12,vy:-.3,life:1.5,max:1.5,color:'zzz',sz:1});return}
       if(Math.random()<dt*.9)parts.push({x:v.x,y:v.y-.7,vx:.12,vy:-.3,life:1.5,max:1.5,color:'zzz',sz:1});
       return;
@@ -1051,7 +1056,7 @@ function render(){
   const rowP={};
   const addP=(py,fn)=>{const r=Math.floor(py);(rowP[r]=rowP[r]||[]).push({py,fn})};
   for(const id in S.others){const o=S.others[id];if(id!==S.me.id&&now()-o.t<70000)addP(o.y,()=>{drawPerson(o.x,o.y,'#5b8fb0',o.name,false,false,true);if(o.emote&&now()-o.emote.t<4000)drawEmote(o.x,o.y,o.emote.e)});}
-  for(const v of S.villagers){if(v.inside&&v.state==='sleep')continue;addP(v.y,()=>{
+  for(const v of S.villagers){if(isInside(v))continue;addP(v.y,()=>{
     if(S.selV===v.id&&popup.style.display==='block'){
       const vsx=(v.x-S.cam.x)*TSZ+VW/2,vsy=(v.y-S.cam.y)*TSZ+VH/2;
       cx.strokeStyle='#ffe9b8';cx.lineWidth=2;cx.setLineDash([4,3]);
@@ -1461,7 +1466,7 @@ cv.addEventListener('click',e=>{
   if(t.x===WONDER.x&&t.y===WONDER.y){openWonderPopup(e.clientX,e.clientY);return}
   // villager?
   let bestV=null,bd=1.2;
-  for(const v of S.villagers){if(v.inside&&v.state==='sleep')continue;const d=Math.hypot(v.x-(t.x+.5),v.y-(t.y+.5));if(d<bd){bd=d;bestV=v}}
+  for(const v of S.villagers){if(isInside(v))continue;const d=Math.hypot(v.x-(t.x+.5),v.y-(t.y+.5));if(d<bd){bd=d;bestV=v}}
   if(bestV&&!S.buildSel){openVillagerPopup(bestV,e.clientX,e.clientY);return}
   if(S.buildSel){placeBuilding(S.buildSel,t.x,t.y);return}
   const b=S.buildings[key(t.x,t.y)];
@@ -1503,8 +1508,8 @@ async function loadGame(){
   if(!s)return false;
   if(s.island&&s.island!==ISLAND){   // save leaked from another island: convert to a fresh arrival
     const inv={};for(const k in (s.inv||{}))inv[k]=Math.min(s.inv[k]||0,25);inv.tool=(s.inv||{}).tool||0;
-    s={island:ISLAND,inv,name:s.name,id:s.id,x:0,y:0,score:s.score||0,won:false,msgShown:s.msgShown||{},quest:0,stats:s.stats,muted:s.muted,wonderRewarded:false,monu:null,playSec:s.playSec||0,town:{tier:0},lastMeal:Math.floor(now()/1000/DAYLEN),villagers:(s.villagers||[]).slice(0,3).map(v=>({...v,job:'idle',home:null,hungry:false})),buildings:[]};
-    store.set('save-v1',s);
+    s={island:ISLAND,inv,name:s.name,id:s.id,x:0,y:0,score:s.score||0,won:false,msgShown:s.msgShown||{},quest:0,stats:{g:{},b:{},jobs:0},muted:s.muted,wonderRewarded:false,monu:null,playSec:s.playSec||0,town:{tier:0},lastMeal:Math.floor(now()/1000/DAYLEN),villagers:(s.villagers||[]).slice(0,3).map(v=>({...v,job:'idle',home:null,hungry:false})),buildings:[]};
+    await store.set('save-v1',s);
   }
   Object.assign(S.inv,s.inv||{});S.me.name=s.name||'';S.me.id=s.id;S.score=s.score||0;S.won=s.won;S.msgShown=s.msgShown||{};
   S.quest=s.quest||0;S.town=s.town||{tier:0};S.town.tier=Math.min(Math.max(S.town.tier|0,0),3);S.muted=!!s.muted;S.wonderRewarded=!!s.wonderRewarded;S.playSec=s.playSec||0;
@@ -2136,7 +2141,7 @@ async function setSail(){
   saveSoon=()=>{};saveGame=async()=>{};        // neutralize BEFORE writing — a queued autosave was overwriting the clean save
   const inv={};for(const k in S.inv)inv[k]=Math.min(S.inv[k]||0,25);inv.tool=S.inv.tool||0;
   const crew=S.villagers.slice(0,3).map(v=>({name:v.name,color:v.color,job:'idle',hasTool:v.hasTool,xp:v.xp||0,home:null,hungry:false}));
-  await store.set('save-v1',{island:ISLAND+1,inv,name:S.me.name,id:S.me.id,x:0,y:0,score:S.score,won:false,msgShown:S.msgShown,quest:0,stats:S.stats,muted:S.muted,wonderRewarded:false,monu:null,playSec:S.playSec,town:{tier:0},lastMeal:Math.floor(now()/1000/DAYLEN),villagers:crew,buildings:[]});
+  await store.set('save-v1',{island:ISLAND+1,inv,name:S.me.name,id:S.me.id,x:0,y:0,score:S.score,won:false,msgShown:(()=>{const m={...S.msgShown};delete m.monu;return m})(),quest:0,stats:{g:{},b:{},jobs:0},muted:S.muted,wonderRewarded:false,monu:null,playSec:S.playSec,town:{tier:0},lastMeal:Math.floor(now()/1000/DAYLEN),villagers:crew,buildings:[]});
   try{localStorage.setItem('emberpine:p:island',String(ISLAND+1))}catch(e){}
   location.reload();
 }
@@ -2144,8 +2149,9 @@ document.getElementById('sailBtn').onclick=setSail;
 document.getElementById('sailBtn2').onclick=setSail;
 document.getElementById('resetBtn').onclick=async()=>{
   if(!confirm('Reset the game? All progress in this browser will be permanently erased.'))return;
+  try{const pr=await store.get('presence',true);if(pr&&S.me.id){delete pr[S.me.id];await store.set('presence',pr,true)}}catch(e){}
+  try{await store.set('save-v1',null)}catch(e){}
   try{Object.keys(localStorage).filter(k=>k.startsWith('emberpine:')).forEach(k=>localStorage.removeItem(k))}catch(e){}
-  try{await store.set('save-v1',null);await store.set('presence',null,true);}catch(e){}
   saveSoon=()=>{};saveGame=()=>{};try{clearTimeout(saveTimer)}catch(e){}
   location.reload();
 };
