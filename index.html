@@ -879,7 +879,14 @@ const BCOLS={sawmill:'#a8783f',smelter:'#8d5a4a',farm:'#c9b45a',dock:'#7a8ca0',b
 ,kiln:'#b5643c',glassworks:'#7fa9b0',forge:'#6a6f78',loom:'#b58fb0',gilder:'#c9a94a'};
 function drawBuilding(b,sx,sy,sz){
   if(b.type==='path'){
-    cx.fillStyle='#c9b389';cx.fillRect(sx+1,sy+1,sz-2,sz-2);
+    // connection-aware: merge flush with neighboring paths, inset only on open sides
+    const isP=(dx,dy)=>{const nb=S.buildings[key(b.x+dx,b.y+dy)];return !!nb&&nb.type==='path'};
+    const cN=isP(0,-1),cS=isP(0,1),cW=isP(-1,0),cE=isP(1,0);
+    const inset=Math.max(2,sz*.14);
+    const x0=cW?sx-1:sx+inset, x1=cE?sx+sz+1:sx+sz-inset;
+    const y0=cN?sy-1:sy+inset, y1=cS?sy+sz+1:sy+sz-inset;
+    cx.fillStyle='#b39a6e';cx.fillRect(x0,y0,x1-x0,y1-y0);              // worn edge under-layer
+    cx.fillStyle='#c9b389';cx.fillRect(x0+1.5,y0+1.5,(x1-x0)-3,(y1-y0)-3); // packed dirt
     cx.fillStyle='rgba(140,120,90,.5)';
     cx.fillRect(sx+sz*.2,sy+sz*.3,3,3);cx.fillRect(sx+sz*.6,sy+sz*.55,3,3);cx.fillRect(sx+sz*.4,sy+sz*.75,3,3);cx.fillRect(sx+sz*.7,sy+sz*.2,3,3);
     return;
