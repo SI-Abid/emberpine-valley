@@ -177,6 +177,8 @@
   #goodsList{max-height:46dvh;overflow-y:auto;padding:6px}
   .res.more{cursor:pointer;background:rgba(43,38,32,.12)}
   .res.more:hover{background:rgba(43,38,32,.2)}
+  .gdrop{background:none;border:none;font-size:12px;opacity:.4;cursor:pointer;padding:0 2px}
+  .gdrop:hover{opacity:1}
   #ledgerViews{display:flex;gap:3px}
   .lvbtn{font-size:10px !important;padding:2px 7px !important;border-radius:6px !important;opacity:.65;font-family:inherit}
   .lvbtn.sel{background:rgba(255,255,255,.22) !important;opacity:1}
@@ -612,6 +614,7 @@ function villagerTick(v,dt){
   } else if(v.state==='sleep'||v.state==='toHome'){v.state='idle';v.inside=false}
   if(v.job==='hunter'&&!v.carry){
     let tg=null,bd=13*13;
+    if((S.inv.meat||0)<goodCap()&&invTotal()<storeCap())   // meat larder full → stand down
     for(const c of critters){
       if(!c.wild||c.type==='bird')continue;
       if(terrAt(Math.floor(c.x),Math.floor(c.y))===0&&!frozenNow())continue;  // no swimming after ducks
@@ -670,6 +673,17 @@ function villagerTick(v,dt){
   }
   if(v.state==='toHall'){
     if(v.carry){
+      const load=v.carry.multi?Object.values(v.carry.multi).reduce((a,b2)=>a+b2,0):v.carry.n;
+      const free=storeCap()-invTotal();
+      if(free<load){                       // hold the load and wait rather than tipping it to waste
+        if(free>0&&!v.carry.multi){
+          const put=free;
+          v.xp=(v.xp||0)+Math.round(put*(1+beautyXPBonus()));
+          gain(v.carry.what,put);v.carry.n-=put;
+        }
+        if(now()>storeWarnT){storeWarnT=now()+8000;toast('\u{1F4E6} Storage full — villagers are waiting to unload')}
+        v.state='idle';v.nextTry=now()+5000;return;   // idle-carry retries the trip when space frees
+      }
       const l0=vLvl(v);
       if(v.carry.multi){let tot=0;for(const k2 in v.carry.multi){gain(k2,v.carry.multi[k2]);tot+=v.carry.multi[k2]}v.xp=(v.xp||0)+Math.round(tot*(1+beautyXPBonus()))}
       else{v.xp=(v.xp||0)+Math.round(v.carry.n*(1+beautyXPBonus()));gain(v.carry.what,v.carry.n)}
@@ -706,13 +720,17 @@ function villagerTick(v,dt){
     }
   } else if(v.job!=='idle'){
     let tgt=null;
+    const gFull=k2=>(S.inv[k2]||0)>=goodCap()||invTotal()>=storeCap();   // don't gather what can't be stored
     if(v.job==='farmer'||v.job==='fisher'){
       const bt=v.job==='farmer'?'farm':'dock';
       // prefer an unclaimed farm/dock; share the nearest one only if all are taken
-      const f=nearestB(v.x,v.y,bt,claimedRes(v))||nearestB(v.x,v.y,bt);
+      const f=gFull(v.job==='farmer'?'wheat':'fish')?null:(nearestB(v.x,v.y,bt,claimedRes(v))||nearestB(v.x,v.y,bt));
       if(f)tgt={x:f.x,y:f.y,type:v.job==='farmer'?'wheatplot':'fishspot',farm:true};
     }
-    else tgt=nearestRes(v.x|0,v.y|0,J.finds,claimedRes(v));
+    else if(J.finds){
+      const fl=(Array.isArray(J.finds)?J.finds:[J.finds]).filter(f=>{const ri=RES_INFO[f];return !ri||!gFull(ri.yield)});
+      if(fl.length)tgt=nearestRes(v.x|0,v.y|0,fl.length===1?fl[0]:fl,claimedRes(v));
+    }
     if(tgt){
       const p=findPath(v.x,v.y,tgt.x,tgt.y,!tgt.farm);
       if(p){v.target=tgt;v.path=p;v.state='toWork';return}
@@ -1638,13 +1656,19 @@ function renderHUD(){
 }
 function renderGoods(){
   const el=document.getElementById('goodsList');if(!el)return;
-  const row=k=>'<div class="lrow"><span>'+iconHTML(k)+'</span><span class="lname">'+NICE[k]+'</span><b>'+(S.inv[k]||0)+'</b></div>';
+  const row=k=>'<div class="lrow"><span>'+iconHTML(k)+'</span><span class="lname">'+NICE[k]+'</span><b>'+(S.inv[k]||0)+'</b>'+((S.inv[k]||0)>0?'<button class="gdrop" data-k="'+k+'" title="Discard 10 '+NICE[k]+'">🗑</button>':'')+'</div>';
   const sec=(title,keys)=>{const rows=keys.filter(ownsGood).map(row).join('');
     return rows?'<div style="font-size:10px;font-weight:800;opacity:.55;margin:7px 0 2px;letter-spacing:.5px">'+title+'</div>'+rows:''};
   const it=invTotal(),cap=storeCap(),pc=Math.min(100,Math.floor(it/cap*100));
-  el.innerHTML='<div class="ltally" style="margin:0 0 6px;padding-top:0;border-top:none;border-bottom:2px solid rgba(43,38,32,.2);padding-bottom:6px"><b>📦 '+it+' / '+cap+' STORED</b><div style="height:8px;border:1.5px solid var(--ink);border-radius:5px;background:#fff8e6;overflow:hidden;margin-top:3px"><div style="height:100%;background:'+(it>=cap?'#b23b2e':'var(--amber)')+';width:'+pc+'%"></div></div><div style="font-size:10px;opacity:.75;margin-top:2px">crates +30 · warehouses +150 · backpacks +10</div></div>'
+  el.innerHTML='<div class="ltally" style="margin:0 0 6px;padding-top:0;border-top:none;border-bottom:2px solid rgba(43,38,32,.2);padding-bottom:6px"><b>📦 '+it+' / '+cap+' STORED</b><div style="height:8px;border:1.5px solid var(--ink);border-radius:5px;background:#fff8e6;overflow:hidden;margin-top:3px"><div style="height:100%;background:'+(it>=cap?'#b23b2e':'var(--amber)')+';width:'+pc+'%"></div></div><div style="font-size:10px;opacity:.75;margin-top:2px">crates +30 · warehouses +150 · backpacks +10 · max '+goodCap()+' per good</div></div>'
     +(sec('RAW',[...RAW,...NEWRAW])+sec('CRAFTED',[...CRAFT,...NEWCRAFT])||'<div class="cmsg dim">Nothing gathered yet.</div>');
 }
+document.addEventListener('click',e=>{
+  const b=e.target.closest&&e.target.closest('.gdrop');if(!b)return;
+  const k=b.dataset.k, d=Math.min(10,S.inv[k]||0);if(d<=0)return;
+  S.inv[k]-=d;toast('🗑 Discarded '+d+' '+NICE[k]);
+  renderGoods();renderHUD();saveSoon();
+});
 function toggleGoods(){
   const g=document.getElementById('goods');
   const opening=g.classList.contains('hid');
@@ -1666,7 +1690,14 @@ function storeCap(){
   return c;
 }
 let storeWarnT=0;
+function goodCap(){return Math.max(30,Math.floor(storeCap()*.35))}   // no single good may hog the stores
 function gain(what,n){
+  const roomG=goodCap()-(S.inv[what]||0);
+  if(n>roomG){
+    n=Math.max(0,roomG);
+    if(now()>storeWarnT){storeWarnT=now()+8000;toast('\u{1F4E6} '+(NICE[what]||what)+' stores are full ('+goodCap()+' max per good)')}
+    if(n<=0){renderHUD();return}
+  }
   const free=storeCap()-invTotal();
   if(n>free){                                  // stores are finite: overflow goes to waste
     n=Math.max(0,free);
