@@ -2069,7 +2069,7 @@ function drawCritters(){
       const scale=(A[3]<=16?1.0:0.9)*z;                        // small strips 1 tile-ish, big ones slightly under
       const w=A[2]*scale,h=A[3]*scale;
       if(c.type!=='bird'&&c.type!=='duck'){cx.fillStyle='rgba(0,0,0,.18)';cx.beginPath();cx.ellipse(sx,sy+h*.42,w*.32,2.2*z,0,0,7);cx.fill();}
-      cx.save();cx.translate(sx,sy);cx.scale((c.fx2||1)<0?-1:1,1);
+      cx.save();cx.translate(sx,sy);cx.scale((c.fx2||1)>0?-1:1,1);   // Sunnyside animals face LEFT natively
       cx.drawImage(atlasImg,A[0]+idx*A[2],A[1],A[2],A[3],-w/2,-h*.55,w,h);
       cx.restore();
       continue;
