@@ -530,11 +530,12 @@ function claimedRes(self){ // work tiles (resources, farms, docks) already targe
   }
   return c;
 }
+const RES_WEIGHT={clay:.25};   // clay spawns far more rarely than the miner's other finds (stone/iron/sand/gold) — seek it out disproportionately so it doesn't get crowded out
 function nearestRes(px,py,types,claimed){
   const list=Array.isArray(types)?types:[types];let best=null,bd=1e9;
   for(const k in baseRes){if(claimed&&claimed[k])continue;
     const b=resAt(...k.split(',').map(Number));if(!b||!list.includes(b.type))continue;
-    const[x,y]=k.split(',').map(Number);const d=(x-px)**2+(y-py)**2;
+    const[x,y]=k.split(',').map(Number);const d=((x-px)**2+(y-py)**2)*(RES_WEIGHT[b.type]||1);
     if(d<bd){bd=d;best={x,y,type:b.type}}}
   return best;
 }
@@ -758,7 +759,7 @@ const RECIPES={
   smokehouse:[{in:{meat:2,wood:1},out:'roast'},{in:{hide:2},out:'leather'}],
   bakery:[{in:{wheat:2},out:'bread'},{in:{wheat:1,berry:2,egg:1},out:'pie'}],
   workshop:[{in:{plank:2,ingot:1},out:'tool'},{in:{leather:2,rope:1,ingot:1},out:'backpack'}],
-  kiln:[{in:{clay:2,wood:1},out:'brick'},{in:{wood:2},out:'charcoal'}],
+  kiln:[{in:{clay:2,wood:1},out:'brick'},{in:{clay:2,wood:1},out:'brick'},{in:{wood:2},out:'charcoal'}],
   glassworks:{in:{sand:2,wood:1},out:'glass'},
   forge:[{in:{ingot:2,plank:1},out:'beam'},{in:{ingot:1,charcoal:2},out:'beam'}],
   loom:[{in:{flax:2},out:'cloth'},{in:{flax:2},out:'rope'}],
