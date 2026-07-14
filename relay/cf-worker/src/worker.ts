@@ -76,6 +76,9 @@ export class EmberpineRoom {
         return;
       }
       default:
+        // unknown/ephemeral frames (wave, trade handshake, future features):
+        // relay without storing, so client updates don't require redeploys
+        this.broadcast(raw, ws);
         return;
     }
     this.broadcast(raw, ws);

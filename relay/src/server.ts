@@ -66,6 +66,8 @@ export default class Emberpine implements Party.Server {
         return; // no broadcast needed
       }
       default:
+        // ephemeral frames (wave, trade handshake, future features): relay, don't store
+        this.room.broadcast(raw, [sender.id]);
         return;
     }
     this.room.broadcast(raw, [sender.id]);

@@ -2028,6 +2028,16 @@ cv.addEventListener('pointerdown',()=>{try{const a=document.activeElement;if(a&&
 cv.addEventListener('click',e=>{
   const t=screenToTile(e.clientX,e.clientY);
   if(t.x===WONDER.x&&t.y===WONDER.y){openWonderPopup(e.clientX,e.clientY);return}
+  // another settler?
+  if(!S.buildSel){
+    let bo=null,bod=1.0;
+    for(const id in S.others){const o=S.others[id];
+      if(id===S.me.id||now()-o.t>=70000)continue;
+      const ox=(o.dx!==undefined?o.dx:o.x),oy=(o.dy!==undefined?o.dy:o.y);
+      const d=Math.hypot(ox-(t.x+.5),oy-(t.y+.5));
+      if(d<bod){bod=d;bo={...o,id}}}
+    if(bo){openSettlerPopup(bo,e.clientX,e.clientY);return}
+  }
   // villager?
   let bestV=null,bd=1.2;
   for(const v of S.villagers){if(isInside(v))continue;const d=Math.hypot(v.x-(t.x+.5),v.y-(t.y+.5));if(d<bd){bd=d;bestV=v}}
@@ -2106,7 +2116,7 @@ async function syncPresence(){
     for(const id in p)if(now()-p[id].t>120000)delete p[id];
     for(const id in S.others){const o=S.others[id];if(o.ws&&now()-o.t<15000&&(!p[id]||(p[id].t||0)<o.t))p[id]=o}  // socket-fed ghosts are fresher than the store
     for(const id in p){const old=S.others[id];if(old){if(p[id].dx===undefined)p[id].dx=old.dx;if(p[id].dy===undefined)p[id].dy=old.dy;if(p[id].fx===undefined)p[id].fx=old.fx;p[id]._lt=old._lt}}  // keep ghost interpolation state
-    p[S.me.id]={name:S.me.name,x:Math.round(S.me.x*10)/10,y:Math.round(S.me.y*10)/10,t:now(),score:S.score,won:!!S.won,emote:(myEmote&&now()-myEmote.t<4000)?myEmote:null};
+    p[S.me.id]={name:S.me.name,x:Math.round(S.me.x*10)/10,y:Math.round(S.me.y*10)/10,t:now(),score:S.score,won:!!S.won,emote:(myEmote&&now()-myEmote.t<4000)?myEmote:null,profile:myProfile()};
     S.others=p;
     await store.set('presence',p,true);
   }catch(e){}
@@ -2194,6 +2204,110 @@ function sendGift(toId,toName){
     await store.set('gifts',g,true)}catch(e){}})();
   renderHUD();toast('\u{1F381} Care package sent to '+toName+'!');sfx('trade');saveSoon();
 }
+/* ---- settler popup & direct trade (player interaction M1+M2) ---- */
+let trade9={id:null,mode:null,peer:null,give:null,want:null,at:0};
+const TRADEABLE=()=>[...RAW,...CRAFT,...NEWRAW,...NEWCRAFT];
+function peerDist(id){const o=S.others[id];if(!o||now()-o.t>=70000)return 1e9;return Math.hypot((o.dx!==undefined?o.dx:o.x)-S.me.x,(o.dy!==undefined?o.dy:o.y)-S.me.y)}
+function openSettlerPopup(o,px,py){
+  const pr=o.profile||{};
+  const tt=TOWN_TIERS[Math.min(pr.tier||0,TOWN_TIERS.length-1)];
+  popup.innerHTML='<button class="close">✕</button><h4 class="px">🧑 '+escapeHtml(o.name||'Settler')+(o.won?' 👑':'')+'</h4>'
+   +'<div class="sub">FELLOW SETTLER</div>'
+   +'<div class="desc" style="text-align:left">⭐ Score <b>'+(o.score||0)+'</b> · '+tt.emoji+' '+tt.tier
+   +(pr.ach!==undefined?'<br>🏆 '+pr.ach+' achievement'+(pr.ach===1?'':'s'):'')
+   +(o.won?'<br>🔥 Lit the Eternal Flame':'')+'</div>'
+   +'<button id="waveBtn" class="wgive">👋 Wave</button>'
+   +'<button id="pTradeBtn" class="wgive">🔁 Offer a trade</button>'
+   +'<button id="pgiftBtn" class="wgive">🎁 Send care package</button>';
+  popup.querySelector('.close').onclick=()=>popup.style.display='none';
+  popup.querySelector('#waveBtn').onclick=()=>{
+    myEmote={e:'👋',t:now()};
+    netSend({t:'wave',to:o.id,from:S.me.id,fromName:S.me.name});
+    toast('👋 You wave at '+escapeHtml(o.name||'them'));sfx('chat');
+    popup.style.display='none';
+  };
+  popup.querySelector('#pgiftBtn').onclick=()=>{sendGift(o.id,o.name||'settler');popup.style.display='none'};
+  popup.querySelector('#pTradeBtn').onclick=()=>{openTradeOffer(o)};
+  popup.style.display='block';
+  popup.style.left=clamp(px-120,8,VW-256)+'px';
+  popup.style.top=clamp(py-popup.offsetHeight-30,8,VH-240)+'px';
+}
+function tradeRow(pfx,i){
+  const opts=TRADEABLE().map(k=>'<option value="'+k+'">'+(NICE[k]||k)+'</option>').join('');
+  return '<div style="display:flex;gap:4px;margin:2px 0"><select id="'+pfx+'k'+i+'" style="flex:1">'+opts+'</select><input id="'+pfx+'n'+i+'" type="number" min="0" max="99" value="0" style="width:52px"></div>';
+}
+function openTradeOffer(o){
+  if(!NET.ok){toast('🔌 Trading needs the live relay connection');return}
+  if(trade9.mode){toast('You’re already in a trade');return}
+  if(peerDist(o.id)>6){toast('Walk closer to '+escapeHtml(o.name||'them')+' to trade (within 6 tiles)');return}
+  popup.innerHTML='<button class="close">✕</button><h4 class="px">🔁 Trade with '+escapeHtml(o.name||'Settler')+'</h4>'
+   +'<div class="desc" style="text-align:left"><b>You give:</b>'+tradeRow('tg',0)+tradeRow('tg',1)
+   +'<b>You want:</b>'+tradeRow('tw',0)+tradeRow('tw',1)+'</div>'
+   +'<button id="tSendBtn" class="wgive">📨 Send offer</button>';
+  popup.querySelector('.close').onclick=()=>popup.style.display='none';
+  popup.querySelector('#tSendBtn').onclick=()=>{
+    const pick=pfx=>{const r={};for(let i=0;i<2;i++){const k=document.getElementById(pfx+'k'+i).value,n=parseInt(document.getElementById(pfx+'n'+i).value)||0;if(n>0)r[k]=(r[k]||0)+n}return r};
+    const give=pick('tg'),want=pick('tw');
+    if(!Object.keys(give).length&&!Object.keys(want).length){toast('Pick something to give or want');return}
+    if(!canAfford(give)){toast('You don’t have those goods to give');return}
+    if(peerDist(o.id)>6){toast('They wandered off — get closer');return}
+    trade9={id:'t'+Math.random().toString(36).slice(2,8),mode:'waitAccept',peer:{id:o.id,name:o.name},give,want,at:now()};
+    netSend({t:'toffer',id:trade9.id,to:o.id,from:S.me.id,fromName:S.me.name,give,want});
+    toast('📨 Offer sent to '+escapeHtml(o.name||'them')+' — waiting…');sfx('trade');
+    popup.style.display='none';
+  };
+  popup.style.display='block';
+}
+function fmtGoods(g){const e=Object.entries(g||{});return e.length?e.map(([k,n])=>n+' '+(NICE[k]||k)).join(', '):'nothing'}
+function tradeIncoming(m){
+  if(trade9.mode){netSend({t:'tcancel',id:m.id,to:m.from,reason:'busy'});return}
+  trade9={id:m.id,mode:'incoming',peer:{id:m.from,name:m.fromName},give:m.give||{},want:m.want||{},at:now()};
+  popup.innerHTML='<button class="close">✕</button><h4 class="px">🔁 Trade offer</h4>'
+   +'<div class="sub">'+escapeHtml(m.fromName||'A settler')+' OFFERS</div>'
+   +'<div class="desc" style="text-align:left">You get: <b>'+fmtGoods(m.give)+'</b><br>They want: <b>'+fmtGoods(m.want)+'</b></div>'
+   +'<button id="tAccBtn" class="wgive">✅ Accept</button><button id="tDecBtn" class="demoBtn">❌ Decline</button>';
+  popup.querySelector('.close').onclick=()=>{tradeCancel('declined')};
+  popup.querySelector('#tDecBtn').onclick=()=>{tradeCancel('declined')};
+  popup.querySelector('#tAccBtn').onclick=()=>{
+    if(!canAfford(trade9.want)){toast('You can’t afford what they want');tradeCancel('cannot afford');return}
+    const inN=Object.values(trade9.give).reduce((a,b2)=>a+b2,0),outN=Object.values(trade9.want).reduce((a,b2)=>a+b2,0);
+    if(invTotal()-outN+inN>storeCap()){toast('📦 Not enough storage for that trade');tradeCancel('no storage');return}
+    for(const[k,v]of Object.entries(trade9.want))S.inv[k]-=v;   // escrow my side
+    trade9.mode='accepted';trade9.at=now();
+    netSend({t:'taccept',id:trade9.id,to:trade9.peer.id});
+    renderHUD();toast('✅ Accepted — waiting for the exchange…');
+    popup.style.display='none';
+  };
+  popup.style.display='block';
+  popup.style.left=clamp(VW/2-120,8,VW-256)+'px';popup.style.top='120px';
+  toast('🔁 '+escapeHtml(m.fromName||'A settler')+' offers you a trade!');sfx('trade');
+}
+function tradeFinish(){       // offerer side: they accepted → do my half
+  if(!canAfford(trade9.give)){tradeCancel('offer no longer affordable');return}
+  const inN=Object.values(trade9.want).reduce((a,b2)=>a+b2,0),outN=Object.values(trade9.give).reduce((a,b2)=>a+b2,0);
+  if(invTotal()-outN+inN>storeCap()){tradeCancel('no storage');return}
+  for(const[k,v]of Object.entries(trade9.give))S.inv[k]-=v;
+  for(const[k,v]of Object.entries(trade9.want))gain(k,v);
+  netSend({t:'tdone',id:trade9.id,to:trade9.peer.id});
+  toast('🤝 Trade complete with '+escapeHtml(trade9.peer.name||'settler')+'!');sfx('trade');
+  renderHUD();saveSoon();
+  trade9={id:null,mode:null,peer:null,give:null,want:null,at:0};
+}
+function tradeReceive(){      // acceptor side: exchange confirmed → collect their goods
+  for(const[k,v]of Object.entries(trade9.give))gain(k,v);
+  toast('🤝 Trade complete with '+escapeHtml(trade9.peer.name||'settler')+'!');sfx('trade');
+  renderHUD();saveSoon();
+  trade9={id:null,mode:null,peer:null,give:null,want:null,at:0};
+}
+function tradeCancel(reason,remote){
+  if(!trade9.mode)return;
+  if(trade9.mode==='accepted')for(const[k,v]of Object.entries(trade9.want))S.inv[k]=(S.inv[k]||0)+v;  // refund escrow
+  if(!remote)netSend({t:'tcancel',id:trade9.id,to:trade9.peer&&trade9.peer.id,reason});
+  toast('🔁 Trade '+(reason==='declined'?'declined':'cancelled — '+reason));
+  popup.style.display='none';renderHUD();
+  trade9={id:null,mode:null,peer:null,give:null,want:null,at:0};
+}
+setInterval(()=>{if(trade9.mode&&now()-trade9.at>30000)tradeCancel('timed out')},5000);
 /* ============ realtime relay (multiplayer Phase 2) ============ */
 // Optional WebSocket transport: instant sync + 10Hz movement. The polled
 // shared-store above keeps working as the fallback when no relay is set.
@@ -2222,7 +2336,8 @@ function netConnect(){
   }catch(e){NET.ws=null}
 }
 function netSend(o){if(NET.ok)try{NET.ws.send(JSON.stringify(o))}catch(e){}}
-function netSendPos(){netSend({t:'pos',p:{id:S.me.id,name:S.me.name,x:Math.round(S.me.x*10)/10,y:Math.round(S.me.y*10)/10,score:S.score,won:!!S.won,emote:(myEmote&&now()-myEmote.t<4000)?myEmote:null}})}
+function myProfile(){return {tier:S.town.tier,ach:S.legacy?Object.keys(S.legacy.ach).length:0}}
+function netSendPos(){netSend({t:'pos',p:{id:S.me.id,name:S.me.name,x:Math.round(S.me.x*10)/10,y:Math.round(S.me.y*10)/10,score:S.score,won:!!S.won,emote:(myEmote&&now()-myEmote.t<4000)?myEmote:null,profile:myProfile()}})}
 function netHandle(m){
   if(m.t==='snap'&&m.snapshot){
     const s=m.snapshot;let changed=false;
@@ -2241,6 +2356,14 @@ function netHandle(m){
   else if(m.t==='rmres'&&typeof m.k==='string'){if(!S.removed[m.k]||S.removed[m.k]<m.at)S.removed[m.k]=m.at}
   else if(m.t==='chat'&&m.msg&&m.msg.id){if(!wsChat.some(x=>x.id===m.msg.id)){wsChat.push(m.msg);while(wsChat.length>40)wsChat.shift();renderChatAll()}}
   else if(m.t==='gift'&&m.g&&m.g.to===S.me.id)netGift(m.g);
+  else if(m.t==='wave'&&m.to===S.me.id){
+    toast('👋 '+escapeHtml(m.fromName||'A settler')+' waved at you!');sfx('chat');
+    const o=S.others[m.from];if(o)o.emote={e:'👋',t:now()};
+  }
+  else if(m.t==='toffer'&&m.to===S.me.id)tradeIncoming(m);
+  else if(m.t==='taccept'&&trade9.id===m.id&&trade9.mode==='waitAccept')tradeFinish();
+  else if(m.t==='tdone'&&trade9.id===m.id&&trade9.mode==='accepted')tradeReceive();
+  else if(m.t==='tcancel'&&trade9.id===m.id)tradeCancel(m.reason||'declined',true);
 }
 function netGift(g){
   if(!g.id||netGiftSeen[g.id])return;netGiftSeen[g.id]=1;

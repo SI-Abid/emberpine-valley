@@ -28,7 +28,7 @@ wss.on('connection', (ws, req) => {
       case 'chat':  if (msg.msg && typeof msg.msg.m === 'string') { st.chat.push(msg.msg); while (st.chat.length > 50) st.chat.shift(); } else return; break;
       case 'gift':  if (msg.g && msg.g.id) { st.gifts.push(msg.g); st.gifts = st.gifts.slice(-100); } else return; break;
       case 'giftclaim': st.gifts = st.gifts.filter((g) => g.id !== msg.id); return;
-      default: return;
+      default: break;                                                       // ephemeral frames (wave, trades…): relay, don't store
     }
     for (const c of room.clients) if (c !== ws && c.readyState === 1) c.send(raw);
   });
