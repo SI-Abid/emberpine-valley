@@ -20,4 +20,4 @@ new_sqlite_classes = ["EmberpineRoom"]
 [[d1_databases]]
 binding = "DB"
 database_name = "emberpine-accounts"
-database_id = "REPLACE-WITH-YOUR-D1-DATABASE-ID"
+database_id = "2be3257e-47f7-4afd-ad35-92b8fc37e5ff"
