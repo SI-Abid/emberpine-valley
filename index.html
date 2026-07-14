@@ -1924,16 +1924,47 @@ function openBuildingPopup(b,px,py){
   const B=BUILDS[b.type];
   let extra='';
   if(B.home){
+    if(!b.mine){
+      extra='<div class="desc">🏡 '+escapeHtml(b.onm||'Another settler')+'’s household</div>';
+    }else{
     const occ=S.villagers.filter(v=>v.home===key(b.x,b.y));
-    extra='<div class="desc">🛌 '+(occ.length?occ.map(v=>escapeHtml(v.name.split(' ')[0])).join(', '):'Empty — settlers arriving')+'</div>';
+    const stLbl=v=>isInside(v)?'asleep 😴':({working:'working ⚒️',toWork:'heading to work 👣',toHall:'hauling 📦',toCrate:'stashing 📦',sleep:'dozing off 😴',idle:'resting'}[v.state]||'about town');
+    extra='<div class="desc" style="text-align:left">🛏️ Beds '+occ.length+'/'+B.cap+
+      (occ.length?occ.map(v=>'<br><span style="color:'+v.color+'">●</span> <b>'+escapeHtml(v.name.split(' ')[0])+'</b> · '+JOBS[v.job].label+' Lv'+vLvl(v)+(v.perk?' ⭐':'')+(v.hungry?' 🥺':'')+'<br><span style="opacity:.65;font-size:11px">&nbsp;&nbsp;&nbsp;'+stLbl(v)+'</span>').join(''):'<br><span style="opacity:.7">Empty — settlers arriving</span>')+'</div>';
+    if(occ.length)extra+='<button id="knockBtn" class="wgive">🚪 Knock</button>';
     const next=NEXT_HOME[b.type];
-    if(next&&b.mine&&S.town.tier>=(TIER[next]||0)){
+    if(next&&S.town.tier>=(TIER[next]||0)){
       extra+='<button id="upgradeBtn" class="wgive"'+(canAfford(BUILDS[next].cost)?'':' disabled')+'>Upgrade → '+BUILDS[next].name+' · '+costStr(BUILDS[next].cost)+'</button>';
+    }
     }
   }
   const demo=(b.mine&&b.type!=='monument')?'<button id="demolishBtn" class="demoBtn">\u{1F5D1} Demolish</button>':'';
   popup.innerHTML='<button class="close">✕</button><h4 class="px">'+iconHTML(b.type)+' '+B.name+'</h4><div class="sub">'+(b.mine?'YOUR WORKS':'ANOTHER SETTLER\u2019S WORKS')+'</div><div class="desc">'+B.desc+'</div>'+extra+demo;
   popup.querySelector('.close').onclick=()=>popup.style.display='none';
+  const kb=popup.querySelector('#knockBtn');
+  if(kb)kb.onclick=()=>{
+    const occ=S.villagers.filter(v=>v.home===key(b.x,b.y));
+    if(!occ.length)return;
+    if(occ.every(v=>isInside(v))){
+      toast('🤫 The household is fast asleep');
+      parts.push({x:b.x+.7,y:b.y-.3,vx:.12,vy:-.3,life:1.5,max:1.5,color:'zzz',sz:1});
+      sfx('chat');return;
+    }
+    const v=occ.find(o=>!isInside(o))||occ[0];
+    const lines={
+      woodcutter:['The forest gives, if you ask politely.','Mind the splinters out there!'],
+      miner:['Struck a gleam of gold yesterday. Probably.','The deep rock sings, you know.'],
+      farmer:['Wheat’s coming in lovely this season.','Rain or shine, the fields want tending.'],
+      forager:['Found the plumpest berries by the west rocks.','The valley hides its sweetness well.'],
+      fisher:['The Leviathan’s out there. I’ve SEEN it.','Fish bite best at dusk, friend.'],
+      hunter:['Fresh tracks by the river. Big ones.','A full larder keeps the winter kind.'],
+      hauler:['These roads practically walk themselves.','Crates don’t ferry themselves!'],
+      guard:['All quiet. Goblins fear the torchlight.','Rest easy — I’m watching the treeline.'],
+      idle:['Lovely day to do absolutely nothing.','Just enjoying the valley air.']};
+    const arr=lines[v.job]||lines.idle;
+    toast('💬 '+v.name.split(' ')[0]+': “'+arr[(Math.random()*arr.length)|0]+'”'+(v.hungry?' …could use a meal, though. 🥺':''));
+    spawnBurst(b.x+.5,b.y-.2,'#e86a8a',4);sfx('chat');
+  };
   const ub=popup.querySelector('#upgradeBtn');
   if(ub)ub.onclick=()=>{
     const next=NEXT_HOME[b.type],NB=BUILDS[next];
