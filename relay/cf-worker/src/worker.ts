@@ -30,6 +30,7 @@ export class EmberpineRoom {
       removed: (await this.state.storage.get("removed")) ?? {},
       chat:    (await this.state.storage.get("chat"))    ?? [],
       gifts:   (await this.state.storage.get("gifts"))   ?? [],
+      mkt:     (await this.state.storage.get("mkt"))     ?? [],
     };
     server.send(JSON.stringify({ t: "snap", snapshot }));
     return new Response(null, { status: 101, webSocket: client });
@@ -73,6 +74,53 @@ export class EmberpineRoom {
       case "giftclaim": {
         const gifts = ((await this.state.storage.get("gifts")) as any[]) ?? [];
         await this.state.storage.put("gifts", gifts.filter((g: any) => g.id !== m.id));
+        return;
+      }
+      // --- market board: the DO settles atomically (messages are serialized) ---
+      case "mkt_post": {
+        const o = m.o;
+        if (!o || !o.id || !o.by || !o.give) return;
+        const mkt = ((await this.state.storage.get("mkt")) as any[]) ?? [];
+        if (mkt.length >= 30 || mkt.some((x) => x.id === o.id)) return;
+        mkt.push(o);
+        await this.state.storage.put("mkt", mkt);
+        break;                                   // broadcast the post
+      }
+      case "mkt_take": {
+        const mkt = ((await this.state.storage.get("mkt")) as any[]) ?? [];
+        const i = mkt.findIndex((x) => x.id === m.id);
+        if (i < 0) return;                       // already taken/cancelled
+        const o = mkt[i];
+        if (o.by === m.by) return;               // can't take your own
+        mkt.splice(i, 1);
+        await this.state.storage.put("mkt", mkt);
+        const gifts = ((await this.state.storage.get("gifts")) as any[]) ?? [];
+        const g1 = { id: "mg" + o.id, to: m.by, from: (o.byName || "A settler") + "’s stall", items: o.give, t: Date.now() };
+        gifts.push(g1);
+        let g2: any = null;
+        if (o.want && Object.keys(o.want).length) {
+          g2 = { id: "mp" + o.id, to: o.by, from: (m.byName || "A settler") + " (market)", items: o.want, t: Date.now() };
+          gifts.push(g2);
+        }
+        await this.state.storage.put("gifts", gifts.slice(-100));
+        this.broadcast(JSON.stringify({ t: "mkt_take", id: o.id, by: m.by }));           // everyone drops it from the board
+        this.broadcast(JSON.stringify({ t: "gift", g: g1 }));
+        if (g2) this.broadcast(JSON.stringify({ t: "gift", g: g2 }));
+        return;
+      }
+      case "mkt_cancel": {
+        const mkt = ((await this.state.storage.get("mkt")) as any[]) ?? [];
+        const i = mkt.findIndex((x) => x.id === m.id && x.by === m.by);
+        if (i < 0) return;
+        const o = mkt[i];
+        mkt.splice(i, 1);
+        await this.state.storage.put("mkt", mkt);
+        const gifts = ((await this.state.storage.get("gifts")) as any[]) ?? [];
+        const g1 = { id: "mc" + o.id, to: o.by, from: "Your market stall", items: o.give, t: Date.now() };
+        gifts.push(g1);
+        await this.state.storage.put("gifts", gifts.slice(-100));
+        this.broadcast(JSON.stringify({ t: "mkt_cancel", id: o.id }));
+        this.broadcast(JSON.stringify({ t: "gift", g: g1 }));
         return;
       }
       default:
