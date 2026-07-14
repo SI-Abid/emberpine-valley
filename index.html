@@ -746,7 +746,7 @@ function villagerTick(v,dt){
 
 /* ============ shared world ops ============ */
 let pendingOps=[];
-function markRemoved(x,y){ S.removed[key(x,y)]=now(); pendingOps.push({k:key(x,y),t:now()}); clearTimeout(window._opFlush);window._opFlush=setTimeout(()=>{try{syncWorld()}catch(e){}},400); }
+function markRemoved(x,y){ S.removed[key(x,y)]=now(); pendingOps.push({k:key(x,y),t:now()}); netSend({t:'rmres',k:key(x,y),at:now()}); clearTimeout(window._opFlush);window._opFlush=setTimeout(()=>{try{syncWorld()}catch(e){}},400); }
 
 /* ============ production ============ */
 const prodTimers={fishmonger:0,smokehouse:0,sawmill:0,smelter:0,bakery:0,workshop:0,kiln:0,glassworks:0,forge:0,loom:0,gilder:0},prodSeq={};
@@ -895,6 +895,7 @@ function placeBuilding(type,x,y){
   if(type==='dock'&&![[1,0],[-1,0],[0,1],[0,-1]].some(([dx,dy])=>terrAt(x+dx,y+dy)===0)){toast('The dock must touch water 🌊');return}
   for(const[k,v]of Object.entries(B.cost))S.inv[k]-=v;
   S.buildings[key(x,y)]={type,x,y,mine:true,bt:now()};syncBldSoon();
+  netSend({t:'bld',k:key(x,y),e:{t:S.buildings[key(x,y)].bt,type,owner:S.me.id,onm:S.me.name}});
   if(B.home)moveIn(key(x,y));
   S.stats.b[type]=(S.stats.b[type]||0)+1;if(S.legacy){S.legacy.b[type]=(S.legacy.b[type]||0)+1;saveLegacySoon()}S.score+=15;sfx('build');spawnBurst(x,y,'#e8a33d',10);questTick();
   toast(B.name+' built!');
@@ -1916,7 +1917,7 @@ function demolishBuilding(b){
   toast(B.name+' demolished — half the materials recovered');
   popup.style.display='none';
   beautyDirty();lastBeautyTier=beautyTier();  // silent tier drop, no penalty toast
-  syncBldSoon();
+  syncBldSoon();netSend({t:'bld',k:kk,e:{rm:now(),owner:S.me.id}});
   renderHUD();renderBuildBar();saveSoon();
 }
 function openBuildingPopup(b,px,py){
@@ -1973,6 +1974,7 @@ function openBuildingPopup(b,px,py){
     b.type=next;S.stats.b[next]=(S.stats.b[next]||0)+1;if(S.legacy){S.legacy.b[next]=(S.legacy.b[next]||0)+1;saveLegacySoon()}S.score+=15;b.sv=(b.sv||15)+15;
     sfx('build');spawnBurst(b.x,b.y,'#e8a33d',10);
     moveIn(key(b.x,b.y));renderHUD();renderBuildBar();questTick();checkTownTier();syncBldSoon();saveSoon();
+    netSend({t:'bld',k:key(b.x,b.y),e:{t:b.bt||0,type:b.type,owner:S.me.id,onm:S.me.name}});
     openBuildingPopup(b,px,py);
   };
   const db=popup.querySelector('#demolishBtn');
@@ -2102,7 +2104,8 @@ async function syncPresence(){
     let p=await store.get('presence',true)||{};
     // prune stale (>2min)
     for(const id in p)if(now()-p[id].t>120000)delete p[id];
-    for(const id in p){const old=S.others[id];if(old){p[id].dx=old.dx;p[id].dy=old.dy;p[id].fx=old.fx;p[id]._lt=old._lt}}  // keep ghost interpolation state
+    for(const id in S.others){const o=S.others[id];if(o.ws&&now()-o.t<15000&&(!p[id]||(p[id].t||0)<o.t))p[id]=o}  // socket-fed ghosts are fresher than the store
+    for(const id in p){const old=S.others[id];if(old){if(p[id].dx===undefined)p[id].dx=old.dx;if(p[id].dy===undefined)p[id].dy=old.dy;if(p[id].fx===undefined)p[id].fx=old.fx;p[id]._lt=old._lt}}  // keep ghost interpolation state
     p[S.me.id]={name:S.me.name,x:Math.round(S.me.x*10)/10,y:Math.round(S.me.y*10)/10,t:now(),score:S.score,won:!!S.won,emote:(myEmote&&now()-myEmote.t<4000)?myEmote:null};
     S.others=p;
     await store.set('presence',p,true);
@@ -2125,35 +2128,36 @@ async function syncWorld(){
 }
 let _bldT=null;
 function syncBldSoon(){clearTimeout(_bldT);_bldT=setTimeout(()=>{try{syncBuildings()}catch(e){}},300)}
+function applyBldEntry(k,e){   // shared merge rules for one tile entry (poll + socket); returns true if the world changed
+  const loc=S.buildings[k];
+  if(e.rm){                                     // tombstone: its owner tore it down
+    if(loc&&!loc.mine&&loc.owner===e.owner){delete S.buildings[k];return true}
+    return false;
+  }
+  if(e.owner===S.me.id)return false;            // my own echo
+  if(loc&&loc.mine){
+    // same-tile race: earliest build wins (tie → lower id); the loser refunds
+    if((e.t||0)<(loc.bt||0)||((e.t||0)===(loc.bt||0)&&e.owner<S.me.id)){
+      for(const[ck,cv]of Object.entries(BUILDS[loc.type].cost))S.inv[ck]=(S.inv[ck]||0)+cv;
+      S.score=Math.max(0,S.score-(loc.sv||15));
+      delete S.buildings[k];
+      toast('\u{1F3D7}️ '+(e.onm||'Another settler')+' built there first — materials refunded');
+    } else return false;                        // I was first: my publish wins on their side
+  }
+  const cur=S.buildings[k];
+  if(!cur||(!cur.mine&&cur.type!==e.type)){
+    const[x,y]=k.split(',').map(Number);
+    S.buildings[k]={type:e.type,x,y,mine:false,owner:e.owner,onm:e.onm,bt:e.t||0};
+    return true;
+  }
+  return false;
+}
 async function syncBuildings(){
   if(syncBuildings._busy)return; syncBuildings._busy=true; try{
   try{
     let m=await store.get('bld',true)||{};
     let changed=false,dirty=false;
-    // 1) apply remote entries
-    for(const k in m){
-      const e=m[k], loc=S.buildings[k];
-      if(e.rm){                                     // tombstone: its owner tore it down
-        if(loc&&!loc.mine&&loc.owner===e.owner){delete S.buildings[k];changed=true}
-        continue;
-      }
-      if(e.owner===S.me.id)continue;                // my own echo
-      if(loc&&loc.mine){
-        // same-tile race: earliest build wins (tie → lower id); the loser refunds
-        if((e.t||0)<(loc.bt||0)||((e.t||0)===(loc.bt||0)&&e.owner<S.me.id)){
-          for(const[ck,cv]of Object.entries(BUILDS[loc.type].cost))S.inv[ck]=(S.inv[ck]||0)+cv;
-          S.score=Math.max(0,S.score-(loc.sv||15));
-          delete S.buildings[k];
-          toast('\u{1F3D7}️ '+(e.onm||'Another settler')+' built there first — materials refunded');
-        } else continue;                            // I was first: my publish below wins on their side
-      }
-      const cur=S.buildings[k];
-      if(!cur||(!cur.mine&&cur.type!==e.type)){
-        const[x,y]=k.split(',').map(Number);
-        S.buildings[k]={type:e.type,x,y,mine:false,owner:e.owner,onm:e.onm,bt:e.t||0};
-        changed=true;
-      }
-    }
+    for(const k in m)if(applyBldEntry(k,m[k]))changed=true;
     // 2) publish my works; tombstone map entries of mine that no longer exist locally
     for(const k in m){const e=m[k];
       if(!e.rm&&e.owner===S.me.id&&(!S.buildings[k]||!S.buildings[k].mine)){m[k]={rm:now(),owner:S.me.id};dirty=true}}
@@ -2183,11 +2187,70 @@ function sendGift(toId,toName){
   const goods=Object.entries(S.inv).filter(e=>e[1]>=5&&e[0]!=='tool').sort((a,b)=>b[1]-a[1]).slice(0,3);
   if(!goods.length){toast('You need at least 5 of a good to send a care package');return}
   const items={};for(const[k]of goods){items[k]=5;S.inv[k]-=5}
+  const gift={id:'g'+Math.random().toString(36).slice(2,8),to:toId,from:S.me.name,items,t:now()};
+  netSend({t:'gift',g:gift});
   (async()=>{try{const g=await store.get('gifts',true)||[];
-    g.push({id:'g'+Math.random().toString(36).slice(2,8),to:toId,from:S.me.name,items,t:now()});
+    g.push(gift);
     await store.set('gifts',g,true)}catch(e){}})();
   renderHUD();toast('\u{1F381} Care package sent to '+toName+'!');sfx('trade');saveSoon();
 }
+/* ============ realtime relay (multiplayer Phase 2) ============ */
+// Optional WebSocket transport: instant sync + 10Hz movement. The polled
+// shared-store above keeps working as the fallback when no relay is set.
+const NET={ok:false,ws:null,tries:0,host:(()=>{try{
+  return new URLSearchParams(location.search).get('ws')||localStorage.getItem('emberpine:ws')||'';
+}catch(e){return ''}})()};
+let wsChat=[],lastStoreMsgs=[],netGiftSeen={};
+function netConnect(){
+  if(!NET.host||NET.ws)return;
+  try{
+    const w=new WebSocket(NET.host.replace(/\/+$/,'')+'/party/'+encodeURIComponent(SEED_STR));
+    NET.ws=w;
+    w.onopen=()=>{NET.ok=true;NET.tries=0;toast('\u{1F517} Connected to the valley relay');
+      netSendPos();
+      for(const k in S.buildings){const b=S.buildings[k];if(b.mine)netSend({t:'bld',k,e:{t:b.bt||0,type:b.type,owner:S.me.id,onm:S.me.name}})}
+    };
+    w.onclose=()=>{const was=NET.ok;NET.ok=false;NET.ws=null;
+      if(was)toast('\u{1F50C} Relay connection lost — falling back to slow sync');
+      setTimeout(netConnect,Math.min(30000,1000*Math.pow(2,NET.tries++)));
+    };
+    w.onerror=()=>{try{w.close()}catch(e){}};
+    w.onmessage=ev=>{let m;try{m=JSON.parse(ev.data)}catch(e){return}try{netHandle(m)}catch(e){}};
+  }catch(e){NET.ws=null}
+}
+function netSend(o){if(NET.ok)try{NET.ws.send(JSON.stringify(o))}catch(e){}}
+function netSendPos(){netSend({t:'pos',p:{id:S.me.id,name:S.me.name,x:Math.round(S.me.x*10)/10,y:Math.round(S.me.y*10)/10,score:S.score,won:!!S.won,emote:(myEmote&&now()-myEmote.t<4000)?myEmote:null}})}
+function netHandle(m){
+  if(m.t==='snap'&&m.snapshot){
+    const s=m.snapshot;let changed=false;
+    if(s.removed)for(const k in s.removed)if(!S.removed[k]||S.removed[k]<s.removed[k])S.removed[k]=s.removed[k];
+    if(s.bld)for(const k in s.bld)if(applyBldEntry(k,s.bld[k]))changed=true;
+    if(Array.isArray(s.chat)){for(const msg of s.chat)if(msg&&msg.id&&!wsChat.some(x=>x.id===msg.id))wsChat.push(msg);renderChatAll()}
+    if(Array.isArray(s.gifts))for(const g of s.gifts)if(g&&g.to===S.me.id)netGift(g);
+    if(changed){renderBuildBar();beautyDirty()}
+    return;
+  }
+  if(m.t==='pos'&&m.p&&m.p.id&&m.p.id!==S.me.id){
+    const old=S.others[m.p.id]||{};
+    S.others[m.p.id]={...old,...m.p,ws:true,t:now()};
+  }
+  else if(m.t==='bld'&&typeof m.k==='string'&&m.e){if(applyBldEntry(m.k,m.e)){renderBuildBar();beautyDirty()}}
+  else if(m.t==='rmres'&&typeof m.k==='string'){if(!S.removed[m.k]||S.removed[m.k]<m.at)S.removed[m.k]=m.at}
+  else if(m.t==='chat'&&m.msg&&m.msg.id){if(!wsChat.some(x=>x.id===m.msg.id)){wsChat.push(m.msg);while(wsChat.length>40)wsChat.shift();renderChatAll()}}
+  else if(m.t==='gift'&&m.g&&m.g.to===S.me.id)netGift(m.g);
+}
+function netGift(g){
+  if(!g.id||netGiftSeen[g.id])return;netGiftSeen[g.id]=1;
+  const got=[];for(const[k,n]of Object.entries(g.items||{})){gain(k,n);got.push(n+' '+(NICE[k]||k))}
+  toast('\u{1F381} '+escapeHtml(g.from||'A settler')+' sent you '+got.join(', ')+'!');sfx('quest');
+  netSend({t:'giftclaim',id:g.id});
+}
+function renderChatAll(){
+  const seen={};
+  const all=[...lastStoreMsgs,...wsChat].filter(m=>{if(!m||!m.id||seen[m.id])return false;seen[m.id]=1;return true}).sort((a,b)=>(a.t||0)-(b.t||0));
+  renderChat(all);
+}
+setInterval(()=>{if(running&&NET.ok)netSendPos()},100);  // 10Hz movement when the relay is up
 async function countOnline(){
   try{const p=await store.get('presence',true)||{};
     const n=Object.values(p).filter(o=>now()-o.t<120000).length;
@@ -2510,7 +2573,7 @@ async function syncChat(){
       const cut=now()-86400000;msgs=msgs.filter(m=>m.t>cut).slice(-40);
       await store.set('campfire',msgs,true);
     }
-    renderChat(msgs);
+    lastStoreMsgs=msgs;renderChatAll();
   }catch(e){}
 }
 function renderChat(msgs){
@@ -2528,7 +2591,7 @@ function sendChat(){
   const m=inp.value.trim().slice(0,80);if(!m)return;inp.value='';
   const msg={id:'m'+Math.random().toString(36).slice(2,9),pid:S.me.id,name:S.me.name,m,t:now()};
   if(S.legacy){S.legacy.chats=(S.legacy.chats||0)+1;saveLegacySoon()}
-  pendingChat.push(msg);chatKnown[msg.id]=1;
+  pendingChat.push(msg);chatKnown[msg.id]=1;wsChat.push(msg);netSend({t:'chat',msg});
   const list=document.getElementById('chatList');
   list.innerHTML+='<div class="cmsg mine"><b>'+escapeHtml(S.me.name)+'</b> '+escapeHtml(m)+'</div>';list.scrollTop=1e9;
   sfx('chat');syncChat();
@@ -3095,6 +3158,7 @@ async function boot(){
     if(!had||S.villagers.length===0){const a=makeVillager(),b2=makeVillager();a.home='hall';b2.home='hall';toast('Two villagers await your orders 👥')}
     renderHUD();renderBuildBar();renderQuest();renderSnd();chatLastT=now();
     syncWorld().then(()=>{syncPresence();syncBuildings();syncGifts();syncChat();syncWonder()});
+    netConnect();
     saveGame();
     running=true;
     setTimeout(()=>{const h=document.getElementById('hint');if(!h)return;h.style.opacity=0;setTimeout(()=>h.remove(),600)},14000);

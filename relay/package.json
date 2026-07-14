@@ -1,0 +1,15 @@
+{
+  "name": "emberpine-relay",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "partykit dev",
+    "deploy": "partykit deploy",
+    "local": "node local.mjs"
+  },
+  "devDependencies": {
+    "partykit": "^0.0.111",
+    "ws": "^8.18.0"
+  }
+}
