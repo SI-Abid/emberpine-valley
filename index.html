@@ -1449,6 +1449,10 @@ function render(){
     const mv=Math.hypot(o.x-o.dx,o.y-o.dy)>.08;
     if(Math.abs(o.x-o.dx)>.03)o.fx=(o.x-o.dx)<0?-1:1;
     drawPerson(o.dx,o.dy,'#5b8fb0',o.name,false,false,true,mv?'walk':'idle',o.fx||1);
+    if(duel.mode==='active'&&duel.peer&&id===duel.peer.id){
+      const sxd=(o.dx-S.cam.x)*TSZ+VW/2, syd=(o.dy-S.cam.y)*TSZ+VH/2;
+      for(let h=0;h<5;h++){cx.fillStyle=h<duel.peerHp?'#c94f3d':'rgba(43,38,32,.35)';cx.fillRect(sxd-11*ZOOM+h*5*ZOOM,syd-34*ZOOM,3.5*ZOOM,3.5*ZOOM)}
+    }
     if(o.emote&&now()-o.emote.t<4000)drawEmote(o.dx,o.dy,o.emote.e)});}
   for(const v of S.villagers){if(isInside(v))continue;addP(v.y,()=>{
     if(S.selV===v.id&&popup.style.display==='block'){
@@ -2105,6 +2109,13 @@ function openBuildingPopup(b,px,py){
 /* ============ input ============ */
 addEventListener('keydown',e=>{const tg=e.target;if(tg&&(tg.tagName==='INPUT'||tg.tagName==='SELECT'||tg.isContentEditable)&&tg.offsetParent!==null)return;const k=e.key.toLowerCase();keys[k]=true;if(k>='1'&&k<='5')doEmote(+k-1);
   if(k==='e'||k===' '){
+    if(duel.mode==='active'&&duel.peer&&peerDist(duel.peer.id)<1.6&&!(S.me.atkUntil&&now()<S.me.atkUntil)){
+      S.me.atkUntil=now()+400;sfx('chop');
+      const od=S.others[duel.peer.id];
+      if(od)spawnBurst((od.dx!==undefined?od.dx:od.x)-.5,(od.dy!==undefined?od.dy:od.y)-.5,'#c94f3d',4);
+      netSend({t:'dhit',id:duel.id,to:duel.peer.id});
+      e.preventDefault();return;
+    }
     let ng=null,nd=1.4;
     for(const g of goblins){const d=Math.hypot(g.x-S.me.x,g.y-S.me.y);if(d<nd){nd=d;ng=g}}
     if(ng){S.me.atkUntil=now()+400;hurtGoblin(ng,'me');sfx('chop');e.preventDefault();return}
@@ -2321,6 +2332,56 @@ let mktBoard=[];
 let feast={pot:0,until:0};
 function feastOn(){return now()<feast.until}
 let trade9={id:null,mode:null,peer:null,give:null,want:null,at:0};
+/* ---- PvP: honor duels ---- */
+let duel={id:null,mode:null,peer:null,myHp:0,peerHp:0,until:0,at:0};
+function duelReset(){duel={id:null,mode:null,peer:null,myHp:0,peerHp:0,until:0,at:0}}
+function duelStart(){
+  duel.mode='active';duel.myHp=5;duel.peerHp=5;duel.until=now()+90000;
+  toast('⚔️ Duel with '+escapeHtml(duel.peer.name||'a settler')+'! First to land 5 hits wins — get close and press E');sfx('quest');
+}
+function duelChallenge(o){
+  if(!NET.ok){toast('🔌 Duels need the live relay connection');return}
+  if(duel.mode){toast('You’re already busy duelling');return}
+  if(peerDist(o.id)>8){toast('Walk closer to challenge them (within 8 tiles)');return}
+  duel={id:'d'+Math.random().toString(36).slice(2,8),mode:'req',peer:{id:o.id,name:o.name},myHp:0,peerHp:0,until:0,at:now()};
+  netSend({t:'dreq',id:duel.id,to:o.id,from:S.me.id,fromName:S.me.name});
+  toast('⚔️ Challenge sent to '+escapeHtml(o.name||'them')+'…');
+  popup.style.display='none';
+}
+function duelIncoming(m){
+  if(duel.mode){netSend({t:'ddec',id:m.id,to:m.from});return}
+  duel={id:m.id,mode:'req',peer:{id:m.from,name:m.fromName},myHp:0,peerHp:0,until:0,at:now()};
+  popup.innerHTML='<button class="close">✕</button><h4 class="px">⚔️ A challenge!</h4>'
+   +'<div class="desc">'+escapeHtml(m.fromName||'A settler')+' challenges you to an honor duel.<br><span style="opacity:.7">First to land 5 hits. Loser hands over 10 of their most plentiful good.</span></div>'
+   +'<button id="dAccBtn" class="wgive">⚔️ Accept</button><button id="dDecBtn" class="demoBtn">🕊️ Decline</button>';
+  popup.querySelector('.close').onclick=()=>{netSend({t:'ddec',id:duel.id,to:duel.peer.id});duelReset();popup.style.display='none'};
+  popup.querySelector('#dDecBtn').onclick=()=>{netSend({t:'ddec',id:duel.id,to:duel.peer.id});duelReset();popup.style.display='none';toast('🕊️ Declined')};
+  popup.querySelector('#dAccBtn').onclick=()=>{netSend({t:'dacc',id:duel.id,to:duel.peer.id});duelStart();popup.style.display='none'};
+  popup.style.display='block';
+  popup.style.left=clamp(VW/2-120,8,VW-256)+'px';popup.style.top='120px';
+  sfx('quest');
+}
+function duelSpoils(winnerId){
+  const goods=Object.entries(S.inv).filter(e=>e[1]>0&&e[0]!=='tool').sort((a,b)=>b[1]-a[1]);
+  if(!goods.length)return;
+  const[k]=goods[0];const n=Math.min(10,S.inv[k]);
+  S.inv[k]-=n;renderHUD();saveSoon();
+  netSend({t:'gift',g:{id:'ds'+Math.random().toString(36).slice(2,8),to:winnerId,from:S.me.name+' (duel spoils)',items:{[k]:n},t:now()}});
+}
+function duelWin(){
+  S.score+=25;
+  if(S.legacy){S.legacy.duelWins=(S.legacy.duelWins||0)+1;saveLegacySoon()}
+  spawnFireworks(S.me.x,S.me.y);sfx('quest');achTick();
+  sysChat('⚔️ You won the duel against '+(duel.peer&&duel.peer.name||'a settler')+'! +25 pts');
+  duelReset();renderHUD();saveSoon();
+}
+setInterval(()=>{
+  if(duel.mode==='req'&&now()-duel.at>20000){duelReset();toast('⚔️ The challenge went unanswered')}
+  if(duel.mode==='active'&&(now()>duel.until||peerDist(duel.peer.id)>12)){
+    netSend({t:'dend',id:duel.id,to:duel.peer.id,winner:null});
+    toast('🕊️ The duel ends in a draw');duelReset();
+  }
+},3000);
 const TRADEABLE=()=>[...RAW,...CRAFT,...NEWRAW,...NEWCRAFT];
 function peerDist(id){const o=S.others[id];if(!o||now()-o.t>=70000)return 1e9;return Math.hypot((o.dx!==undefined?o.dx:o.x)-S.me.x,(o.dy!==undefined?o.dy:o.y)-S.me.y)}
 function openSettlerPopup(o,px,py){
@@ -2333,7 +2394,8 @@ function openSettlerPopup(o,px,py){
    +(o.won?'<br>🔥 Lit the Eternal Flame':'')+'</div>'
    +'<button id="waveBtn" class="wgive">👋 Wave</button>'
    +'<button id="pTradeBtn" class="wgive">🔁 Offer a trade</button>'
-   +'<button id="pgiftBtn" class="wgive">🎁 Send care package</button>';
+   +'<button id="pgiftBtn" class="wgive">🎁 Send care package</button>'
+   +'<button id="pDuelBtn" class="wgive">⚔️ Challenge to a duel</button>';
   popup.querySelector('.close').onclick=()=>popup.style.display='none';
   popup.querySelector('#waveBtn').onclick=()=>{
     myEmote={e:'👋',t:now()};
@@ -2343,6 +2405,7 @@ function openSettlerPopup(o,px,py){
   };
   popup.querySelector('#pgiftBtn').onclick=()=>{sendGift(o.id,o.name||'settler');popup.style.display='none'};
   popup.querySelector('#pTradeBtn').onclick=()=>{openTradeOffer(o)};
+  popup.querySelector('#pDuelBtn').onclick=()=>{duelChallenge(o)};
   popup.style.display='block';
   popup.style.left=clamp(px-120,8,VW-256)+'px';
   popup.style.top=clamp(py-popup.offsetHeight-30,8,VH-240)+'px';
@@ -2500,6 +2563,24 @@ function netHandle(m){
     toast('🎉 The Feast begins! Everyone is Well Fed Together (+10% speed & XP for a day)');sfx('quest');
     const pl=Object.values(S.buildings).find(b=>b.type==='plaza');
     if(pl){spawnFireworks(pl.x+.5,pl.y-1);spawnFireworks(pl.x-1,pl.y)}
+  }
+  else if(m.t==='dreq'&&m.to===S.me.id)duelIncoming(m);
+  else if(m.t==='dacc'&&m.to===S.me.id&&duel.id===m.id&&duel.mode==='req')duelStart();
+  else if(m.t==='ddec'&&m.to===S.me.id&&duel.id===m.id){toast('🕊️ '+escapeHtml(duel.peer&&duel.peer.name||'They')+' declined the duel');duelReset()}
+  else if(m.t==='dhit'&&m.to===S.me.id&&duel.mode==='active'&&duel.id===m.id){
+    duel.myHp--;spawnBurst(S.me.x-.5,S.me.y-.5,'#c94f3d',5);sfx('chop');
+    netSend({t:'dhp',id:duel.id,to:duel.peer.id,hp:duel.myHp});
+    if(duel.myHp<=0){
+      netSend({t:'dend',id:duel.id,to:duel.peer.id,winner:duel.peer.id});
+      duelSpoils(duel.peer.id);
+      sysChat('⚔️ You lost the duel against '+(duel.peer.name||'a settler')+' — spoils handed over');
+      toast('💫 Bested in the duel!');duelReset();
+    }
+  }
+  else if(m.t==='dhp'&&m.to===S.me.id&&duel.id===m.id)duel.peerHp=m.hp;
+  else if(m.t==='dend'&&m.to===S.me.id&&duel.id===m.id){
+    if(m.winner===S.me.id)duelWin();
+    else{toast('🕊️ The duel ends in a draw');duelReset()}
   }
   else if(m.t==='toffer'&&m.to===S.me.id)tradeIncoming(m);
   else if(m.t==='taccept'&&trade9.id===m.id&&trade9.mode==='waitAccept')tradeFinish();
@@ -2801,6 +2882,8 @@ const ACH=[
  {id:'raid_25',t:'Valley Defender',i:'🏹',cat:'Combat',d:'Drive off 25 raiders, lifetime',c:()=>L().kills>=25,s:80},
  {id:'hunt_1',t:'First Hunt',i:'🍖',cat:'Combat',d:'Bag a wild animal',c:()=>(L().hunts||0)>=1,s:15},
  {id:'hunt_25',t:'Master Tracker',i:'🦌',cat:'Combat',d:'Bag 25 wild animals, lifetime',c:()=>(L().hunts||0)>=25,s:60},
+ {id:'duel_1',t:'En Garde!',i:'⚔️',cat:'Combat',d:'Win an honor duel',c:()=>(L().duelWins||0)>=1,s:20},
+ {id:'duel_10',t:'Valley Champion',i:'🤺',cat:'Combat',d:'Win 10 honor duels, lifetime',c:()=>(L().duelWins||0)>=10,s:75},
  {id:'walk_1000',t:'Wanderlust',i:'👣',cat:'Secret',secret:1,d:'Walk 1,000 tiles',c:()=>L().tiles>=1000,s:30},
  {id:'pet_1',t:'New Best Friend',i:'🐔',cat:'Secret',secret:1,d:'Pet an animal',c:()=>L().pets>=1,s:15},
 ];
