@@ -56,3 +56,39 @@ everything via the `snap` frame sent on connect.
 
 Not yet wired (next iteration): shared Wonder/relics over WS (still fine via
 the polled store), co-op raid entities (`ent` frames).
+
+## Player accounts (cross-device saves) — cf-worker only
+
+The Cloudflare Worker also serves HTTP account endpoints so a player's full
+village follows them across devices via a recovery code (no email/passwords).
+The WebSocket relay works fine without any of this — unconfigured deployments
+just return 503 on `/account/*`.
+
+One-time setup:
+
+```bash
+cd relay/cf-worker
+npx wrangler d1 create emberpine-accounts   # paste database_id into wrangler.toml
+npx wrangler d1 migrations apply emberpine-accounts --remote
+npx wrangler secret put RECOVERY_PEPPER     # any long random string
+npx wrangler secret put TOKEN_SECRET        # any long random string
+npm run deploy
+```
+
+For local dev: copy `.dev.vars.example` to `.dev.vars`, then
+`npx wrangler d1 migrations apply emberpine-accounts --local` and
+`npx wrangler dev --local`.
+
+Endpoints (JSON in/out, CORS-open):
+
+| Endpoint | Auth | Purpose |
+|---|---|---|
+| `POST /account/create {name?}` | — | new account → `{id, code, token, updated_at}`; the 5-word recovery code is returned ONCE and never stored plaintext |
+| `POST /account/login {code}` | — | reclaim an account on a new device → `{id, token, save, legacy, updated_at}` (generic 404 on a bad code) |
+| `GET /account/sync` | Bearer token | pull the latest save |
+| `POST /account/sync {save, legacy, baseUpdatedAt}` | Bearer token | push a save; last-write-wins, `conflict:true` if another device wrote since `baseUpdatedAt` |
+
+Codes are stored as a peppered SHA-256 lookup plus a salted PBKDF2 hash;
+session tokens are stateless HMAC (~13-month life). The recovery code is the
+real credential — losing it means the account can't be reclaimed on new
+devices (existing logged-in devices keep working).

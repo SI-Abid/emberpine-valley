@@ -9,3 +9,15 @@ class_name = "EmberpineRoom"
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["EmberpineRoom"]
+
+# Player accounts (cross-device saves). One-time setup:
+#   npx wrangler d1 create emberpine-accounts     → paste the database_id below
+#   npx wrangler d1 migrations apply emberpine-accounts --remote
+#   npx wrangler secret put RECOVERY_PEPPER       → any long random string
+#   npx wrangler secret put TOKEN_SECRET          → any long random string
+# (for `wrangler dev`, put the two secrets in a .dev.vars file instead)
+# The relay itself works without any of this — /account routes just return 503.
+[[d1_databases]]
+binding = "DB"
+database_name = "emberpine-accounts"
+database_id = "REPLACE-WITH-YOUR-D1-DATABASE-ID"
