@@ -444,7 +444,7 @@ const BUILDS={
   torch:{name:'Torch',ico:'🕯️',cost:{wood:4},desc:'Lights the night — villagers keep working near torches'},
   path:{name:'Path',ico:'🛤️',cost:{stone:1},desc:'Settlers and villagers walk 35% faster on paths'},
   crate:{name:'Storage Shed',ico:'🛖',cost:{plank:4,wood:2},desc:'Workers stash goods here (holds 16) — haulers ferry them to the Hall. +30 town storage'},
-  warehouse:{name:'Warehouse',ico:'🏬',cost:{plank:14,stone:10},desc:'+150 town storage capacity'},
+  warehouse:{name:'Warehouse',ico:'🏬',cost:{plank:14,stone:10},desc:'+150 town storage — upgradeable to Lv6 (+1300)'},
   cottage:{name:'Cottage',ico:'🐱',cost:{plank:6,stone:2},desc:'A home for 1 settler — settlers move in when built',home:true,cap:1},
   house:{name:'House',ico:'🏠',cost:{plank:12,stone:6,bread:4},desc:'A home for 2 settlers',home:true,cap:2},
   manor:{name:'Manor',ico:'🏛',cost:{brick:20,glass:8,bread:6},desc:'A home for 3 settlers',home:true,cap:3},
@@ -1247,6 +1247,11 @@ function drawBuilding(b,sx,sy,sz){
     if(b.type==='crate'){const tot=Object.values(b.store||{}).reduce((a,c2)=>a+c2,0);
       cx.fillStyle='#2b2620';cx.fillRect(sx+5,sy+sz-6,sz-10,4);
       cx.fillStyle='#e8a33d';cx.fillRect(sx+5,sy+sz-6,(sz-10)*Math.min(1,tot/16),4);}
+    if(b.type==='warehouse'&&(b.lvl||1)>1){   // level pips
+      cx.fillStyle='#2b2620';cx.fillRect(sx+3,sy+2,4+((b.lvl-1)*5),7);
+      cx.fillStyle='#f4c542';
+      for(let i=0;i<b.lvl-1;i++)cx.fillRect(sx+5+i*5,sy+4,3,3);
+    }
     fabStatus(b,sx,sy,sz);
     if(!b.mine&&b.type!=='hall'){cx.globalAlpha=.3;cx.fillStyle='#fff';cx.fillRect(sx,sy+sz-bh,sz,bh);cx.globalAlpha=1}
     return;
@@ -1668,7 +1673,7 @@ function renderGoods(){
   const sec=(title,keys)=>{const rows=keys.filter(ownsGood).map(row).join('');
     return rows?'<div style="font-size:10px;font-weight:800;opacity:.55;margin:7px 0 2px;letter-spacing:.5px">'+title+'</div>'+rows:''};
   const it=invTotal(),cap=storeCap(),pc=Math.min(100,Math.floor(it/cap*100));
-  el.innerHTML='<div class="ltally" style="margin:0 0 6px;padding-top:0;border-top:none;border-bottom:2px solid rgba(43,38,32,.2);padding-bottom:6px"><b>📦 '+it+' / '+cap+' STORED</b><div style="height:8px;border:1.5px solid var(--ink);border-radius:5px;background:#fff8e6;overflow:hidden;margin-top:3px"><div style="height:100%;background:'+(it>=cap?'#b23b2e':'var(--amber)')+';width:'+pc+'%"></div></div><div style="font-size:10px;opacity:.75;margin-top:2px">crates +30 · warehouses +150 · backpacks +10 · max '+goodCap()+' per good</div></div>'
+  el.innerHTML='<div class="ltally" style="margin:0 0 6px;padding-top:0;border-top:none;border-bottom:2px solid rgba(43,38,32,.2);padding-bottom:6px"><b>📦 '+it+' / '+cap+' STORED</b><div style="height:8px;border:1.5px solid var(--ink);border-radius:5px;background:#fff8e6;overflow:hidden;margin-top:3px"><div style="height:100%;background:'+(it>=cap?'#b23b2e':'var(--amber)')+';width:'+pc+'%"></div></div><div style="font-size:10px;opacity:.75;margin-top:2px">crates +30 · warehouses +150…+1300 by level · backpacks +10 · max '+goodCap()+' per good</div></div>'
     +(sec('RAW',[...RAW,...NEWRAW])+sec('CRAFTED',[...CRAFT,...NEWCRAFT])||'<div class="cmsg dim">Nothing gathered yet.</div>');
 }
 document.addEventListener('click',e=>{
@@ -1696,10 +1701,19 @@ function invTotal(){let t=0;for(const k in S.inv)t+=(S.inv[k]||0);return t}
 function storeCap(){
   let c=140+([0,60,150,300][S.town.tier]||0)+10*(S.inv.backpack||0);
   for(const k in S.buildings){const b=S.buildings[k];if(!b.mine)continue;
-    if(b.type==='crate')c+=30;else if(b.type==='warehouse')c+=150}
+    if(b.type==='crate')c+=30;else if(b.type==='warehouse')c+=WARE_CAP[Math.min(b.lvl||1,WARE_CAP.length-1)]}
   return c;
 }
 let storeWarnT=0;
+// Hay-Day-style warehouse levels: rising capacity, steeper mixed-material costs
+const WARE_CAP=[0,150,300,480,700,960,1300];
+const WARE_UP=[null,
+ {plank:12,brick:6,rope:2},      // Lv1 → 2
+ {brick:12,beam:4,rope:4},       // Lv2 → 3
+ {beam:8,glass:6,leather:4},     // Lv3 → 4
+ {beam:10,goldbar:3,leather:6},  // Lv4 → 5
+ {goldbar:6,cloth:8,crown:1},    // Lv5 → 6
+];
 function goodCap(){return Math.max(30,Math.floor(storeCap()*.35))}   // no single good may hog the stores
 function gain(what,n){
   const roomG=goodCap()-(S.inv[what]||0);
@@ -1947,9 +1961,26 @@ function openBuildingPopup(b,px,py){
     }
     }
   }
+  if(b.type==='warehouse'&&b.mine){
+    const lvl=b.lvl||1, up=WARE_UP[lvl];
+    extra='<div class="desc" style="text-align:left">🏬 Level <b>'+lvl+'</b> · holds <b>+'+WARE_CAP[lvl]+'</b> storage'+(up?'<br>Next: <b>+'+WARE_CAP[lvl+1]+'</b> storage':'<br><b>Fully upgraded!</b>')+'</div>';
+    if(up)extra+='<button id="wareUpBtn" class="wgive"'+(canAfford(up)?'':' disabled')+'>⬆️ Upgrade to Lv'+(lvl+1)+' · '+costStr(up)+'</button>';
+  }
   const demo=(b.mine&&b.type!=='monument')?'<button id="demolishBtn" class="demoBtn">\u{1F5D1} Demolish</button>':'';
   popup.innerHTML='<button class="close">✕</button><h4 class="px">'+iconHTML(b.type)+' '+B.name+'</h4><div class="sub">'+(b.mine?'YOUR WORKS':'ANOTHER SETTLER\u2019S WORKS')+'</div><div class="desc">'+B.desc+'</div>'+extra+demo;
   popup.querySelector('.close').onclick=()=>popup.style.display='none';
+  const wu=popup.querySelector('#wareUpBtn');
+  if(wu)wu.onclick=()=>{
+    const lvl=b.lvl||1, up=WARE_UP[lvl];
+    if(!up||!canAfford(up))return;
+    for(const[k,v]of Object.entries(up))S.inv[k]-=v;
+    b.lvl=lvl+1;S.score+=15;b.sv=(b.sv||15)+15;
+    sfx('build');spawnBurst(b.x,b.y,'#e8a33d',10);
+    toast('🏬 Warehouse upgraded to Lv'+b.lvl+' — +'+WARE_CAP[b.lvl]+' storage');
+    syncBldSoon();netSend({t:'bld',k:key(b.x,b.y),e:{t:b.bt||0,type:b.type,lvl:b.lvl,owner:S.me.id,onm:S.me.name}});
+    renderHUD();questTick();saveSoon();
+    openBuildingPopup(b,px,py);
+  };
   const kb=popup.querySelector('#knockBtn');
   if(kb)kb.onclick=()=>{
     const occ=S.villagers.filter(v=>v.home===key(b.x,b.y));
@@ -2091,7 +2122,7 @@ async function saveGame(){
   await store.set('save-v1',{island:ISLAND,raid:S.raid,inv:S.inv,name:S.me.name,id:S.me.id,x:S.me.x,y:S.me.y,score:S.score,won:S.won,msgShown:S.msgShown,quest:S.quest,stats:S.stats,muted:S.muted,wonderRewarded:!!S.wonderRewarded,
     monu:S.monu, playSec:S.playSec, town:S.town, lastMeal:S.lastMeal,
     villagers:S.villagers.map(v=>({name:v.name,color:v.color,job:v.job,hasTool:v.hasTool,xp:v.xp||0,home:v.home||null,hungry:!!v.hungry,perk:v.perk||null})),
-    buildings:Object.values(S.buildings).filter(b=>b.mine).map(b=>({type:b.type,x:b.x,y:b.y,store:b.store,sv:b.sv,bt:b.bt||0}))});
+    buildings:Object.values(S.buildings).filter(b=>b.mine).map(b=>({type:b.type,x:b.x,y:b.y,store:b.store,sv:b.sv,bt:b.bt||0,lvl:b.lvl||1}))});
 }
 async function loadGame(){
   let s=await store.get('save-v1');
@@ -2163,9 +2194,9 @@ function applyBldEntry(k,e){   // shared merge rules for one tile entry (poll + 
     } else return false;                        // I was first: my publish wins on their side
   }
   const cur=S.buildings[k];
-  if(!cur||(!cur.mine&&cur.type!==e.type)){
+  if(!cur||(!cur.mine&&(cur.type!==e.type||(cur.lvl||1)!==(e.lvl||1)))){
     const[x,y]=k.split(',').map(Number);
-    S.buildings[k]={type:e.type,x,y,mine:false,owner:e.owner,onm:e.onm,bt:e.t||0};
+    S.buildings[k]={type:e.type,x,y,mine:false,owner:e.owner,onm:e.onm,bt:e.t||0,lvl:e.lvl||1};
     return true;
   }
   return false;
@@ -2181,7 +2212,7 @@ async function syncBuildings(){
       if(!e.rm&&e.owner===S.me.id&&(!S.buildings[k]||!S.buildings[k].mine)){m[k]={rm:now(),owner:S.me.id};dirty=true}}
     for(const k in S.buildings){const b=S.buildings[k];if(!b.mine)continue;
       const e=m[k];
-      if(!e||e.rm||e.owner!==S.me.id||e.type!==b.type){m[k]={t:b.bt||0,type:b.type,owner:S.me.id,onm:S.me.name};dirty=true}}
+      if(!e||e.rm||e.owner!==S.me.id||e.type!==b.type||(e.lvl||1)!==(b.lvl||1)){m[k]={t:b.bt||0,type:b.type,lvl:b.lvl||1,owner:S.me.id,onm:S.me.name};dirty=true}}
     if(dirty)await store.set('bld',m,true);
     if(changed){renderBuildBar();beautyDirty()}
   }catch(e){}
