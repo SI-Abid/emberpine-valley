@@ -22,6 +22,7 @@ export default class Emberpine implements Party.Server {
       chat:    (await this.room.storage.get("chat"))    ?? [],
       gifts:   (await this.room.storage.get("gifts"))   ?? [],
       mkt:     (await this.room.storage.get("mkt"))     ?? [],
+      feast:   (await this.room.storage.get("feast"))   ?? { pot: 0, until: 0 },
     };
     conn.send(JSON.stringify({ t: "snap", snapshot }));
   }
@@ -65,6 +66,20 @@ export default class Emberpine implements Party.Server {
         const gifts = ((await this.room.storage.get("gifts")) as any[]) ?? [];
         await this.room.storage.put("gifts", gifts.filter((g) => g.id !== m.id));
         return; // no broadcast needed
+      }
+      case "feast": {
+        const f = ((await this.room.storage.get("feast")) as any) ?? { pot: 0, until: 0 };
+        if (f.until > Date.now()) return;
+        f.pot = (f.pot || 0) + (typeof m.n === "number" ? Math.max(0, Math.min(20, m.n)) : 0);
+        if (f.pot >= 30) {
+          f.pot = 0; f.until = Date.now() + 86400000;
+          await this.room.storage.put("feast", f);
+          this.room.broadcast(JSON.stringify({ t: "feast_on", until: f.until }));
+        } else {
+          await this.room.storage.put("feast", f);
+          this.room.broadcast(JSON.stringify({ t: "feast_pot", pot: f.pot, byName: m.byName }));
+        }
+        return;
       }
       // --- market board: settled here, atomically (room messages are serialized) ---
       case "mkt_post": {

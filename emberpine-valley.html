@@ -565,7 +565,7 @@ function villagerTick(v,dt){
     v.perk=(Math.abs(h)%2)?'Swift':'Packmule';
     toast('⭐ '+v.name.split(' ')[0]+' is now a veteran — '+v.perk+'!');sfx('quest');spawnFireworks(v.x,v.y);saveSoon();
   }
-  const spd=v.speed*sMod('speed')*(v.hasTool?1.6:1)*(1+.07*(vLvl(v)-1))*(onPath(v.x,v.y)?1.35:1)*(v.hungry?0.75:1)*(1+beautySpeedBonus())*(v.perk==='Swift'?1.1:1);
+  const spd=v.speed*sMod('speed')*(v.hasTool?1.6:1)*(1+.07*(vLvl(v)-1))*(onPath(v.x,v.y)?1.35:1)*(v.hungry?0.75:1)*(1+beautySpeedBonus())*(v.perk==='Swift'?1.1:1)*(feastOn()?1.1:1);
   if(v.path&&v.path.length){
     const t=v.path[0],dx=t.x-v.x,dy=t.y-v.y,d=Math.hypot(dx,dy);
     if(d<.08)v.path.shift();else{v.x+=dx/d*spd*dt;v.y+=dy/d*spd*dt;if(Math.abs(dx)>.02)v.fx=dx<0?-1:1}
@@ -679,15 +679,15 @@ function villagerTick(v,dt){
       if(free<load){                       // hold the load and wait rather than tipping it to waste
         if(free>0&&!v.carry.multi){
           const put=free;
-          v.xp=(v.xp||0)+Math.round(put*(1+beautyXPBonus()));
+          v.xp=(v.xp||0)+Math.round(put*(1+beautyXPBonus()+(feastOn()?.1:0)));
           gain(v.carry.what,put);v.carry.n-=put;
         }
         if(now()>storeWarnT){storeWarnT=now()+8000;toast('\u{1F4E6} Storage full — villagers are waiting to unload')}
         v.state='idle';v.nextTry=now()+5000;return;   // idle-carry retries the trip when space frees
       }
       const l0=vLvl(v);
-      if(v.carry.multi){let tot=0;for(const k2 in v.carry.multi){gain(k2,v.carry.multi[k2]);tot+=v.carry.multi[k2]}v.xp=(v.xp||0)+Math.round(tot*(1+beautyXPBonus()))}
-      else{v.xp=(v.xp||0)+Math.round(v.carry.n*(1+beautyXPBonus()));gain(v.carry.what,v.carry.n)}
+      if(v.carry.multi){let tot=0;for(const k2 in v.carry.multi){gain(k2,v.carry.multi[k2]);tot+=v.carry.multi[k2]}v.xp=(v.xp||0)+Math.round(tot*(1+beautyXPBonus()+(feastOn()?.1:0)))}
+      else{v.xp=(v.xp||0)+Math.round(v.carry.n*(1+beautyXPBonus()+(feastOn()?.1:0)));gain(v.carry.what,v.carry.n)}
       v.carry=0;
       if(vLvl(v)>l0)toast('⭐ '+v.name.split(' ')[0]+' reached Lv'+vLvl(v)+'!');
     }
@@ -699,7 +699,7 @@ function villagerTick(v,dt){
       c.store=c.store||{};
       const tot=Object.values(c.store).reduce((a,b2)=>a+b2,0);
       const put=Math.min(v.carry.n,16-tot);
-      if(put>0){c.store[v.carry.what]=(c.store[v.carry.what]||0)+put;v.carry.n-=put;v.xp=(v.xp||0)+Math.round(1+beautyXPBonus());spawnBurst(c.x,c.y,'#e8d9a8',3);saveSoon()}
+      if(put>0){c.store[v.carry.what]=(c.store[v.carry.what]||0)+put;v.carry.n-=put;v.xp=(v.xp||0)+Math.round(1+beautyXPBonus()+(feastOn()?.1:0));spawnBurst(c.x,c.y,'#e8d9a8',3);saveSoon()}
     }
     if(v.carry&&v.carry.n>0){const p=findPath(v.x,v.y,HALL.x,HALL.y,true);if(p){v.path=p;v.state='toHall';return}
       v.state='idle';return;   // keep the cargo: retry the trip next tick instead of vanishing goods
@@ -849,7 +849,7 @@ function playerTick(dt){
     let buddy=false;   // company warmth: walking beside a live settler is a little quicker
     for(const id in S.others){const o=S.others[id];if(id!==S.me.id&&now()-o.t<70000&&Math.hypot((o.dx!==undefined?o.dx:o.x)-S.me.x,(o.dy!==undefined?o.dy:o.y)-S.me.y)<4){buddy=true;break}}
     if(buddy&&Math.random()<dt*1.5)parts.push({x:S.me.x+(Math.random()-.5),y:S.me.y-1+(Math.random()-.5)*.5,vx:0,vy:-.4,life:.9,max:.9,color:'#ffe9a0',sz:2});
-    const sp=4.4*dt*(onPath(S.me.x,S.me.y)?1.35:1)*(buddy?1.05:1),nx=S.me.x+dx*sp,ny=S.me.y+dy*sp;
+    const sp=4.4*dt*(onPath(S.me.x,S.me.y)?1.35:1)*(buddy?1.05:1)*(feastOn()?1.1:1),nx=S.me.x+dx*sp,ny=S.me.y+dy*sp;
     if(passable(Math.floor(nx),Math.floor(S.me.y)))S.me.x=nx;
     if(passable(Math.floor(S.me.x),Math.floor(ny)))S.me.y=ny;
     if(S.legacy)S.legacy.tiles+=sp;
@@ -1460,8 +1460,8 @@ function render(){
     drawPerson(v.x,v.y,v.color,v.name.split(' ')[0]+' \u00B7 '+JOBS[v.job].label.slice(0,2),false,v.state==='working',false,vAnim,v.fx||1);
     if(v.state==='working'){const info=RES_INFO[v.target?.type||'tree'];drawProgress(v.x,v.y,v.work/info.time,info.emoji)}
   });}
-  for(const g of goblins)addP(g.y,()=>{
-    const A=atlasReady&&ATLAS_FRAMES[g.state==='seek'?'char_gwalk':'char_gwalk'];
+  const drawGobAt=(g)=>{
+    const A=atlasReady&&ATLAS_FRAMES['char_gwalk'];
     const sxg=(g.x-S.cam.x)*TSZ+VW/2, syg=(g.y-S.cam.y)*TSZ+VH/2, z=ZOOM;
     cx.save();
     if(g.hit&&now()-g.hit<150)cx.globalAlpha=.55;
@@ -1472,7 +1472,9 @@ function render(){
     }else{cx.fillStyle='#4a7a3a';cx.fillRect(sxg-5*z,syg-8*z,10*z,12*z)}
     cx.restore();
     for(let h=0;h<g.hp;h++){cx.fillStyle='#c94f3d';cx.fillRect(sxg-6*z+h*5*z,syg-18*z,3.5*z,3.5*z)}
-  });
+  };
+  for(const g of goblins)addP(g.y,()=>drawGobAt(g));
+  for(const g of remoteGobList())addP(g.y,()=>drawGobAt(g));   // allies' raids, rendered from their broadcasts
   addP(S.me.y,()=>{
     const mMoved=Math.hypot(S.me.x-(S.me._px??S.me.x),S.me.y-(S.me._py??S.me.y))>0.004;
     if(S.me.x!==S.me._px&&Math.abs(S.me.x-(S.me._px??S.me.x))>.002)S.me._fx=(S.me.x<(S.me._px??S.me.x))?-1:1;
@@ -1978,6 +1980,12 @@ function openBuildingPopup(b,px,py){
       if(b.mine)extra+='<button id="mktPostBtn" class="wgive">📜 Post an offer</button>';
     }
   }
+  if(b.type==='plaza'&&NET.ok){
+    extra='<div class="desc" style="text-align:left">🍲 <b>FEAST AT THE PLAZA</b><br>'+
+      (feastOn()?'🎉 Well Fed Together! +10% speed & XP<br><span style="opacity:.7">until the feast ends</span>'
+      :'Pot: <b>'+feast.pot+'/30</b> food pledged<br><span style="opacity:.7">Fill the pot and every settler feasts: +10% speed & XP for a day</span>')+'</div>';
+    if(!feastOn())extra+='<button id="feastBtn" class="wgive">🍲 Pledge 5 food</button>';
+  }
   if(b.type==='warehouse'&&b.mine){
     const lvl=b.lvl||1, up=WARE_UP[lvl];
     extra='<div class="desc" style="text-align:left">🏬 Level <b>'+lvl+'</b> · holds <b>+'+WARE_CAP[lvl]+'</b> storage'+(up?'<br>Next: <b>+'+WARE_CAP[lvl+1]+'</b> storage':'<br><b>Fully upgraded!</b>')+'</div>';
@@ -1986,6 +1994,17 @@ function openBuildingPopup(b,px,py){
   const demo=(b.mine&&b.type!=='monument')?'<button id="demolishBtn" class="demoBtn">\u{1F5D1} Demolish</button>':'';
   popup.innerHTML='<button class="close">✕</button><h4 class="px">'+iconHTML(b.type)+' '+B.name+'</h4><div class="sub">'+(b.mine?'YOUR WORKS':'ANOTHER SETTLER\u2019S WORKS')+'</div><div class="desc">'+B.desc+'</div>'+extra+demo;
   popup.querySelector('.close').onclick=()=>popup.style.display='none';
+  const fb=popup.querySelector('#feastBtn');
+  if(fb)fb.onclick=()=>{
+    const foods=['bread','pie','roast','fish','meat','berry','egg'];
+    let need=5;const items={};
+    for(const k of foods){const take=Math.min(need,S.inv[k]||0);if(take>0){items[k]=take;need-=take}if(!need)break}
+    if(need>0){toast('You need 5 food to pledge');return}
+    for(const[k,v]of Object.entries(items))S.inv[k]-=v;
+    netSend({t:'feast',n:5,by:S.me.id,byName:S.me.name});
+    renderHUD();toast('🍲 You pledged 5 food to the feast');sfx('trade');
+    popup.style.display='none';
+  };
   popup.querySelectorAll('.mktt').forEach(btn=>btn.onclick=()=>{
     const o=mktBoard.find(x=>x.id===btn.dataset.id);
     if(!o){toast('That offer is gone');openBuildingPopup(b,px,py);return}
@@ -2089,6 +2108,11 @@ addEventListener('keydown',e=>{const tg=e.target;if(tg&&(tg.tagName==='INPUT'||t
     let ng=null,nd=1.4;
     for(const g of goblins){const d=Math.hypot(g.x-S.me.x,g.y-S.me.y);if(d<nd){nd=d;ng=g}}
     if(ng){S.me.atkUntil=now()+400;hurtGoblin(ng,'me');sfx('chop');e.preventDefault();return}
+    let rg2=null,rd2=1.4;
+    for(const g of remoteGobList()){const d=Math.hypot(g.x-S.me.x,g.y-S.me.y);if(d<rd2){rd2=d;rg2=g}}
+    if(rg2){S.me.atkUntil=now()+400;sfx('chop');spawnBurst(rg2.x,rg2.y,'#c94f3d',5);
+      netSend({t:'hit',own:rg2.own,gid:rg2.i,by:S.me.id,byName:S.me.name});
+      e.preventDefault();return}
     let nc=null,ncd=1.2;
     for(const c of critters){if(!c.wild||c.type==='bird')continue;const d=Math.hypot(c.x-S.me.x,c.y-S.me.y);if(d<ncd){ncd=d;nc=c}}
     if(nc&&!(S.me.atkUntil&&now()<S.me.atkUntil)){
@@ -2294,6 +2318,8 @@ function sendGift(toId,toName){
 }
 /* ---- settler popup & direct trade (player interaction M1+M2) ---- */
 let mktBoard=[];
+let feast={pot:0,until:0};
+function feastOn(){return now()<feast.until}
 let trade9={id:null,mode:null,peer:null,give:null,want:null,at:0};
 const TRADEABLE=()=>[...RAW,...CRAFT,...NEWRAW,...NEWCRAFT];
 function peerDist(id){const o=S.others[id];if(!o||now()-o.t>=70000)return 1e9;return Math.hypot((o.dx!==undefined?o.dx:o.x)-S.me.x,(o.dy!==undefined?o.dy:o.y)-S.me.y)}
@@ -2435,6 +2461,7 @@ function netHandle(m){
     if(Array.isArray(s.chat)){for(const msg of s.chat)if(msg&&msg.id&&!wsChat.some(x=>x.id===msg.id))wsChat.push(msg);renderChatAll()}
     if(Array.isArray(s.gifts))for(const g of s.gifts)if(g&&g.to===S.me.id)netGift(g);
     if(Array.isArray(s.mkt))mktBoard=s.mkt.slice();
+    if(s.feast){feast.pot=s.feast.pot||0;feast.until=s.feast.until||0}
     if(changed){renderBuildBar();beautyDirty()}
     return;
   }
@@ -2461,6 +2488,19 @@ function netHandle(m){
     if(o&&o.by===S.me.id)sysChat('🏪 Your market offer sold: '+fmtGoods(o.give));
   }
   else if(m.t==='mkt_cancel')mktBoard=mktBoard.filter(x=>x.id!==m.id);
+  else if(m.t==='ent'&&m.own&&m.own!==S.me.id)remoteGobs[m.own]={t:now(),g:Array.isArray(m.g)?m.g:[]};
+  else if(m.t==='hit'&&m.own===S.me.id){const g=goblins.find(x=>x.gid===m.gid);if(g)hurtGoblin(g,{rid:m.by,name:m.byName})}
+  else if(m.t==='loot'&&m.to===S.me.id){
+    gain('goldore',m.n||2);S.score+=(m.score||0);
+    if(S.legacy){S.legacy.kills=(S.legacy.kills||0)+1;saveLegacySoon()}
+    sysChat('🛡️ You drove off a raider! +'+(m.n||2)+' gold ore');sfx('quest');achTick();
+  }
+  else if(m.t==='feast_pot'){feast.pot=m.pot||0;if(m.byName)sysChat('🍲 '+(m.byName)+' pledged to the plaza feast ('+feast.pot+'/30)')}
+  else if(m.t==='feast_on'){feast.until=m.until||0;feast.pot=0;
+    toast('🎉 The Feast begins! Everyone is Well Fed Together (+10% speed & XP for a day)');sfx('quest');
+    const pl=Object.values(S.buildings).find(b=>b.type==='plaza');
+    if(pl){spawnFireworks(pl.x+.5,pl.y-1);spawnFireworks(pl.x-1,pl.y)}
+  }
   else if(m.t==='toffer'&&m.to===S.me.id)tradeIncoming(m);
   else if(m.t==='taccept'&&trade9.id===m.id&&trade9.mode==='waitAccept')tradeFinish();
   else if(m.t==='tdone'&&trade9.id===m.id&&trade9.mode==='accepted')tradeReceive();
@@ -3083,7 +3123,7 @@ function startRaid(){
     const a=Math.random()*6.283,r=26+Math.random()*6;
     let x=HALL.x+Math.cos(a)*r,y=HALL.y+Math.sin(a)*r;
     x=clamp(x,2,MW-3);y=clamp(y,2,MH-3);
-    goblins.push({x,y,hp:3,state:'seek',t:0,fx:1,hit:0,loot:null});
+    goblins.push({gid:'g'+Math.random().toString(36).slice(2,7),x,y,hp:3,state:'seek',t:0,fx:1,hit:0,loot:null});
   }
   S.raid={next:now()+(2+Math.random()*2)*DAYLEN*1000};
   toast('⚠️ Goblins raid the valley! Guards, to arms!');sfx('quest');saveSoon();
@@ -3099,12 +3139,32 @@ function hurtGoblin(g,src){
   g.hp--;g.hit=now();spawnBurst(g.x,g.y,'#c94f3d',5);
   if(g.hp<=0){
     goblins.splice(goblins.indexOf(g),1);
-    gain('goldore',2);S.score+=15;sfx('quest');
-    if(S.legacy){S.legacy.kills=(S.legacy.kills||0)+1;saveLegacySoon()}
-    spawnBurst(g.x,g.y,'#ffe9b8',10);toast('🛡️ Raider driven off! +2 gold ore');
+    if(src&&src.rid){                          // an allied settler landed the kill: loot is theirs
+      netSend({t:'loot',to:src.rid,n:2,score:15});
+      toast('🛡️ '+escapeHtml(src.name||'An ally')+' drove off a raider!');
+    }else{
+      gain('goldore',2);S.score+=15;
+      if(S.legacy){S.legacy.kills=(S.legacy.kills||0)+1;saveLegacySoon()}
+      toast('🛡️ Raider driven off! +2 gold ore');
+    }
+    sfx('quest');
+    spawnBurst(g.x,g.y,'#ffe9b8',10);
     questTick();saveSoon();
   }
 }
+let remoteGobs={},entT=0,entSent=false;
+function coopRaidTick(dt){
+  for(const own in remoteGobs)if(now()-remoteGobs[own].t>3000)delete remoteGobs[own];
+  if(!NET.ok){entSent=false;return}
+  entT-=dt;
+  if(entT<=0){entT=.15;
+    if(goblins.length||entSent){
+      netSend({t:'ent',own:S.me.id,g:goblins.map(g=>({i:g.gid,x:Math.round(g.x*10)/10,y:Math.round(g.y*10)/10,hp:g.hp,fx:g.fx||1}))});
+      entSent=goblins.length>0;
+    }
+  }
+}
+function remoteGobList(){const out=[];for(const own in remoteGobs)for(const g of remoteGobs[own].g)out.push({...g,own});return out}
 function combatTick(dt){
   if(raidReady())startRaid();
   const dawn=darknessNow()<.3;
@@ -3131,15 +3191,21 @@ function combatTick(dt){
     if(Math.abs(g.vx)>.05)g.fx=g.vx<0?-1:1;
     g.x+=g.vx*dt;g.y+=g.vy*dt;
   }
-  // watchtowers fire
-  if(goblins.length)for(const k in S.buildings){const b=S.buildings[k];
+  // watchtowers fire — at my raiders, and at allies' raiders too
+  coopRaidTick(dt);
+  const rg=remoteGobList();
+  if(goblins.length||rg.length)for(const k in S.buildings){const b=S.buildings[k];
     if(b.type!=='watchtower'||!b.mine)continue;
     b.cd=(b.cd||0)-dt;if(b.cd>0)continue;
-    let tg=null,bd=5.5*5.5;
-    for(const g of goblins){const d=dist2(b,g);if(d<bd){bd=d;tg=g}}
-    if(tg){b.cd=1.2;
-      parts.push({x:b.x+.5,y:b.y-.2,vx:(tg.x-b.x)*3,vy:(tg.y-b.y)*3,life:.3,max:.3,color:'#e8d9a8',sz:2});
-      hurtGoblin(tg,'tower');}
+    let tg=null,bd=5.5*5.5,rtg=null;
+    for(const g of goblins){const d=dist2(b,g);if(d<bd){bd=d;tg=g;rtg=null}}
+    for(const g of rg){const d=(g.x-b.x)**2+(g.y-b.y)**2;if(d<bd){bd=d;tg=null;rtg=g}}
+    if(tg||rtg){b.cd=1.2;
+      const t2=tg||rtg;
+      parts.push({x:b.x+.5,y:b.y-.2,vx:(t2.x-b.x)*3,vy:(t2.y-b.y)*3,life:.3,max:.3,color:'#e8d9a8',sz:2});
+      if(tg)hurtGoblin(tg,'tower');
+      else netSend({t:'hit',own:rtg.own,gid:rtg.i,by:S.me.id,byName:S.me.name});
+    }
   }
 }
 

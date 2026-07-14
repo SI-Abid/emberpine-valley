@@ -12,7 +12,7 @@ wss.on('connection', (ws, req) => {
   const m = (req.url || '').match(/\/party\/([^/?]+)/);
   const id = m ? decodeURIComponent(m[1]) : 'lobby';
   let room = rooms.get(id);
-  if (!room) { room = { clients: new Set(), state: { bld: {}, removed: {}, chat: [], gifts: [], mkt: [] } }; rooms.set(id, room); }
+  if (!room) { room = { clients: new Set(), state: { bld: {}, removed: {}, chat: [], gifts: [], mkt: [], feast: { pot: 0, until: 0 } } }; rooms.set(id, room); }
   room.clients.add(ws);
   ws.send(JSON.stringify({ t: 'snap', snapshot: room.state }));
 
@@ -28,6 +28,15 @@ wss.on('connection', (ws, req) => {
       case 'chat':  if (msg.msg && typeof msg.msg.m === 'string') { st.chat.push(msg.msg); while (st.chat.length > 50) st.chat.shift(); } else return; break;
       case 'gift':  if (msg.g && msg.g.id) { st.gifts.push(msg.g); st.gifts = st.gifts.slice(-100); } else return; break;
       case 'giftclaim': st.gifts = st.gifts.filter((g) => g.id !== msg.id); return;
+      case 'feast': {
+        const f = st.feast;
+        if (f.until > Date.now()) return;
+        f.pot = (f.pot || 0) + (typeof msg.n === 'number' ? Math.max(0, Math.min(20, msg.n)) : 0);
+        const send = (obj) => { const s = JSON.stringify(obj); for (const c of room.clients) if (c.readyState === 1) c.send(s); };
+        if (f.pot >= 30) { f.pot = 0; f.until = Date.now() + 86400000; send({ t: 'feast_on', until: f.until }); }
+        else send({ t: 'feast_pot', pot: f.pot, byName: msg.byName });
+        return;
+      }
       case 'mkt_post': {
         const o = msg.o;
         if (!o || !o.id || !o.by || !o.give || st.mkt.length >= 30 || st.mkt.some((x) => x.id === o.id)) return;

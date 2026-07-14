@@ -31,6 +31,7 @@ export class EmberpineRoom {
       chat:    (await this.state.storage.get("chat"))    ?? [],
       gifts:   (await this.state.storage.get("gifts"))   ?? [],
       mkt:     (await this.state.storage.get("mkt"))     ?? [],
+      feast:   (await this.state.storage.get("feast"))   ?? { pot: 0, until: 0 },
     };
     server.send(JSON.stringify({ t: "snap", snapshot }));
     return new Response(null, { status: 101, webSocket: client });
@@ -74,6 +75,20 @@ export class EmberpineRoom {
       case "giftclaim": {
         const gifts = ((await this.state.storage.get("gifts")) as any[]) ?? [];
         await this.state.storage.put("gifts", gifts.filter((g: any) => g.id !== m.id));
+        return;
+      }
+      case "feast": {
+        const f = ((await this.state.storage.get("feast")) as any) ?? { pot: 0, until: 0 };
+        if (f.until > Date.now()) return;
+        f.pot = (f.pot || 0) + (typeof m.n === "number" ? Math.max(0, Math.min(20, m.n)) : 0);
+        if (f.pot >= 30) {
+          f.pot = 0; f.until = Date.now() + 86400000;
+          await this.state.storage.put("feast", f);
+          this.broadcast(JSON.stringify({ t: "feast_on", until: f.until }));
+        } else {
+          await this.state.storage.put("feast", f);
+          this.broadcast(JSON.stringify({ t: "feast_pot", pot: f.pot, byName: m.byName }));
+        }
         return;
       }
       // --- market board: the DO settles atomically (messages are serialized) ---
