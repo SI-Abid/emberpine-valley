@@ -16,7 +16,27 @@ Open the game with `?ws=ws://localhost:1999` (or run
 `localStorage.setItem('emberpine:ws','ws://localhost:1999')` once in the
 console). Two browsers on one machine now share the valley in real time.
 
-## Production (PartyKit / Cloudflare)
+## Production — Cloudflare Workers (recommended, free)
+
+Deploys to YOUR free Cloudflare account (avoids the partykit.dev shared-zone
+limit). One-time: create a free account at dash.cloudflare.com if you don't
+have one.
+
+```bash
+cd relay/cf-worker
+npm install
+npx wrangler login     # browser opens — allow access
+npm run deploy         # → https://emberpine-relay.<your-subdomain>.workers.dev
+```
+
+The game connects to `wss://emberpine-relay.<your-subdomain>.workers.dev`.
+
+## Production — PartyKit (alternative)
+
+Note: `partykit deploy` to the shared partykit.dev zone may fail with a
+"custom domains limit" error — the free shared zone is full. It still works
+against your own Cloudflare account with CLOUDFLARE_ACCOUNT_ID and
+CLOUDFLARE_API_TOKEN set; otherwise use the cf-worker deploy above.
 
 ```bash
 cd relay
