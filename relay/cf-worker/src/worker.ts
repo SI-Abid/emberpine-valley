@@ -64,9 +64,7 @@ async function makeToken(id: string, secret: string): Promise<string> {
   const sig = await crypto.subtle.sign("HMAC", await hmacKey(secret), enc.encode(payload));
   return payload + "." + b64u(sig);
 }
-async function readToken(req: Request, secret: string): Promise<string | null> {
-  const h = req.headers.get("Authorization") || "";
-  const t = h.startsWith("Bearer ") ? h.slice(7) : null;
+async function verifyToken(t: string | null, secret: string): Promise<string | null> {
   if (!t) return null;
   const [payload, sig] = t.split(".");
   if (!payload || !sig) return null;
@@ -126,9 +124,11 @@ async function account(req: Request, path: string, env: Env): Promise<Response> 
     }
 
     if (path === "/account/sync") {
-      const id = await readToken(req, env.TOKEN_SECRET);
-      if (!id) return j({ error: "unauthorized" }, 401);
+      const hdr = req.headers.get("Authorization") || "";
+      const hdrTok = hdr.startsWith("Bearer ") ? hdr.slice(7) : null;
       if (req.method === "GET") {
+        const id = await verifyToken(hdrTok, env.TOKEN_SECRET);
+        if (!id) return j({ error: "unauthorized" }, 401);
         const row = await env.DB.prepare("SELECT save_json, legacy_json, updated_at FROM players WHERE id=?")
           .bind(id).first<any>();
         if (!row) return j({ error: "unknown account" }, 404);
@@ -137,16 +137,23 @@ async function account(req: Request, path: string, env: Env): Promise<Response> 
       }
       if (req.method === "POST") {
         const b = await body();
+        // sendBeacon (the page-unload push) can't set headers, so the token may ride in the body
+        const id = await verifyToken(hdrTok || (typeof b.token === "string" ? b.token : null), env.TOKEN_SECRET);
+        if (!id) return j({ error: "unauthorized" }, 401);
         const row = await env.DB.prepare("SELECT updated_at, save_json IS NOT NULL AS has_save FROM players WHERE id=?").bind(id).first<any>();
         if (!row) return j({ error: "unknown account" }, 404);
         // a conflict needs a real save that moved under us — the row's own creation timestamp doesn't count
         const conflict = !!row.has_save && typeof b.baseUpdatedAt === "number" && row.updated_at > b.baseUpdatedAt;
         const ts = Date.now();
-        await env.DB.prepare(
-          "UPDATE players SET save_json=COALESCE(?,save_json), legacy_json=COALESCE(?,legacy_json), name=COALESCE(?,name), updated_at=? WHERE id=?")
-          .bind(b.save !== undefined && b.save !== null ? JSON.stringify(b.save) : null,
-                b.legacy !== undefined && b.legacy !== null ? JSON.stringify(b.legacy) : null,
-                b.save && typeof b.save.name === "string" ? b.save.name.slice(0, 32) : null, ts, id).run();
+        // a PRESENT key is authoritative — explicit null clears the stored blob (Reset Game);
+        // an absent key leaves it untouched
+        const has = (k: string) => Object.prototype.hasOwnProperty.call(b, k);
+        const sets: string[] = []; const binds: unknown[] = [];
+        if (has("save")) { sets.push("save_json=?"); binds.push(b.save != null ? JSON.stringify(b.save) : null); }
+        if (has("legacy")) { sets.push("legacy_json=?"); binds.push(b.legacy != null ? JSON.stringify(b.legacy) : null); }
+        sets.push("name=COALESCE(?,name)"); binds.push(b.save && typeof b.save.name === "string" ? b.save.name.slice(0, 32) : null);
+        sets.push("updated_at=?"); binds.push(ts, id);
+        await env.DB.prepare("UPDATE players SET " + sets.join(", ") + " WHERE id=?").bind(...binds).run();
         return j({ updated_at: ts, conflict });
       }
     }
