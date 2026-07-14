@@ -1452,7 +1452,8 @@ function render(){
     drawPerson(o.dx,o.dy,'#5b8fb0',o.name,false,false,true,mv?'walk':'idle',o.fx||1);
     if(duel.mode==='active'&&duel.peer&&id===duel.peer.id){
       const sxd=(o.dx-S.cam.x)*TSZ+VW/2, syd=(o.dy-S.cam.y)*TSZ+VH/2;
-      for(let h=0;h<5;h++){cx.fillStyle=h<duel.peerHp?'#c94f3d':'rgba(43,38,32,.35)';cx.fillRect(sxd-11*ZOOM+h*5*ZOOM,syd-34*ZOOM,3.5*ZOOM,3.5*ZOOM)}
+      const shownHp=Math.min(duel.peerHp,5-(duel.hitsSent||0));   // duel combat has no dodge/miss, so my own confirmed hits are a hard floor — never shows more HP than I know I've actually dealt, even if a 'dhp' update was dropped
+      for(let h=0;h<5;h++){cx.fillStyle=h<shownHp?'#c94f3d':'rgba(43,38,32,.35)';cx.fillRect(sxd-11*ZOOM+h*5*ZOOM,syd-34*ZOOM,3.5*ZOOM,3.5*ZOOM)}
     }
     if(o.emote&&now()-o.emote.t<4000)drawEmote(o.dx,o.dy,o.emote.e)});}
   for(const v of S.villagers){if(isInside(v))continue;addP(v.y,()=>{
@@ -2114,6 +2115,7 @@ addEventListener('keydown',e=>{const tg=e.target;if(tg&&(tg.tagName==='INPUT'||t
       S.me.atkUntil=now()+400;sfx('chop');
       const od=S.others[duel.peer.id];
       if(od)spawnBurst((od.dx!==undefined?od.dx:od.x)-.5,(od.dy!==undefined?od.dy:od.y)-.5,'#c94f3d',4);
+      duel.hitsSent=(duel.hitsSent||0)+1;
       netSend({t:'dhit',id:duel.id,to:duel.peer.id});
       e.preventDefault();return;
     }
@@ -2334,24 +2336,36 @@ let feast={pot:0,until:0};
 function feastOn(){return now()<feast.until}
 let trade9={id:null,mode:null,peer:null,give:null,want:null,at:0};
 /* ---- PvP: honor duels ---- */
-let duel={id:null,mode:null,peer:null,myHp:0,peerHp:0,until:0,at:0};
-function duelReset(){duel={id:null,mode:null,peer:null,myHp:0,peerHp:0,until:0,at:0}}
+let duel={id:null,mode:null,peer:null,myHp:0,peerHp:0,until:0,at:0,hitsSent:0};
+function duelReset(){duel={id:null,mode:null,peer:null,myHp:0,peerHp:0,until:0,at:0,hitsSent:0}}
+// short-lived memory of duels that just ended locally, so a legitimate message that arrives
+// a beat late (a slow Accept, a simultaneous double-KO) can still be honored instead of silently
+// dropped just because `duel` itself has already moved on
+let recentDuels={};
+function duelRemember(id,peer,reason){if(id)recentDuels[id]={peer,at:now(),reason}}
 function duelStart(){
-  duel.mode='active';duel.myHp=5;duel.peerHp=5;duel.until=now()+90000;
+  duel.mode='active';duel.myHp=5;duel.peerHp=5;duel.until=now()+90000;duel.hitsSent=0;
   toast('⚔️ Duel with '+escapeHtml(duel.peer.name||'a settler')+'! First to land 5 hits wins — get close and press E');sfx('quest');
 }
 function duelChallenge(o){
   if(!NET.ok){toast('🔌 Duels need the live relay connection');return}
   if(duel.mode){toast('You’re already busy duelling');return}
   if(peerDist(o.id)>8){toast('Walk closer to challenge them (within 8 tiles)');return}
-  duel={id:'d'+Math.random().toString(36).slice(2,8),mode:'req',peer:{id:o.id,name:o.name},myHp:0,peerHp:0,until:0,at:now()};
+  duel={id:'d'+Math.random().toString(36).slice(2,8),mode:'req',peer:{id:o.id,name:o.name},myHp:0,peerHp:0,until:0,at:now(),hitsSent:0};
   netSend({t:'dreq',id:duel.id,to:o.id,from:S.me.id,fromName:S.me.name});
   toast('⚔️ Challenge sent to '+escapeHtml(o.name||'them')+'…');
   popup.style.display='none';
 }
 function duelIncoming(m){
+  if(duel.mode==='req'&&duel.peer&&duel.peer.id===m.from){
+    // we both challenged each other at the same moment — that's a mutual accept, start right away.
+    // both clients independently compute the same lower-of-the-two id, so no extra handshake needed
+    duel.id=duel.id<m.id?duel.id:m.id;
+    duelStart();
+    return;
+  }
   if(duel.mode){netSend({t:'ddec',id:m.id,to:m.from});return}
-  duel={id:m.id,mode:'req',peer:{id:m.from,name:m.fromName},myHp:0,peerHp:0,until:0,at:now()};
+  duel={id:m.id,mode:'req',peer:{id:m.from,name:m.fromName},myHp:0,peerHp:0,until:0,at:now(),hitsSent:0};
   popup.innerHTML='<button class="close">✕</button><h4 class="px">⚔️ A challenge!</h4>'
    +'<div class="desc">'+escapeHtml(m.fromName||'A settler')+' challenges you to an honor duel.<br><span style="opacity:.7">First to land 5 hits. Loser hands over 10 of their most plentiful good.</span></div>'
    +'<button id="dAccBtn" class="wgive">⚔️ Accept</button><button id="dDecBtn" class="demoBtn">🕊️ Decline</button>';
@@ -2367,21 +2381,33 @@ function duelSpoils(winnerId){
   if(!goods.length)return;
   const[k]=goods[0];const n=Math.min(10,S.inv[k]);
   S.inv[k]-=n;renderHUD();saveSoon();
-  netSend({t:'gift',g:{id:'ds'+Math.random().toString(36).slice(2,8),to:winnerId,from:S.me.name+' (duel spoils)',items:{[k]:n},t:now()}});
+  const gift={id:'ds'+Math.random().toString(36).slice(2,8),to:winnerId,from:S.me.name+' (duel spoils)',items:{[k]:n},t:now()};
+  netSend({t:'gift',g:gift});
+  (async()=>{try{const g=await store.get('gifts',true)||[];g.push(gift);await store.set('gifts',g,true)}catch(e){}})();   // durable fallback, same as sendGift — survives a disconnect at the killing blow
 }
-function duelWin(){
+function duelWin(peerInfo){
+  peerInfo=peerInfo||duel.peer;
   S.score+=25;
   if(S.legacy){S.legacy.duelWins=(S.legacy.duelWins||0)+1;saveLegacySoon()}
   spawnFireworks(S.me.x,S.me.y);sfx('quest');achTick();
-  sysChat('⚔️ You won the duel against '+(duel.peer&&duel.peer.name||'a settler')+'! +25 pts');
+  sysChat('⚔️ You won the duel against '+(peerInfo&&peerInfo.name||'a settler')+'! +25 pts');
   duelReset();renderHUD();saveSoon();
 }
 setInterval(()=>{
-  if(duel.mode==='req'&&now()-duel.at>20000){duelReset();toast('⚔️ The challenge went unanswered')}
-  if(duel.mode==='active'&&(now()>duel.until||peerDist(duel.peer.id)>12)){
-    netSend({t:'dend',id:duel.id,to:duel.peer.id,winner:null});
-    toast('🕊️ The duel ends in a draw');duelReset();
+  if(duel.mode==='req'&&now()-duel.at>20000){
+    duelRemember(duel.id,duel.peer,'expired');   // a late Accept can still be honored — see the 'dacc' handler
+    toast('⚔️ The challenge went unanswered');duelReset();
   }
+  if(duel.mode==='active'){
+    const peerSeen=(S.others[duel.peer.id]||{}).t||0;
+    const disconnected=now()-peerSeen>8000;       // tighter than the general 70s presence tolerance — a duel shouldn't hang for that long
+    if(now()>duel.until||peerDist(duel.peer.id)>12||disconnected){
+      netSend({t:'dend',id:duel.id,to:duel.peer.id,winner:null});
+      toast(disconnected?'🔌 Connection to your opponent was lost — the duel ends':'🕊️ The duel ends in a draw');
+      duelReset();
+    }
+  }
+  for(const id in recentDuels)if(now()-recentDuels[id].at>8000)delete recentDuels[id];
 },3000);
 const TRADEABLE=()=>[...RAW,...CRAFT,...NEWRAW,...NEWCRAFT];
 function peerDist(id){const o=S.others[id];if(!o||now()-o.t>=70000)return 1e9;return Math.hypot((o.dx!==undefined?o.dx:o.x)-S.me.x,(o.dy!==undefined?o.dy:o.y)-S.me.y)}
@@ -2566,22 +2592,38 @@ function netHandle(m){
     if(pl){spawnFireworks(pl.x+.5,pl.y-1);spawnFireworks(pl.x-1,pl.y)}
   }
   else if(m.t==='dreq'&&m.to===S.me.id)duelIncoming(m);
-  else if(m.t==='dacc'&&m.to===S.me.id&&duel.id===m.id&&duel.mode==='req')duelStart();
+  else if(m.t==='dacc'&&m.to===S.me.id){
+    if(duel.id===m.id&&duel.mode==='req')duelStart();
+    else{
+      const rec=recentDuels[m.id];   // our own 20s "unanswered" timeout fired just before their Accept landed — honor it anyway
+      if(rec&&rec.reason==='expired'){
+        duel={id:m.id,mode:'active',peer:rec.peer,myHp:5,peerHp:5,until:now()+90000,at:now(),hitsSent:0};
+        delete recentDuels[m.id];
+        toast('⚔️ Duel with '+escapeHtml(rec.peer.name||'a settler')+' begins after all!');sfx('quest');
+      }
+    }
+  }
   else if(m.t==='ddec'&&m.to===S.me.id&&duel.id===m.id){toast('🕊️ '+escapeHtml(duel.peer&&duel.peer.name||'They')+' declined the duel');duelReset()}
   else if(m.t==='dhit'&&m.to===S.me.id&&duel.mode==='active'&&duel.id===m.id){
     duel.myHp--;spawnBurst(S.me.x-.5,S.me.y-.5,'#c94f3d',5);sfx('chop');
     netSend({t:'dhp',id:duel.id,to:duel.peer.id,hp:duel.myHp});
     if(duel.myHp<=0){
       netSend({t:'dend',id:duel.id,to:duel.peer.id,winner:duel.peer.id});
+      duelRemember(duel.id,duel.peer,'lost');   // if they ALSO got dropped in this same exchange, their dend crediting me still lands
       duelSpoils(duel.peer.id);
       sysChat('⚔️ You lost the duel against '+(duel.peer.name||'a settler')+' — spoils handed over');
       toast('💫 Bested in the duel!');duelReset();
     }
   }
   else if(m.t==='dhp'&&m.to===S.me.id&&duel.id===m.id)duel.peerHp=m.hp;
-  else if(m.t==='dend'&&m.to===S.me.id&&duel.id===m.id){
-    if(m.winner===S.me.id)duelWin();
-    else{toast('🕊️ The duel ends in a draw');duelReset()}
+  else if(m.t==='dend'&&m.to===S.me.id){
+    if(duel.id===m.id){
+      if(m.winner===S.me.id&&duel.hitsSent>=1)duelWin();      // require at least one real exchange — refuses an out-of-the-blue forged win
+      else{toast('🕊️ The duel ends in a draw');duelReset()}
+    }else{
+      const rec=recentDuels[m.id];   // a simultaneous double-KO: I'd already processed my own loss before their dend (crediting ME) arrived
+      if(rec&&rec.reason==='lost'&&m.winner===S.me.id){duelWin(rec.peer);delete recentDuels[m.id]}
+    }
   }
   else if(m.t==='toffer'&&m.to===S.me.id)tradeIncoming(m);
   else if(m.t==='taccept'&&trade9.id===m.id&&trade9.mode==='waitAccept')tradeFinish();
