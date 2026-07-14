@@ -1,0 +1,4 @@
+# Copy to .dev.vars for `wrangler dev` (never commit .dev.vars itself).
+# In production set these with `wrangler secret put <NAME>` instead.
+RECOVERY_PEPPER=dev-only-pepper-change-me
+TOKEN_SECRET=dev-only-token-secret-change-me

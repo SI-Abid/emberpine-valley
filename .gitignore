@@ -1,2 +1,5 @@
 .playwright-mcp/
 *.png
+node_modules/
+relay/cf-worker/.wrangler/
+relay/cf-worker/.dev.vars

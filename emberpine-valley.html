@@ -174,6 +174,13 @@
   #duelBoard .dbHearts{font-size:12px;letter-spacing:-1px}
   #duelBoard .dbRounds{font-size:9.5px;opacity:.75;font-weight:700}
   #duelBoard .dbVs{font-size:10px;opacity:.85;text-align:center;line-height:1.3}
+  #acctCard{position:fixed;top:110px;left:50%;transform:translateX(-50%);z-index:30;max-width:320px;background:linear-gradient(#fbf3da,var(--parch2));border:3px solid var(--ink);border-radius:14px;padding:12px 16px;font-size:12px;font-weight:600;line-height:1.55;box-shadow:0 5px 0 var(--shadow);text-align:center}
+  #acctCard .acctCode{display:inline-block;margin:6px 0;padding:5px 10px;background:#2b2620;color:#ffe9b8;border-radius:8px;font-weight:800;font-size:13px;letter-spacing:.5px;user-select:all}
+  #acctCard button{border:2px solid var(--ink);background:var(--amber);border-radius:12px;padding:4px 12px;font-weight:800;font-size:12px;margin:8px 4px 0}
+  #restoreRow{margin-top:10px;font-size:12px;font-weight:700}
+  #restoreRow a{color:var(--pine2)}
+  #restoreRow input{width:230px;max-width:60vw;margin:6px 6px 0 0;padding:6px 8px;border:2px solid var(--ink);border-radius:8px;font-weight:700;font-size:12px;text-transform:uppercase}
+  #restoreRow button{border:2px solid var(--ink);background:var(--amber);border-radius:10px;padding:5px 12px;font-weight:800;font-size:12px}
   #trader button{border:2px solid var(--ink);background:var(--amber);border-radius:14px;padding:3px 10px;font-weight:800;font-size:12px}
   .sideBtns{position:fixed;right:10px;top:118px;display:flex;flex-direction:column;gap:6px;z-index:19}
   .sideBtns button{width:40px;height:40px;border-radius:50%;border:3px solid var(--ink);background:var(--parch);font-size:16px;box-shadow:0 3px 0 var(--shadow)}
@@ -308,8 +315,9 @@
   <button id="resumeBtn" class="px">▶ RESUME</button>
   <button id="pauseSndBtn"></button>
   <button id="sailBtn2" style="background:#2e6e8c;color:#fff8e6">⛵ SET SAIL (new island)</button>
+  <button id="acctBtn" style="background:#5b8fb0;color:#fff8e6">☁️ RECOVERY CODE</button>
   <button id="resetBtn" style="background:#b0563b;color:#fff8e6">🗑️ RESET GAME</button>
-  <div class="fine">Your settlement is stored in this browser. Come back any time — the valley will be waiting.</div>
+  <div class="fine">Your settlement syncs to your recovery code — enter it on any device to keep playing. Come back any time, the valley will be waiting.</div>
 </div></div>
 
 <div id="victory"><div class="vc">
@@ -319,11 +327,16 @@
   <button onclick="document.getElementById('victory').style.display='none'">Keep playing</button>
 </div></div>
 
+<div id="acctCard" style="display:none"></div>
+
 <div id="splash"><div id="splashCard">
   <h1 class="px">EMBERPINE VALLEY</h1>
   <div class="tag">A shared frontier of axes, anvils &amp; ambition</div>
   <input id="nameInput" maxlength="16" placeholder="Name your settler…">
   <button id="enterBtn" class="px">ENTER THE VALLEY ⛺</button>
+  <div id="restoreRow"><a id="restoreLink" href="#">☁️ Have a recovery code?</a>
+    <span id="restoreForm" style="display:none"><input id="codeInput" placeholder="ACORN-OTTER-BIRCH-MOSS-FERN"><button id="restoreBtn">Restore</button></span>
+  </div>
   <div id="onlineRow"></div>
   <div class="fine">Gather wood &amp; stone · assign villagers to jobs · chain sawmills, smelters, docks and bakeries into a humming little industry · follow the Guild Charter · raise the Monument. Day turns to night, rain rolls in, traders wander through — lay stone paths, plant torches so the guild works after dark, race for glimmering relics — and raise the shared Valley Wonder with every settler on the server.<br>
   Your name, position and score are shared with other players exploring this same valley.</div>
@@ -363,11 +376,101 @@ const store={
     try{ if(window.storage){const r=await window.storage.get(k,sh); return r?JSON.parse(r.value):null} }catch(e){}
     try{ const r=localStorage.getItem(LSK(k,sh)); if(r!=null)return JSON.parse(r) }catch(e){}
     return mem[(sh?'s:':'p:')+k]??null },
-  async set(k,v,sh=false){k=(sh&&ISLAND>1)?k+':i'+ISLAND:k;
-    try{ if(window.storage){await window.storage.set(k,JSON.stringify(v),sh); return} }catch(e){}
-    try{ localStorage.setItem(LSK(k,sh),JSON.stringify(v)); return }catch(e){}
-    mem[(sh?'s:':'p:')+k]=v }
+  async set(k,v,sh=false){const pk=k;k=(sh&&ISLAND>1)?k+':i'+ISLAND:k;
+    try{ if(window.storage){await window.storage.set(k,JSON.stringify(v),sh); if(!sh)acctHook(pk); return} }catch(e){}
+    try{ localStorage.setItem(LSK(k,sh),JSON.stringify(v)); if(!sh)acctHook(pk); return }catch(e){}
+    mem[(sh?'s:':'p:')+k]=v; if(!sh)acctHook(pk) }
 };
+
+/* ============ player account (cross-device saves via the relay Worker) ============ */
+// The relay host also serves /account/* over HTTPS (D1-backed). A 5-word recovery
+// code — shown once — is the identity; a long-lived token in localStorage keeps this
+// device signed in. Saves piggyback on the existing store.set('save-v1'/'legacy-v1')
+// calls via acctHook, so every existing save path syncs without changes.
+const ACCOUNT={token:null,updatedAt:0,code:null,adopting:false,conflictWarned:false};
+try{ACCOUNT.token=localStorage.getItem('emberpine:token')||null;ACCOUNT.updatedAt=+localStorage.getItem('emberpine:acct:up')||0}catch(e){}
+function acctBase(){try{return NET.host?NET.host.replace(/^ws/,'http').replace(/\/+$/,''):''}catch(e){return ''}}
+let acctTimer=null;
+function acctHook(k){if((k==='save-v1'||k==='legacy-v1')&&ACCOUNT.token&&!ACCOUNT.adopting){clearTimeout(acctTimer);acctTimer=setTimeout(()=>acctPush(),2500)}}
+function acctReadLocal(k){try{const r=localStorage.getItem(LSK(k,false));return r!=null?JSON.parse(r):null}catch(e){return mem['p:'+k]??null}}
+async function acctPush(useBeacon){
+  const base=acctBase();if(!ACCOUNT.token||!base)return;
+  const body={save:acctReadLocal('save-v1'),legacy:acctReadLocal('legacy-v1'),baseUpdatedAt:ACCOUNT.updatedAt,token:ACCOUNT.token};
+  if(useBeacon){   // page is going away — beacons survive unload, fetch may not (text/plain avoids a preflight)
+    try{if(navigator.sendBeacon)navigator.sendBeacon(base+'/account/sync',new Blob([JSON.stringify(body)],{type:'text/plain'}))}catch(e){}
+    return;
+  }
+  try{
+    const r=await fetch(base+'/account/sync',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+    if(!r.ok)return;
+    const d=await r.json();
+    ACCOUNT.updatedAt=d.updated_at||now();try{localStorage.setItem('emberpine:acct:up',String(ACCOUNT.updatedAt))}catch(e){}
+    if(d.conflict&&!ACCOUNT.conflictWarned){ACCOUNT.conflictWarned=true;toast('☁️ This settler was also played elsewhere recently — the latest save wins')}
+  }catch(e){}
+}
+async function acctPull(){   // adopt a fresher server save BEFORE loadGame reads the local store
+  const base=acctBase();if(!ACCOUNT.token||!base)return;
+  try{
+    const ctl=new AbortController();const to=setTimeout(()=>ctl.abort(),3000);   // never gate first paint on a slow relay
+    const r=await fetch(base+'/account/sync',{headers:{'Authorization':'Bearer '+ACCOUNT.token},signal:ctl.signal});
+    clearTimeout(to);
+    if(!r.ok)return;
+    const d=await r.json();
+    if((d.updated_at||0)>ACCOUNT.updatedAt){
+      ACCOUNT.adopting=true;
+      if(d.save)await store.set('save-v1',d.save);
+      if(d.legacy)await store.set('legacy-v1',d.legacy);
+      ACCOUNT.adopting=false;
+      ACCOUNT.updatedAt=d.updated_at;try{localStorage.setItem('emberpine:acct:up',String(d.updated_at))}catch(e){}
+      if(d.save&&d.save.island&&d.save.island!==ISLAND){   // world seed is island-keyed — regenerate on the right one
+        try{localStorage.setItem('emberpine:p:island',String(d.save.island))}catch(e){}
+        location.reload();
+      }
+    }else{ACCOUNT.updatedAt=Math.max(ACCOUNT.updatedAt,d.updated_at||0)}
+  }catch(e){}
+}
+async function acctCreate(){
+  const base=acctBase();if(ACCOUNT.token||!base)return;
+  try{
+    const r=await fetch(base+'/account/create',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:S.me.name||''})});
+    if(!r.ok)return;
+    const d=await r.json();
+    ACCOUNT.token=d.token;ACCOUNT.updatedAt=d.updated_at||0;ACCOUNT.code=d.code;
+    try{localStorage.setItem('emberpine:token',d.token);localStorage.setItem('emberpine:acct:up',String(ACCOUNT.updatedAt))}catch(e){}
+    acctPush();          // adopt whatever's already saved locally into the fresh account
+    acctShowCode(true);
+  }catch(e){}
+}
+async function acctLogin(code){
+  const base=acctBase();if(!base){toast('🔌 Restoring needs the relay connection');return}
+  try{
+    const r=await fetch(base+'/account/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({code})});
+    if(!r.ok){toast('❌ That code didn’t match any settler');return}
+    const d=await r.json();
+    ACCOUNT.adopting=true;
+    await store.set('save-v1',d.save||null);
+    await store.set('legacy-v1',d.legacy||null);
+    ACCOUNT.adopting=false;
+    try{
+      localStorage.setItem('emberpine:token',d.token);
+      localStorage.setItem('emberpine:acct:up',String(d.updated_at||0));
+      if(d.save&&d.save.island)localStorage.setItem('emberpine:p:island',String(d.save.island));
+      if(d.save&&d.save.id)localStorage.setItem('emberpine:p:pid',d.save.id);
+    }catch(e){}
+    location.reload();
+  }catch(e){toast('🔌 Couldn’t reach the valley relay')}
+}
+function acctShowCode(first){
+  const el=document.getElementById('acctCard');if(!el)return;
+  if(!ACCOUNT.code){toast('☁️ Your code was shown when this settler was created — it can’t be re-fetched (that’s what keeps it secret)');return}
+  el.innerHTML='<b>'+(first?'☁️ Your settler now syncs across devices!':'☁️ Recovery code')+'</b><br>'
+   +'<span class="acctCode">'+ACCOUNT.code+'</span><br>'
+   +'Enter this code on any other device to continue this village.<br><b>Save it somewhere safe — it’s shown only while you’re here and can’t be recovered.</b><br>'
+   +'<button id="acctCopy">📋 Copy</button><button id="acctOk">Got it, saved it</button>';
+  el.style.display='block';
+  document.getElementById('acctCopy').onclick=()=>{try{navigator.clipboard.writeText(ACCOUNT.code);toast('📋 Copied')}catch(e){}};
+  document.getElementById('acctOk').onclick=()=>{el.style.display='none'};
+}
 
 /* ============ world generation ============ */
 // terrain codes: 0 water, 1 sand, 2 grass, 3 dark grass, 4 rock ground
@@ -2604,7 +2707,13 @@ function netHandle(m){
   if(m.t==='snap'&&m.snapshot){
     const s=m.snapshot;let changed=false;
     if(s.removed)for(const k in s.removed)if(!S.removed[k]||S.removed[k]<s.removed[k])S.removed[k]=s.removed[k];
-    if(s.bld)for(const k in s.bld)if(applyBldEntry(k,s.bld[k]))changed=true;
+    if(s.bld)for(const k in s.bld){
+      const e=s.bld[k];
+      if(applyBldEntry(k,e))changed=true;
+      // self-heal: a live entry of MINE the server still holds but I no longer have was left behind
+      // by a lost/raced tombstone (e.g. Reset Game reloading before the socket flushed) — sweep it now
+      if(e&&!e.rm&&e.owner===S.me.id&&!(S.buildings[k]&&S.buildings[k].mine))netSend({t:'bld',k,e:{rm:now(),owner:S.me.id}});
+    }
     if(Array.isArray(s.chat)){for(const msg of s.chat)if(msg&&msg.id&&!wsChat.some(x=>x.id===msg.id))wsChat.push(msg);renderChatAll()}
     if(Array.isArray(s.gifts))for(const g of s.gifts)if(g&&g.to===S.me.id)netGift(g);
     if(Array.isArray(s.mkt))mktBoard=s.mkt.slice();
@@ -3642,6 +3751,7 @@ function playPad(){
 
 /* ============ boot & main loop ============ */
 async function boot(){
+  await acctPull();   // adopt a fresher cloud save (if signed in) before loadGame reads the local store
   const had=await loadGame();
   if(!had)S.lastMeal=Math.floor(now()/1000/DAYLEN);
   await loadLegacy();
@@ -3658,6 +3768,13 @@ async function boot(){
   countOnline();
   document.getElementById('enterBtn').onclick=start;
   ni.addEventListener('keydown',e=>{if(e.key==='Enter')start()});
+  document.getElementById('restoreLink').onclick=e=>{e.preventDefault();const f=document.getElementById('restoreForm');f.style.display=f.style.display==='none'?'inline':'none'};
+  document.getElementById('restoreBtn').onclick=()=>{
+    const code=document.getElementById('codeInput').value.trim();
+    if(!code)return;
+    if(had&&!confirm('Restore that settler here? The village currently saved in this browser will be replaced.'))return;
+    acctLogin(code);
+  };
   function start(){
     if(running)return;
     S.me.name=(ni.value.trim()||'Settler '+S.me.id.slice(-3)).slice(0,16);
@@ -3669,6 +3786,7 @@ async function boot(){
     syncWorld().then(()=>{syncPresence();syncBuildings();syncGifts();syncChat();syncWonder()});
     netConnect();
     saveGame();
+    if(!ACCOUNT.token)acctCreate();   // background — first paint never waits on the relay
     running=true;
     setTimeout(()=>{const h=document.getElementById('hint');if(!h)return;h.style.opacity=0;setTimeout(()=>h.remove(),600)},14000);
   }
@@ -3691,6 +3809,7 @@ function setPaused(p){
 function togglePause(){setPaused(!paused)}
 document.getElementById('pauseBtn').onclick=togglePause;
 document.getElementById('resumeBtn').onclick=()=>setPaused(false);
+document.getElementById('acctBtn').onclick=()=>{setPaused(false);acctShowCode(false)};
 
 async function setSail(){
   if(!S.won){toast('⛵ Light the Eternal Flame before setting sail');return}
@@ -3725,15 +3844,28 @@ document.getElementById('resetBtn').onclick=async()=>{
   try{await store.set('save-v1',null)}catch(e){}
   try{await store.set('legacy-v1',null)}catch(e){}
   const keepId=S.me.id;                       // identity survives resets so the shared world can be swept
+  const keepTok=ACCOUNT.token;                // the account survives too — reset wipes its save, not the code
   try{Object.keys(localStorage).filter(k=>k.startsWith('emberpine:')).forEach(k=>localStorage.removeItem(k))}catch(e){}
-  try{localStorage.setItem('emberpine:p:pid',keepId)}catch(e){}
+  try{localStorage.setItem('emberpine:p:pid',keepId);if(keepTok)localStorage.setItem('emberpine:token',keepTok)}catch(e){}
   saveSoon=()=>{};saveGame=()=>{};try{clearTimeout(saveTimer)}catch(e){}
+  acctPush(true);                             // beacon the wipe (save keys are gone → clears the cloud save)
+  // reload() tears the socket down with the tombstones possibly still queued — drain first
+  // (real setTimeout ticks, not microtasks, so the browser actually gets to flush the frames)
+  await new Promise(res=>{
+    const t0=now();
+    const tick=()=>{
+      if(!NET.ok||!NET.ws||NET.ws.bufferedAmount===0||now()-t0>1500)return res();
+      setTimeout(tick,50);
+    };
+    setTimeout(tick,50);   // always yield at least one real tick, even if the buffer looks empty
+  });
   location.reload();
 };
 // save (and pause) when the tab is hidden or closed, so no progress is lost
-addEventListener('visibilitychange',()=>{if(document.hidden&&running){saveGame();setPaused(true)}});
-addEventListener('pagehide',()=>{if(running)saveGame()});
-addEventListener('beforeunload',()=>{if(running)saveGame()});
+// (saveGame's localStorage write lands synchronously, so the beacon reads the fresh save)
+addEventListener('visibilitychange',()=>{if(document.hidden&&running){saveGame();acctPush(true);setPaused(true)}});
+addEventListener('pagehide',()=>{if(running){saveGame();acctPush(true)}});
+addEventListener('beforeunload',()=>{if(running){saveGame();acctPush(true)}});
 
 let loopErrN=0;
 function loop(t){
