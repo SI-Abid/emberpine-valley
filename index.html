@@ -77,10 +77,10 @@
     padding:8px 10px;font-weight:800;font-size:13px;box-shadow:0 4px 0 var(--shadow)}
 
   /* ---------- Toasts / hint ---------- */
-  #toasts{position:fixed;bottom:96px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:6px;z-index:30;pointer-events:none}
-  .toast{background:var(--pine2);color:var(--parch);border:2px solid var(--parch);padding:6px 14px;border-radius:20px;font-weight:800;font-size:13px;
+  #toasts{position:fixed;bottom:38px;left:12px;display:flex;flex-direction:column;align-items:flex-start;gap:5px;z-index:30;pointer-events:none;max-width:min(340px,60vw)}
+  .toast{background:var(--pine2);color:var(--parch);border:2px solid var(--parch);padding:5px 12px;border-radius:16px;font-weight:800;font-size:12px;opacity:.94;
     animation:tin .25s ease, tout .4s ease 2.4s forwards}
-  @keyframes tin{from{opacity:0;transform:translateY(10px)}}
+  @keyframes tin{from{opacity:0;transform:translateX(-10px)}}
   @keyframes tout{to{opacity:0;transform:translateY(-8px)}}
   #hint{position:fixed;top:64px;left:50%;transform:translateX(-50%);z-index:15;background:rgba(22,48,38,.85);color:var(--parch);
     padding:5px 14px;border-radius:16px;font-size:12px;font-weight:700;pointer-events:none;transition:opacity .4s}
@@ -1720,7 +1720,15 @@ function bumpRes(k){lastBump[k]=now();renderHUD();const el=document.getElementBy
   if(!document.getElementById('goods').classList.contains('hid'))renderGoods();
   saveSoon()}
 function toast(msg){const t=document.createElement('div');t.className='toast';t.textContent=msg;
-  document.getElementById('toasts').appendChild(t);setTimeout(()=>t.remove(),3000)}
+  const box=document.getElementById('toasts');
+  while(box.children.length>=4)box.firstChild.remove();   // never stack a wall of them
+  box.appendChild(t);setTimeout(()=>t.remove(),3000)}
+function sysChat(msg){   // social events go to the campfire, not the toast stack
+  wsChat.push({id:'s'+Math.random().toString(36).slice(2,9),sys:true,m:msg,t:now()});
+  while(wsChat.length>40)wsChat.shift();
+  renderChatAll();
+  if(!chatOpen)document.getElementById('chatBadge').style.display='block';
+}
 function firstTime(k,msg){if(S.msgShown[k])return;S.msgShown[k]=1;toast('💡 '+msg)}
 
 /* build bar */
@@ -2186,7 +2194,7 @@ async function syncGifts(){
     if(mine.length){
       for(const gf of mine){
         const got=[];for(const[k,n]of Object.entries(gf.items||{})){gain(k,n);got.push(n+' '+(NICE[k]||k))}
-        toast('\u{1F381} '+escapeHtml(gf.from||'A settler')+' sent you '+got.join(', ')+'!');sfx('quest');
+        sysChat('\u{1F381} '+(gf.from||'A settler')+' sent you '+got.join(', ')+'!');sfx('quest');
       }
       g=g.filter(x=>x.to!==S.me.id);
       await store.set('gifts',g.filter(x=>now()-x.t<172800000),true);
@@ -2357,7 +2365,7 @@ function netHandle(m){
   else if(m.t==='chat'&&m.msg&&m.msg.id){if(!wsChat.some(x=>x.id===m.msg.id)){wsChat.push(m.msg);while(wsChat.length>40)wsChat.shift();renderChatAll()}}
   else if(m.t==='gift'&&m.g&&m.g.to===S.me.id)netGift(m.g);
   else if(m.t==='wave'&&m.to===S.me.id){
-    toast('👋 '+escapeHtml(m.fromName||'A settler')+' waved at you!');sfx('chat');
+    sysChat('👋 '+(m.fromName||'A settler')+' waved at you');sfx('chat');
     const o=S.others[m.from];if(o)o.emote={e:'👋',t:now()};
   }
   else if(m.t==='toffer'&&m.to===S.me.id)tradeIncoming(m);
@@ -2368,7 +2376,7 @@ function netHandle(m){
 function netGift(g){
   if(!g.id||netGiftSeen[g.id])return;netGiftSeen[g.id]=1;
   const got=[];for(const[k,n]of Object.entries(g.items||{})){gain(k,n);got.push(n+' '+(NICE[k]||k))}
-  toast('\u{1F381} '+escapeHtml(g.from||'A settler')+' sent you '+got.join(', ')+'!');sfx('quest');
+  sysChat('\u{1F381} '+(g.from||'A settler')+' sent you '+got.join(', ')+'!');sfx('quest');
   netSend({t:'giftclaim',id:g.id});
 }
 function renderChatAll(){
@@ -2377,6 +2385,16 @@ function renderChatAll(){
   renderChat(all);
 }
 setInterval(()=>{if(running&&NET.ok)netSendPos()},100);  // 10Hz movement when the relay is up
+let _onlineSet=null;
+setInterval(()=>{if(!running)return;                     // arrivals & departures → campfire, not toasts
+  const cur={};
+  for(const id in S.others){const o=S.others[id];if(id!==S.me.id&&now()-o.t<70000)cur[id]=o.name||'A settler'}
+  if(_onlineSet){
+    for(const id in cur)if(!(id in _onlineSet))sysChat('🟢 '+cur[id]+' arrived in the valley');
+    for(const id in _onlineSet)if(!(id in cur))sysChat('🚪 '+_onlineSet[id]+' left the valley');
+  }else if(Object.keys(cur).length)sysChat('🔥 By the campfire: '+Object.values(cur).join(', '));
+  _onlineSet=cur;
+},5000);
 async function countOnline(){
   try{const p=await store.get('presence',true)||{};
     const n=Object.values(p).filter(o=>now()-o.t<120000).length;
@@ -2705,9 +2723,11 @@ async function syncChat(){
 function renderChat(msgs){
   const list=document.getElementById('chatList');if(!list)return;
   let fresh=false;
-  for(const m of msgs){if(!chatKnown[m.id]){chatKnown[m.id]=1;if(m.pid!==S.me.id&&m.t>now()-120000)fresh=true}}
+  for(const m of msgs){if(!chatKnown[m.id]){chatKnown[m.id]=1;if(!m.sys&&m.pid!==S.me.id&&m.t>now()-120000)fresh=true}}
   const _cst=list.scrollTop;
-  list.innerHTML=msgs.slice(-30).map(m=>'<div class="cmsg'+(m.pid===S.me.id?' mine':'')+'"><b>'+escapeHtml(m.name||'?')+'</b> '+escapeHtml(m.m||'')+'</div>').join('')||'<div class="cmsg dim">No one has spoken by the campfire yet\u2026</div>';
+  list.innerHTML=msgs.slice(-30).map(m=>m.sys
+    ?'<div class="cmsg dim">'+escapeHtml(m.m||'')+'</div>'
+    :'<div class="cmsg'+(m.pid===S.me.id?' mine':'')+'"><b>'+escapeHtml(m.name||'?')+'</b> '+escapeHtml(m.m||'')+'</div>').join('')||'<div class="cmsg dim">No one has spoken by the campfire yet\u2026</div>';
   if(list.dataset.stick!=='0')list.scrollTop=list.scrollHeight;else list.scrollTop=_cst;
   list.onscroll=()=>{list.dataset.stick=(list.scrollHeight-list.scrollTop-list.clientHeight<40)?'1':'0'};
   if(fresh&&!chatOpen){document.getElementById('chatBadge').style.display='block';sfx('chat')}
