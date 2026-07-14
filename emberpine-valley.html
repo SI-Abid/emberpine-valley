@@ -2604,7 +2604,13 @@ function netHandle(m){
   if(m.t==='snap'&&m.snapshot){
     const s=m.snapshot;let changed=false;
     if(s.removed)for(const k in s.removed)if(!S.removed[k]||S.removed[k]<s.removed[k])S.removed[k]=s.removed[k];
-    if(s.bld)for(const k in s.bld)if(applyBldEntry(k,s.bld[k]))changed=true;
+    if(s.bld)for(const k in s.bld){
+      const e=s.bld[k];
+      if(applyBldEntry(k,e))changed=true;
+      // self-heal: a live entry of MINE the server still holds but I no longer have was left behind
+      // by a lost/raced tombstone (e.g. Reset Game reloading before the socket flushed) — sweep it now
+      if(e&&!e.rm&&e.owner===S.me.id&&!(S.buildings[k]&&S.buildings[k].mine))netSend({t:'bld',k,e:{rm:now(),owner:S.me.id}});
+    }
     if(Array.isArray(s.chat)){for(const msg of s.chat)if(msg&&msg.id&&!wsChat.some(x=>x.id===msg.id))wsChat.push(msg);renderChatAll()}
     if(Array.isArray(s.gifts))for(const g of s.gifts)if(g&&g.to===S.me.id)netGift(g);
     if(Array.isArray(s.mkt))mktBoard=s.mkt.slice();
@@ -3728,6 +3734,16 @@ document.getElementById('resetBtn').onclick=async()=>{
   try{Object.keys(localStorage).filter(k=>k.startsWith('emberpine:')).forEach(k=>localStorage.removeItem(k))}catch(e){}
   try{localStorage.setItem('emberpine:p:pid',keepId)}catch(e){}
   saveSoon=()=>{};saveGame=()=>{};try{clearTimeout(saveTimer)}catch(e){}
+  // reload() tears the socket down with the tombstones possibly still queued — drain first
+  // (real setTimeout ticks, not microtasks, so the browser actually gets to flush the frames)
+  await new Promise(res=>{
+    const t0=now();
+    const tick=()=>{
+      if(!NET.ok||!NET.ws||NET.ws.bufferedAmount===0||now()-t0>1500)return res();
+      setTimeout(tick,50);
+    };
+    setTimeout(tick,50);   // always yield at least one real tick, even if the buffer looks empty
+  });
   location.reload();
 };
 // save (and pause) when the tab is hidden or closed, so no progress is lost
