@@ -168,6 +168,12 @@
   #quest .qfill{height:100%;background:var(--amber);transition:width .3s}
   #quest .qr{font-size:10.5px;font-weight:700;opacity:.7;margin-top:4px}
   #trader{position:fixed;top:58px;left:50%;transform:translateX(-50%);z-index:19;display:flex;align-items:center;gap:8px;background:linear-gradient(#fbf3da,var(--parch2));border:3px solid var(--ink);border-radius:20px;padding:5px 12px;font-size:12px;font-weight:800;box-shadow:0 4px 0 var(--shadow)}
+  #duelBoard{position:fixed;top:100px;left:50%;transform:translateX(-50%);z-index:19;display:flex;align-items:center;gap:10px;background:linear-gradient(#2b2620,#1c1712);color:#f2e6c4;border:3px solid var(--ink);border-radius:14px;padding:6px 14px;font-size:12px;font-weight:800;box-shadow:0 4px 0 var(--shadow)}
+  #duelBoard .dbSide{display:flex;flex-direction:column;align-items:center;gap:1px;min-width:64px}
+  #duelBoard .dbName{font-size:11px;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #duelBoard .dbHearts{font-size:12px;letter-spacing:-1px}
+  #duelBoard .dbRounds{font-size:9.5px;opacity:.75;font-weight:700}
+  #duelBoard .dbVs{font-size:10px;opacity:.85;text-align:center;line-height:1.3}
   #trader button{border:2px solid var(--ink);background:var(--amber);border-radius:14px;padding:3px 10px;font-weight:800;font-size:12px}
   .sideBtns{position:fixed;right:10px;top:118px;display:flex;flex-direction:column;gap:6px;z-index:19}
   .sideBtns button{width:40px;height:40px;border-radius:50%;border:3px solid var(--ink);background:var(--parch);font-size:16px;box-shadow:0 3px 0 var(--shadow)}
@@ -228,6 +234,9 @@
     #quest .qh{font-size:9px}
     #quest .qr{font-size:9.5px}
     #trader{top:52px;left:8px;transform:none;max-width:70vw;flex-wrap:wrap;font-size:11px;padding:4px 10px}
+    #duelBoard{top:94px;left:8px;transform:none;padding:5px 10px;gap:6px}
+    #duelBoard .dbSide{min-width:52px}
+    #duelBoard .dbName{max-width:64px}
     .sideBtns{top:100px;right:8px}
     .sideBtns button{width:36px;height:36px;font-size:14px}
     #ledger,#goods{top:100px;right:50px;width:206px}
@@ -273,6 +282,7 @@
 <div id="verBadge">EMBERPINE v10</div>
 <div id="quest"></div>
 <div id="trader" style="display:none"></div>
+<div id="duelBoard" style="display:none"></div>
 <div class="sideBtns">
   <button id="pauseBtn" title="Pause (Esc)">⏸️</button>
   <button id="goodsTab" title="Goods & storage">🎒</button>
@@ -1453,9 +1463,8 @@ function render(){
     if(Math.abs(o.x-o.dx)>.03)o.fx=(o.x-o.dx)<0?-1:1;
     drawPerson(o.dx,o.dy,'#5b8fb0',o.name,false,false,true,mv?'walk':'idle',o.fx||1);
     if(duel.mode==='active'&&duel.peer&&id===duel.peer.id){
-      const sxd=(o.dx-S.cam.x)*TSZ+VW/2, syd=(o.dy-S.cam.y)*TSZ+VH/2;
       const shownHp=Math.min(duel.peerHp,5-(duel.hitsSent||0));   // duel combat has no dodge/miss, so my own confirmed hits are a hard floor — never shows more HP than I know I've actually dealt, even if a 'dhp' update was dropped
-      for(let h=0;h<5;h++){cx.fillStyle=h<shownHp?'#c94f3d':'rgba(43,38,32,.35)';cx.fillRect(sxd-11*ZOOM+h*5*ZOOM,syd-34*ZOOM,3.5*ZOOM,3.5*ZOOM)}
+      drawDuelHearts(o.dx,o.dy,shownHp);
     }
     if(o.emote&&now()-o.emote.t<4000)drawEmote(o.dx,o.dy,o.emote.e)});}
   for(const v of S.villagers){if(isInside(v))continue;addP(v.y,()=>{
@@ -1491,6 +1500,7 @@ function render(){
     drawPerson(S.me.x,S.me.y,'#e8a33d',S.me.name||'You',true,!!S.me.harvest,false,meAnim,S.me._fx||1);
     if(myEmote&&now()-myEmote.t<4000)drawEmote(S.me.x,S.me.y,myEmote.e);
     if(S.me.harvest){const h=S.me.harvest;drawProgress(S.me.x,S.me.y,h.t/RES_INFO[h.type].time,RES_INFO[h.type].emoji)}
+    if(duel.mode==='active')drawDuelHearts(S.me.x,S.me.y,duel.myHp);
   });
   // ground decals first: paths never occlude people or objects
   for(let y=ty0;y<=ty1;y++)for(let x=tx0;x<=tx1;x++){
@@ -1508,6 +1518,7 @@ function render(){
   }
   drawWonder();
   drawCritters();
+  drawDuelFx();
   if(ra){
     const rsx=(ra.x+.5-S.cam.x)*TSZ+VW/2, rsy=(ra.y+.5-S.cam.y)*TSZ+VH/2;
     if(rsx>-30&&rsy>-30&&rsx<VW+30&&rsy<VH+30){
@@ -2338,22 +2349,65 @@ let feast={pot:0,until:0};
 function feastOn(){return now()<feast.until}
 let trade9={id:null,mode:null,peer:null,give:null,want:null,at:0};
 /* ---- PvP: honor duels ---- */
-let duel={id:null,mode:null,peer:null,myHp:0,peerHp:0,until:0,at:0,hitsSent:0};
-function duelReset(){duel={id:null,mode:null,peer:null,myHp:0,peerHp:0,until:0,at:0,hitsSent:0}}
+/* ---- duel visuals: floating hearts above both fighters + win/lose fx banners ---- */
+function drawDuelHearts(x,y,hp){
+  const sx=(x-S.cam.x)*TSZ+VW/2, sy=(y-S.cam.y)*TSZ+VH/2-46*ZOOM;
+  const step=13*ZOOM;
+  cx.font=(11*ZOOM)+'px serif';cx.textAlign='center';cx.textBaseline='middle';
+  for(let h=0;h<5;h++)cx.fillText(h<hp?'❤️':'🤍',sx-2*step+h*step,sy);
+}
+let duelFx=[];
+function duelFxAt(x,y,kind){   // kind: 'win'|'lose' (match-ending, big) or 'roundwin'|'roundlose' (per-round, light)
+  duelFx.push({x,y,kind,start:now()});
+  if(kind==='win'){spawnFireworks(x,y);sfx('victory')}
+  else if(kind==='lose'){spawnBurst(x,y,'#5a544c',12);sfx('lose')}
+  else if(kind==='roundwin'){spawnBurst(x,y,'#f4c542',6);sfx('quest')}
+  else{spawnBurst(x,y,'#8d8a80',6);sfx('chop')}
+}
+function drawDuelFx(){
+  for(let i=duelFx.length-1;i>=0;i--){
+    const f=duelFx[i], big=f.kind==='win'||f.kind==='lose', dur=big?2400:1200, t=(now()-f.start)/dur;
+    if(t>=1){duelFx.splice(i,1);continue}
+    const sx=(f.x-S.cam.x)*TSZ+VW/2, sy=(f.y-S.cam.y)*TSZ+VH/2-58*ZOOM-t*16;
+    const pop=t<.18?t/.18:1, alpha=t>.7?1-((t-.7)/.3):1;
+    cx.save();cx.globalAlpha=Math.max(0,alpha);
+    cx.font=((big?22:15)*ZOOM*pop)+'px serif';cx.textAlign='center';cx.textBaseline='middle';
+    cx.fillText(f.kind==='win'?'🏆':f.kind==='lose'?'💫':f.kind==='roundwin'?'✅':'❌',sx,sy);
+    if(big){
+      cx.font='800 '+(11*ZOOM)+'px Nunito';
+      cx.strokeStyle='#2b2620';cx.lineWidth=3;cx.fillStyle=f.kind==='win'?'#f4c542':'#c9c4b4';
+      const label=f.kind==='win'?'VICTORY!':'DEFEATED';
+      cx.strokeText(label,sx,sy+16*ZOOM);cx.fillText(label,sx,sy+16*ZOOM);
+    }
+    cx.restore();
+  }
+}
+function renderDuelBoard(){
+  const el=document.getElementById('duelBoard');if(!el)return;
+  if(duel.mode!=='active'){el.style.display='none';return}
+  el.style.display='flex';
+  const heartsOf=n=>'❤️'.repeat(Math.max(0,n))+'🤍'.repeat(Math.max(0,5-n));
+  el.innerHTML='<div class="dbSide"><div class="dbName">'+escapeHtml(S.me.name||'You')+'</div><div class="dbHearts">'+heartsOf(duel.myHp)+'</div><div class="dbRounds">Wins '+duel.peerRoundsLost+'</div></div>'
+   +'<div class="dbVs">⚔️<br>Rd '+(duel.round||1)+'/3</div>'
+   +'<div class="dbSide"><div class="dbName">'+escapeHtml((duel.peer&&duel.peer.name)||'Foe')+'</div><div class="dbHearts">'+heartsOf(duel.peerHp)+'</div><div class="dbRounds">Wins '+duel.myRoundsLost+'</div></div>';
+}
+let duel={id:null,mode:null,peer:null,myHp:0,peerHp:0,until:0,at:0,hitsSent:0,myRoundsLost:0,peerRoundsLost:0,round:1};
+function duelReset(){duel={id:null,mode:null,peer:null,myHp:0,peerHp:0,until:0,at:0,hitsSent:0,myRoundsLost:0,peerRoundsLost:0,round:1};renderDuelBoard()}
 // short-lived memory of duels that just ended locally, so a legitimate message that arrives
 // a beat late (a slow Accept, a simultaneous double-KO) can still be honored instead of silently
 // dropped just because `duel` itself has already moved on
 let recentDuels={};
 function duelRemember(id,peer,reason){if(id)recentDuels[id]={peer,at:now(),reason}}
 function duelStart(){
-  duel.mode='active';duel.myHp=5;duel.peerHp=5;duel.until=now()+90000;duel.hitsSent=0;
-  toast('⚔️ Duel with '+escapeHtml(duel.peer.name||'a settler')+'! First to land 5 hits wins — get close and press E');sfx('quest');
+  duel.mode='active';duel.myHp=5;duel.peerHp=5;duel.until=now()+180000;duel.hitsSent=0;duel.myRoundsLost=0;duel.peerRoundsLost=0;duel.round=1;
+  toast('⚔️ Duel with '+escapeHtml(duel.peer.name||'a settler')+' begins — best of 3 rounds! First to land 5 hits wins a round, get close and press E');sfx('quest');
+  renderDuelBoard();
 }
 function duelChallenge(o){
   if(!NET.ok){toast('🔌 Duels need the live relay connection');return}
   if(duel.mode){toast('You’re already busy duelling');return}
   if(peerDist(o.id)>8){toast('Walk closer to challenge them (within 8 tiles)');return}
-  duel={id:'d'+Math.random().toString(36).slice(2,8),mode:'req',peer:{id:o.id,name:o.name},myHp:0,peerHp:0,until:0,at:now(),hitsSent:0};
+  duel={id:'d'+Math.random().toString(36).slice(2,8),mode:'req',peer:{id:o.id,name:o.name},myHp:0,peerHp:0,until:0,at:now(),hitsSent:0,myRoundsLost:0,peerRoundsLost:0,round:1};
   netSend({t:'dreq',id:duel.id,to:o.id,from:S.me.id,fromName:S.me.name});
   toast('⚔️ Challenge sent to '+escapeHtml(o.name||'them')+'…');
   popup.style.display='none';
@@ -2367,9 +2421,9 @@ function duelIncoming(m){
     return;
   }
   if(duel.mode){netSend({t:'ddec',id:m.id,to:m.from});return}
-  duel={id:m.id,mode:'req',peer:{id:m.from,name:m.fromName},myHp:0,peerHp:0,until:0,at:now(),hitsSent:0};
+  duel={id:m.id,mode:'req',peer:{id:m.from,name:m.fromName},myHp:0,peerHp:0,until:0,at:now(),hitsSent:0,myRoundsLost:0,peerRoundsLost:0,round:1};
   popup.innerHTML='<button class="close">✕</button><h4 class="px">⚔️ A challenge!</h4>'
-   +'<div class="desc">'+escapeHtml(m.fromName||'A settler')+' challenges you to an honor duel.<br><span style="opacity:.7">First to land 5 hits. Loser hands over 10 of their most plentiful good.</span></div>'
+   +'<div class="desc">'+escapeHtml(m.fromName||'A settler')+' challenges you to an honor duel — best of 3 rounds.<br><span style="opacity:.7">First to land 5 hits wins a round. Loser of the match hands over 10 of their most plentiful good.</span></div>'
    +'<button id="dAccBtn" class="wgive">⚔️ Accept</button><button id="dDecBtn" class="demoBtn">🕊️ Decline</button>';
   popup.querySelector('.close').onclick=()=>{netSend({t:'ddec',id:duel.id,to:duel.peer.id});duelReset();popup.style.display='none'};
   popup.querySelector('#dDecBtn').onclick=()=>{netSend({t:'ddec',id:duel.id,to:duel.peer.id});duelReset();popup.style.display='none';toast('🕊️ Declined')};
@@ -2391,7 +2445,8 @@ function duelWin(peerInfo){
   peerInfo=peerInfo||duel.peer;
   S.score+=25;
   if(S.legacy){S.legacy.duelWins=(S.legacy.duelWins||0)+1;saveLegacySoon()}
-  spawnFireworks(S.me.x,S.me.y);sfx('quest');achTick();
+  duelFxAt(S.me.x,S.me.y,'win');achTick();
+  if(peerInfo&&peerInfo.id)netSend({t:'dfx',to:peerInfo.id,kind:'win',x:S.me.x,y:S.me.y});   // let the loser see my celebration too
   sysChat('⚔️ You won the duel against '+(peerInfo&&peerInfo.name||'a settler')+'! +25 pts');
   duelReset();renderHUD();saveSoon();
 }
@@ -2405,7 +2460,7 @@ setInterval(()=>{
     const disconnected=now()-peerSeen>8000;       // tighter than the general 70s presence tolerance — a duel shouldn't hang for that long
     if(now()>duel.until||peerDist(duel.peer.id)>12||disconnected){
       netSend({t:'dend',id:duel.id,to:duel.peer.id,winner:null});
-      toast(disconnected?'🔌 Connection to your opponent was lost — the duel ends':'🕊️ The duel ends in a draw');
+      toast(disconnected?'🔌 Connection to your opponent was lost — the duel ends ('+duel.peerRoundsLost+'-'+duel.myRoundsLost+')':'🕊️ The duel ends in a draw ('+duel.peerRoundsLost+'-'+duel.myRoundsLost+')');
       duelReset();
     }
   }
@@ -2599,9 +2654,10 @@ function netHandle(m){
     else{
       const rec=recentDuels[m.id];   // our own 20s "unanswered" timeout fired just before their Accept landed — honor it anyway
       if(rec&&rec.reason==='expired'){
-        duel={id:m.id,mode:'active',peer:rec.peer,myHp:5,peerHp:5,until:now()+90000,at:now(),hitsSent:0};
+        duel={id:m.id,mode:'active',peer:rec.peer,myHp:5,peerHp:5,until:now()+180000,at:now(),hitsSent:0,myRoundsLost:0,peerRoundsLost:0,round:1};
         delete recentDuels[m.id];
-        toast('⚔️ Duel with '+escapeHtml(rec.peer.name||'a settler')+' begins after all!');sfx('quest');
+        toast('⚔️ Duel with '+escapeHtml(rec.peer.name||'a settler')+' begins after all — best of 3 rounds!');sfx('quest');
+        renderDuelBoard();
       }
     }
   }
@@ -2610,18 +2666,35 @@ function netHandle(m){
     duel.myHp--;spawnBurst(S.me.x-.5,S.me.y-.5,'#c94f3d',5);sfx('chop');
     netSend({t:'dhp',id:duel.id,to:duel.peer.id,hp:duel.myHp});
     if(duel.myHp<=0){
-      netSend({t:'dend',id:duel.id,to:duel.peer.id,winner:duel.peer.id});
-      duelRemember(duel.id,duel.peer,'lost');   // if they ALSO got dropped in this same exchange, their dend crediting me still lands
-      duelSpoils(duel.peer.id);
-      sysChat('⚔️ You lost the duel against '+(duel.peer.name||'a settler')+' — spoils handed over');
-      toast('💫 Bested in the duel!');duelReset();
+      duel.myRoundsLost++;
+      if(duel.myRoundsLost>=2){   // 2 round losses seals the match — best of 3
+        netSend({t:'dend',id:duel.id,to:duel.peer.id,winner:duel.peer.id});
+        duelRemember(duel.id,duel.peer,'lost');   // if they ALSO got dropped in this same exchange, their dend crediting me still lands
+        duelSpoils(duel.peer.id);
+        duelFxAt(S.me.x,S.me.y,'lose');
+        netSend({t:'dfx',to:duel.peer.id,kind:'lose',x:S.me.x,y:S.me.y});   // let the winner see my defeat too
+        sysChat('⚔️ You lost the duel against '+(duel.peer.name||'a settler')+' ('+duel.peerRoundsLost+'-'+duel.myRoundsLost+') — spoils handed over');
+        toast('💫 Bested in the duel!');duelReset();
+      }else{   // just a round, not the match — reset HP and carry on
+        netSend({t:'dround',id:duel.id,to:duel.peer.id,loserRoundsLost:duel.myRoundsLost});
+        duelFxAt(S.me.x,S.me.y,'roundlose');
+        toast('❌ Round lost ('+duel.peerRoundsLost+'-'+duel.myRoundsLost+') — next round begins!');
+        duel.myHp=5;duel.peerHp=5;duel.hitsSent=0;duel.round++;renderDuelBoard();
+      }
     }
   }
   else if(m.t==='dhp'&&m.to===S.me.id&&duel.id===m.id)duel.peerHp=m.hp;
+  else if(m.t==='dround'&&m.to===S.me.id&&duel.mode==='active'&&duel.id===m.id){
+    duel.peerRoundsLost=m.loserRoundsLost;
+    duelFxAt(S.me.x,S.me.y,'roundwin');
+    toast('✅ Round won! ('+duel.peerRoundsLost+'-'+duel.myRoundsLost+') — next round begins!');
+    duel.myHp=5;duel.peerHp=5;duel.hitsSent=0;duel.round++;renderDuelBoard();
+  }
+  else if(m.t==='dfx'&&m.to===S.me.id)duelFxAt(m.x,m.y,m.kind);
   else if(m.t==='dend'&&m.to===S.me.id){
     if(duel.id===m.id){
       if(m.winner===S.me.id&&duel.hitsSent>=1)duelWin();      // require at least one real exchange — refuses an out-of-the-blue forged win
-      else{toast('🕊️ The duel ends in a draw');duelReset()}
+      else{toast('🕊️ The duel ends in a draw ('+duel.peerRoundsLost+'-'+duel.myRoundsLost+')');duelReset()}
     }else{
       const rec=recentDuels[m.id];   // a simultaneous double-KO: I'd already processed my own loss before their dend (crediting ME) arrived
       if(rec&&rec.reason==='lost'&&m.winner===S.me.id){duelWin(rec.peer);delete recentDuels[m.id]}
@@ -2670,7 +2743,8 @@ function sfx(t){
     AC=AC||new (window.AudioContext||window.webkitAudioContext)();
     if(AC.state==='suspended')AC.resume();
     const P={chop:[150,'square',.07,.08,90],pick:[520,'sine',.09,.1,940],build:[290,'triangle',.22,.14,140],
-      quest:[540,'triangle',.3,.12,1080],chat:[760,'sine',.05,.05],trade:[420,'triangle',.14,.1,640],recruit:[480,'triangle',.22,.12,760]}[t]||[440,'sine',.05,.05];
+      quest:[540,'triangle',.3,.12,1080],chat:[760,'sine',.05,.05],trade:[420,'triangle',.14,.1,640],recruit:[480,'triangle',.22,.12,760],
+      victory:[440,'triangle',.42,.16,1320],lose:[260,'sawtooth',.4,.14,80]}[t]||[440,'sine',.05,.05];
     const o=AC.createOscillator(),g=AC.createGain(),T=AC.currentTime;
     o.type=P[1];o.frequency.setValueAtTime(P[0],T);
     if(P[4])o.frequency.exponentialRampToValueAtTime(P[4],T+P[2]);
