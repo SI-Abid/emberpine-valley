@@ -2197,9 +2197,12 @@ function sendGift(toId,toName){
 /* ============ realtime relay (multiplayer Phase 2) ============ */
 // Optional WebSocket transport: instant sync + 10Hz movement. The polled
 // shared-store above keeps working as the fallback when no relay is set.
+const NET_DEFAULT='wss://emberpine-relay.saihamislam19.workers.dev';
 const NET={ok:false,ws:null,tries:0,host:(()=>{try{
-  return new URLSearchParams(location.search).get('ws')||localStorage.getItem('emberpine:ws')||'';
-}catch(e){return ''}})()};
+  const q=new URLSearchParams(location.search).get('ws');
+  if(q==='off'||q==='0')return '';                       // ?ws=off → offline mode
+  return q||localStorage.getItem('emberpine:ws')||NET_DEFAULT;
+}catch(e){return NET_DEFAULT}})()};
 let wsChat=[],lastStoreMsgs=[],netGiftSeen={};
 function netConnect(){
   if(!NET.host||NET.ws)return;
