@@ -2207,7 +2207,7 @@ let wsChat=[],lastStoreMsgs=[],netGiftSeen={};
 function netConnect(){
   if(!NET.host||NET.ws)return;
   try{
-    const w=new WebSocket(NET.host.replace(/\/+$/,'')+'/party/'+encodeURIComponent(SEED_STR));
+    const w=new WebSocket(NET.host.replace(/\/+$/,'')+'/party/'+encodeURIComponent(SEED_STR+'-r2'));
     NET.ws=w;
     w.onopen=()=>{NET.ok=true;NET.tries=0;toast('\u{1F517} Connected to the valley relay');
       netSendPos();
@@ -3146,7 +3146,9 @@ async function boot(){
     el.innerHTML='<b>🗺️ YOUR LEGACY</b><br>'+S.legacy.islands.slice().reverse().map(r=>'🔥 '+escapeHtml(r.name||'?')+' — '+r.days+' days · '+r.score+' pts').join('<br>');
     document.getElementById('splashCard').appendChild(el);
   }
+  if(!S.me.id){try{S.me.id=localStorage.getItem('emberpine:p:pid')||''}catch(e){}}
   if(!S.me.id)S.me.id='p'+Math.random().toString(36).slice(2,8);
+  try{localStorage.setItem('emberpine:p:pid',S.me.id)}catch(e){}
   const ni=document.getElementById('nameInput');
   if(S.me.name)ni.value=S.me.name;
   countOnline();
@@ -3206,10 +3208,21 @@ document.getElementById('sailBtn').onclick=setSail;
 document.getElementById('sailBtn2').onclick=setSail;
 document.getElementById('resetBtn').onclick=async()=>{
   if(!confirm('Reset the game? All progress in this browser will be permanently erased.'))return;
+  // scrub my works from the shared valley first, or they come back as a ghost town
+  try{
+    const mineKeys=Object.keys(S.buildings).filter(k=>S.buildings[k].mine);
+    for(const k of mineKeys)netSend({t:'bld',k,e:{rm:now(),owner:S.me.id}});
+    const m=await store.get('bld',true)||{};
+    for(const k in m){const e=m[k];if(e&&!e.rm&&e.owner===S.me.id)m[k]={rm:now(),owner:S.me.id}}
+    for(const k of mineKeys)m[k]={rm:now(),owner:S.me.id};
+    await store.set('bld',m,true);
+  }catch(e){}
   try{const pr=await store.get('presence',true);if(pr&&S.me.id){delete pr[S.me.id];await store.set('presence',pr,true)}}catch(e){}
   try{await store.set('save-v1',null)}catch(e){}
   try{await store.set('legacy-v1',null)}catch(e){}
+  const keepId=S.me.id;                       // identity survives resets so the shared world can be swept
   try{Object.keys(localStorage).filter(k=>k.startsWith('emberpine:')).forEach(k=>localStorage.removeItem(k))}catch(e){}
+  try{localStorage.setItem('emberpine:p:pid',keepId)}catch(e){}
   saveSoon=()=>{};saveGame=()=>{};try{clearTimeout(saveTimer)}catch(e){}
   location.reload();
 };
