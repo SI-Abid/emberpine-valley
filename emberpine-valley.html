@@ -3619,14 +3619,14 @@ document.getElementById('resumeBtn').onclick=()=>setPaused(false);
 async function setSail(){
   if(!S.won){toast('⛵ Light the Eternal Flame before setting sail');return}
   const nxt=ISLANDS[Math.min(ISLAND+1,ISLANDS.length-1)];
-  if(!confirm('Set sail for '+nxt.name+'? You bring up to 3 crew, your tools, and 25 of each good. Your town, monument and quests start anew. Score carries over.'))return;
+  if(!confirm('Set sail for '+nxt.name+'? You bring up to 3 crew and your tools — every other good stays behind. Your town, monument, goods and quests start anew. Score carries over.'))return;
   try{clearTimeout(saveTimer)}catch(e){}
   saveSoon=()=>{};saveGame=async()=>{};        // neutralize BEFORE writing — a queued autosave was overwriting the clean save
   if(S.legacy){
     S.legacy.sails=(S.legacy.sails||0)+1;S.legacy.arriveScore=S.score;
     try{clearTimeout(legacyTimer);await store.set('legacy-v1',S.legacy,false)}catch(e){}
   }
-  const inv={};for(const k in S.inv)inv[k]=Math.min(S.inv[k]||0,25);inv.tool=S.inv.tool||0;
+  const inv={tool:S.inv.tool||0};   // a fresh island means a fresh economy — only tools (needed to keep villagers geared) survive the crossing
   const crew=S.villagers.slice(0,3).map(v=>({name:v.name,color:v.color,job:'idle',hasTool:v.hasTool,xp:v.xp||0,home:null,hungry:false,perk:v.perk||null}));
   await store.set('save-v1',{island:ISLAND+1,inv,name:S.me.name,id:S.me.id,x:null,y:null,score:S.score,won:false,msgShown:(()=>{const m={...S.msgShown};delete m.monu;return m})(),quest:0,stats:{g:{},b:{},jobs:0},muted:S.muted,wonderRewarded:false,monu:null,playSec:S.playSec,town:{tier:0},lastMeal:Math.floor(now()/1000/DAYLEN),villagers:crew,buildings:[]});
   try{localStorage.setItem('emberpine:p:island',String(ISLAND+1))}catch(e){}
