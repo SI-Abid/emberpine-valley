@@ -894,7 +894,7 @@ function placeBuilding(type,x,y){
   if(type!=='path'&&Math.floor(S.me.x)===x&&Math.floor(S.me.y)===y){toast('You\u2019re standing there!');return}
   if(type==='dock'&&![[1,0],[-1,0],[0,1],[0,-1]].some(([dx,dy])=>terrAt(x+dx,y+dy)===0)){toast('The dock must touch water 🌊');return}
   for(const[k,v]of Object.entries(B.cost))S.inv[k]-=v;
-  S.buildings[key(x,y)]={type,x,y,mine:true};
+  S.buildings[key(x,y)]={type,x,y,mine:true,bt:now()};syncBldSoon();
   if(B.home)moveIn(key(x,y));
   S.stats.b[type]=(S.stats.b[type]||0)+1;if(S.legacy){S.legacy.b[type]=(S.legacy.b[type]||0)+1;saveLegacySoon()}S.score+=15;sfx('build');spawnBurst(x,y,'#e8a33d',10);questTick();
   toast(B.name+' built!');
@@ -1432,7 +1432,14 @@ function render(){
   /* row-interleaved draw: taller sprites occlude people behind them */
   const rowP={};
   const addP=(py,fn)=>{const r=Math.floor(py);(rowP[r]=rowP[r]||[]).push({py,fn})};
-  for(const id in S.others){const o=S.others[id];if(id!==S.me.id&&now()-o.t<70000)addP(o.y,()=>{drawPerson(o.x,o.y,'#5b8fb0',o.name,false,false,true);if(o.emote&&now()-o.emote.t<4000)drawEmote(o.x,o.y,o.emote.e)});}
+  for(const id in S.others){const o=S.others[id];if(id!==S.me.id&&now()-o.t<70000)addP(o.y,()=>{
+    if(o.dx===undefined||Math.hypot(o.x-o.dx,o.y-o.dy)>12){o.dx=o.x;o.dy=o.y}   // snap on spawn/teleport
+    const dt2=Math.min(.1,(now()-(o._lt||now()))/1000);o._lt=now();
+    o.dx+=(o.x-o.dx)*Math.min(1,dt2*3);o.dy+=(o.y-o.dy)*Math.min(1,dt2*3);
+    const mv=Math.hypot(o.x-o.dx,o.y-o.dy)>.08;
+    if(Math.abs(o.x-o.dx)>.03)o.fx=(o.x-o.dx)<0?-1:1;
+    drawPerson(o.dx,o.dy,'#5b8fb0',o.name,false,false,true,mv?'walk':'idle',o.fx||1);
+    if(o.emote&&now()-o.emote.t<4000)drawEmote(o.dx,o.dy,o.emote.e)});}
   for(const v of S.villagers){if(isInside(v))continue;addP(v.y,()=>{
     if(S.selV===v.id&&popup.style.display==='block'){
       const vsx=(v.x-S.cam.x)*TSZ+VW/2,vsy=(v.y-S.cam.y)*TSZ+VH/2;
@@ -1664,6 +1671,8 @@ function renderGoods(){
     +(sec('RAW',[...RAW,...NEWRAW])+sec('CRAFTED',[...CRAFT,...NEWCRAFT])||'<div class="cmsg dim">Nothing gathered yet.</div>');
 }
 document.addEventListener('click',e=>{
+  const gb=e.target.closest&&e.target.closest('.ggift');
+  if(gb){sendGift(gb.dataset.id,gb.dataset.name);return}
   const b=e.target.closest&&e.target.closest('.gdrop');if(!b)return;
   const k=b.dataset.k, d=Math.min(10,S.inv[k]||0);if(d<=0)return;
   S.inv[k]-=d;toast('🗑 Discarded '+d+' '+NICE[k]);
@@ -1907,6 +1916,7 @@ function demolishBuilding(b){
   toast(B.name+' demolished — half the materials recovered');
   popup.style.display='none';
   beautyDirty();lastBeautyTier=beautyTier();  // silent tier drop, no penalty toast
+  syncBldSoon();
   renderHUD();renderBuildBar();saveSoon();
 }
 function openBuildingPopup(b,px,py){
@@ -1931,7 +1941,7 @@ function openBuildingPopup(b,px,py){
     for(const[k,v]of Object.entries(NB.cost))S.inv[k]-=v;
     b.type=next;S.stats.b[next]=(S.stats.b[next]||0)+1;if(S.legacy){S.legacy.b[next]=(S.legacy.b[next]||0)+1;saveLegacySoon()}S.score+=15;b.sv=(b.sv||15)+15;
     sfx('build');spawnBurst(b.x,b.y,'#e8a33d',10);
-    moveIn(key(b.x,b.y));renderHUD();renderBuildBar();questTick();checkTownTier();saveSoon();
+    moveIn(key(b.x,b.y));renderHUD();renderBuildBar();questTick();checkTownTier();syncBldSoon();saveSoon();
     openBuildingPopup(b,px,py);
   };
   const db=popup.querySelector('#demolishBtn');
@@ -2030,7 +2040,7 @@ async function saveGame(){
   await store.set('save-v1',{island:ISLAND,raid:S.raid,inv:S.inv,name:S.me.name,id:S.me.id,x:S.me.x,y:S.me.y,score:S.score,won:S.won,msgShown:S.msgShown,quest:S.quest,stats:S.stats,muted:S.muted,wonderRewarded:!!S.wonderRewarded,
     monu:S.monu, playSec:S.playSec, town:S.town, lastMeal:S.lastMeal,
     villagers:S.villagers.map(v=>({name:v.name,color:v.color,job:v.job,hasTool:v.hasTool,xp:v.xp||0,home:v.home||null,hungry:!!v.hungry,perk:v.perk||null})),
-    buildings:Object.values(S.buildings).filter(b=>b.mine).map(b=>({type:b.type,x:b.x,y:b.y,store:b.store,sv:b.sv}))});
+    buildings:Object.values(S.buildings).filter(b=>b.mine).map(b=>({type:b.type,x:b.x,y:b.y,store:b.store,sv:b.sv,bt:b.bt||0}))});
 }
 async function loadGame(){
   let s=await store.get('save-v1');
@@ -2061,6 +2071,7 @@ async function syncPresence(){
     let p=await store.get('presence',true)||{};
     // prune stale (>2min)
     for(const id in p)if(now()-p[id].t>120000)delete p[id];
+    for(const id in p){const old=S.others[id];if(old){p[id].dx=old.dx;p[id].dy=old.dy;p[id].fx=old.fx;p[id]._lt=old._lt}}  // keep ghost interpolation state
     p[S.me.id]={name:S.me.name,x:Math.round(S.me.x*10)/10,y:Math.round(S.me.y*10)/10,t:now(),score:S.score,won:!!S.won,emote:(myEmote&&now()-myEmote.t<4000)?myEmote:null};
     S.others=p;
     await store.set('presence',p,true);
@@ -2080,6 +2091,71 @@ async function syncWorld(){
     }
   }catch(e){}
   }finally{syncWorld._busy=false}
+}
+let _bldT=null;
+function syncBldSoon(){clearTimeout(_bldT);_bldT=setTimeout(()=>{try{syncBuildings()}catch(e){}},300)}
+async function syncBuildings(){
+  if(syncBuildings._busy)return; syncBuildings._busy=true; try{
+  try{
+    let m=await store.get('bld',true)||{};
+    let changed=false,dirty=false;
+    // 1) apply remote entries
+    for(const k in m){
+      const e=m[k], loc=S.buildings[k];
+      if(e.rm){                                     // tombstone: its owner tore it down
+        if(loc&&!loc.mine&&loc.owner===e.owner){delete S.buildings[k];changed=true}
+        continue;
+      }
+      if(e.owner===S.me.id)continue;                // my own echo
+      if(loc&&loc.mine){
+        // same-tile race: earliest build wins (tie → lower id); the loser refunds
+        if((e.t||0)<(loc.bt||0)||((e.t||0)===(loc.bt||0)&&e.owner<S.me.id)){
+          for(const[ck,cv]of Object.entries(BUILDS[loc.type].cost))S.inv[ck]=(S.inv[ck]||0)+cv;
+          S.score=Math.max(0,S.score-(loc.sv||15));
+          delete S.buildings[k];
+          toast('\u{1F3D7}️ '+(e.onm||'Another settler')+' built there first — materials refunded');
+        } else continue;                            // I was first: my publish below wins on their side
+      }
+      const cur=S.buildings[k];
+      if(!cur||(!cur.mine&&cur.type!==e.type)){
+        const[x,y]=k.split(',').map(Number);
+        S.buildings[k]={type:e.type,x,y,mine:false,owner:e.owner,onm:e.onm,bt:e.t||0};
+        changed=true;
+      }
+    }
+    // 2) publish my works; tombstone map entries of mine that no longer exist locally
+    for(const k in m){const e=m[k];
+      if(!e.rm&&e.owner===S.me.id&&(!S.buildings[k]||!S.buildings[k].mine)){m[k]={rm:now(),owner:S.me.id};dirty=true}}
+    for(const k in S.buildings){const b=S.buildings[k];if(!b.mine)continue;
+      const e=m[k];
+      if(!e||e.rm||e.owner!==S.me.id||e.type!==b.type){m[k]={t:b.bt||0,type:b.type,owner:S.me.id,onm:S.me.name};dirty=true}}
+    if(dirty)await store.set('bld',m,true);
+    if(changed){renderBuildBar();beautyDirty()}
+  }catch(e){}
+  }finally{syncBuildings._busy=false}
+}
+async function syncGifts(){
+  try{
+    let g=await store.get('gifts',true)||[];
+    const mine=g.filter(x=>x.to===S.me.id);
+    if(mine.length){
+      for(const gf of mine){
+        const got=[];for(const[k,n]of Object.entries(gf.items||{})){gain(k,n);got.push(n+' '+(NICE[k]||k))}
+        toast('\u{1F381} '+escapeHtml(gf.from||'A settler')+' sent you '+got.join(', ')+'!');sfx('quest');
+      }
+      g=g.filter(x=>x.to!==S.me.id);
+      await store.set('gifts',g.filter(x=>now()-x.t<172800000),true);
+    }
+  }catch(e){}
+}
+function sendGift(toId,toName){
+  const goods=Object.entries(S.inv).filter(e=>e[1]>=5&&e[0]!=='tool').sort((a,b)=>b[1]-a[1]).slice(0,3);
+  if(!goods.length){toast('You need at least 5 of a good to send a care package');return}
+  const items={};for(const[k]of goods){items[k]=5;S.inv[k]-=5}
+  (async()=>{try{const g=await store.get('gifts',true)||[];
+    g.push({id:'g'+Math.random().toString(36).slice(2,8),to:toId,from:S.me.name,items,t:now()});
+    await store.set('gifts',g,true)}catch(e){}})();
+  renderHUD();toast('\u{1F381} Care package sent to '+toName+'!');sfx('trade');saveSoon();
 }
 async function countOnline(){
   try{const p=await store.get('presence',true)||{};
@@ -2158,7 +2234,8 @@ function logFish(f,who){
   saveSoon();
 }
 function dayPhase(){return ((now()/1000)%DAYLEN)/DAYLEN}
-const weather={rain:false,next:now()+50000+Math.random()*90000};
+function weatherNow(){const i=Math.floor(now()/90000);return hash2(i%9973,ISLAND*7+3,911)<.3}
+const weather={rain:weatherNow(),next:9e15};
 function darknessNow(){const l=.5+.5*Math.sin(dayPhase()*Math.PI*2);let d=(1-l)*.72;if(weather.rain)d=Math.min(.8,d+.1);if(seasonIdx()===3)d=Math.min(.85,d+.08);return d}
 let parts=[],rainFx=[],smokeT=0,critterT=0;
 function spawnBurst(x,y,color,n){n=n||6;for(let i=0;i<n;i++)parts.push({x:x+.5,y:y+.5,vx:(Math.random()-.5)*2.4,vy:-1-Math.random()*1.6,g:5,life:.55+Math.random()*.25,max:.8,color,sz:3})}
@@ -2172,9 +2249,9 @@ function ambienceTick(dt){
   }
   if(monuFxUntil>now()){const mon=monBuilding()||{x:HALL.x,y:HALL.y};
     if(Math.random()<dt*3)spawnFireworks(mon.x+.5+(Math.random()-.5)*2, mon.y-1+(Math.random()-.5));}
-  if(now()>weather.next){weather.rain=!weather.rain;
-    weather.next=now()+(weather.rain?30000+Math.random()*40000:70000+Math.random()*140000);
-    toast(weather.rain?'\u{1F327}\uFE0F Rain drifts over the valley\u2026':'\u{1F324}\uFE0F The rain clears');}
+  {const wr=weatherNow();                      // clock-derived: every settler shares the same skies
+    if(wr!==weather.rain){weather.rain=wr;
+      toast(wr?'\u{1F327}\uFE0F Rain drifts over the valley\u2026':'\u{1F324}\uFE0F The rain clears');}}
   smokeT-=dt;
   if(smokeT<=0){smokeT=.5;
     for(const k in S.buildings){const b=S.buildings[k];if(!b.mine)continue;
@@ -2232,12 +2309,17 @@ function drawParts(){
   for(const r of rainFx){cx.strokeStyle='rgba(190,210,235,.45)';cx.lineWidth=1.2;cx.beginPath();cx.moveTo(r.x,r.y);cx.lineTo(r.x-3,r.y-13);cx.stroke()}
 }
 const TRADES=[{give:{wood:12},get:{ingot:3}},{give:{stone:10},get:{plank:5}},{give:{berry:10},get:{wheat:6}},{give:{fish:6},get:{bread:4}},{give:{plank:8},get:{ore:8}},{give:{bread:3},get:{tool:1}},{give:{egg:6},get:{bread:4}},{give:{brick:10},get:{glass:6}},{give:{cloth:8},get:{ornament:1}},{give:{wood:15},get:{clay:4}},{give:{glass:6},get:{goldbar:2}},{give:{fish:10},get:{goldbar:1}},{give:{fish:15},get:{ornament:1}},{give:{meat:10},get:{bread:6}},{give:{hide:6},get:{cloth:2}},{give:{roast:5},get:{goldbar:1}},{give:{charcoal:8},get:{ingot:3}},{give:{rope:4},get:{tool:1}},{give:{pie:3},get:{goldbar:1}},{give:{crown:1},get:{ornament:3}}];
-const trader={active:false,offer:null,until:0,next:now()+75000};
+const trader={active:false,offer:null,until:0,next:0};
 function traderTick(){
-  if(!trader.active&&now()>trader.next){trader.active=true;trader.until=now()+60000;
-    trader.offer=TRADES[(Math.random()*TRADES.length)|0];
-    toast('\u{1F9F3} A wandering trader sets up by the Hall!');sfx('trade');renderTrader();}
-  if(trader.active&&now()>trader.until){trader.active=false;trader.next=now()+150000+Math.random()*150000;renderTrader();toast('\u{1F9F3} The trader packs up and leaves')}
+  // clock-derived schedule: every settler sees the same trader with the same offer
+  const cyc=Math.floor(now()/1000/240), ph=(now()/1000)%240;
+  const open=ph<75&&hash2(cyc%9973,ISLAND,313)<.8;
+  if(open&&!trader.active){
+    trader.active=true;trader.until=now()+(75-ph)*1000;
+    trader.offer=TRADES[(hash2(cyc%9973,ISLAND,517)*TRADES.length)|0];
+    toast('\u{1F9F3} A wandering trader sets up by the Hall!');sfx('trade');renderTrader();
+  }
+  if(!open&&trader.active){trader.active=false;renderTrader();toast('\u{1F9F3} The trader packs up and leaves')}
 }
 const artist={active:false,until:0,next:now()+240000};
 function artistTick(){
@@ -2435,7 +2517,7 @@ function renderLedger(){
   const el=document.getElementById('ledgerList');if(!el)return;
   if(ledgerView==='troph'){renderTrophies();return}
   const rows=Object.entries(S.others).map(([id,o])=>({id,...o})).sort((a,b)=>(b.score||0)-(a.score||0)).slice(0,12);
-  const rh=rows.map((o,i)=>'<div class="lrow'+(o.id===S.me.id?' meRow':'')+'"><span class="lrank">'+(i+1)+'</span><span class="ldot" style="background:'+((now()-o.t<70000)?'#5aa06a':'#8d8a80')+'"></span><span class="lname">'+escapeHtml(o.name||'?')+(o.won?' \u{1F451}':'')+'</span><b>'+(o.score||0)+'</b></div>').join('')||'<div class="cmsg dim">No settlers on record yet.</div>';
+  const rh=rows.map((o,i)=>'<div class="lrow'+(o.id===S.me.id?' meRow':'')+'"><span class="lrank">'+(i+1)+'</span><span class="ldot" style="background:'+((now()-o.t<70000)?'#5aa06a':'#8d8a80')+'"></span><span class="lname">'+escapeHtml(o.name||'?')+(o.won?' \u{1F451}':'')+'</span><b>'+(o.score||0)+'</b>'+(o.id!==S.me.id?'<button class="gdrop ggift" data-id="'+o.id+'" data-name="'+escapeHtml(o.name||'settler')+'" title="Send a care package — 5 each of your 3 most plentiful goods">🎁</button>':'')+'</div>').join('')||'<div class="cmsg dim">No settlers on record yet.</div>';
   const fl=S.stats.fishLog?Object.entries(S.stats.fishLog).sort((q,w)=>w[1]-q[1]).slice(0,3).map(e=>'\u{1F41F}'+e[0].split(' ')[0]+' '+e[1]).join('\u2002'):'';
   const tally=(fl?fl+'\u2002':'')+Object.entries(S.stats.g).filter(e=>e[1]>0).sort((a,b)=>b[1]-a[1]).slice(0,6).map(e=>iconHTML(e[0])+' '+e[1]).join('\u2002');
   const wp=Math.floor(wonderPct()*100);
@@ -2729,7 +2811,7 @@ function combatTick(dt){
 }
 
 let critters=[],eggs=[],shore=[];
-let herdNext=now()+180000+Math.random()*120000;
+let lastHerdCyc=Math.floor(now()/1000/300);
 function killCritter(c,hunter){
   const i=critters.indexOf(c);if(i>=0)critters.splice(i,1);
   const meaty={cow:3,pig:3,sheep:2,duck:1}[c.type]||2;
@@ -2761,9 +2843,10 @@ function shoreTick(){
   }
 }
 function critterTick(dt){
-  if(now()>herdNext){                                     // wild herd migration event
-    herdNext=now()+240000+Math.random()*240000;
-    if(critters.filter(c=>c.wild).length<10){
+  const hc=Math.floor(now()/1000/300);                    // wild herd migration: clock-derived, shared
+  if(hc!==lastHerdCyc){
+    lastHerdCyc=hc;
+    if(hash2(hc%9973,ISLAND,431)<.55&&critters.filter(c=>c.wild).length<10){
       const a=Math.random()*6.283,r=13+Math.random()*5;let n=0;
       for(let i=0;i<10&&n<5;i++){
         const x=S.me.x+Math.cos(a+i*.35)*r,y=S.me.y+Math.sin(a+i*.35)*r,fx=Math.floor(x),fy=Math.floor(y);
@@ -2980,7 +3063,7 @@ async function boot(){
     document.getElementById('splash').style.display='none';
     if(!had||S.villagers.length===0){const a=makeVillager(),b2=makeVillager();a.home='hall';b2.home='hall';toast('Two villagers await your orders 👥')}
     renderHUD();renderBuildBar();renderQuest();renderSnd();chatLastT=now();
-    syncWorld().then(()=>{syncPresence();syncChat();syncWonder()});
+    syncWorld().then(()=>{syncPresence();syncBuildings();syncGifts();syncChat();syncWonder()});
     saveGame();
     running=true;
     setTimeout(()=>{const h=document.getElementById('hint');if(!h)return;h.style.opacity=0;setTimeout(()=>h.remove(),600)},14000);
@@ -3058,7 +3141,7 @@ function loop(t){
 }
 addEventListener('error',e=>{if(loopErrN++<3)toast('⚠️ Error: '+(e.message||'').slice(0,60))});
 requestAnimationFrame(loop);
-setInterval(()=>{if(running){syncPresence();syncWorld();syncChat();syncRelics();syncWonder();
+setInterval(()=>{if(running){syncPresence();syncWorld();syncBuildings();syncGifts();syncChat();syncRelics();syncWonder();
   if(S.legacy&&S.villagers.length>S.legacy.maxCrew){S.legacy.maxCrew=S.villagers.length;saveLegacySoon()}
   const led=document.getElementById('ledger');if(led&&!led.classList.contains('hid'))renderLedger();}},5000);
 setInterval(()=>{if(running)saveGame()},15000);
