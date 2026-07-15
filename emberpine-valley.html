@@ -70,6 +70,8 @@
   .vill{display:flex;align-items:center;gap:7px;padding:6px;border-radius:8px;margin-bottom:4px;background:rgba(255,255,255,.4);border:1.5px solid rgba(43,38,32,.25)}
   .vill:hover{background:rgba(255,255,255,.7)}
   .vdot{width:14px;height:14px;border-radius:50%;border:2px solid var(--ink);flex:none}
+  .vpi{font-size:16px;flex:none;width:20px;text-align:center}
+  .vcount{font-size:13px;font-weight:800;flex:none;background:var(--amber);border:1.5px solid var(--ink);border-radius:8px;padding:1px 7px}
   .vname{font-size:12px;font-weight:800;flex:1 1 0;min-width:34px}
   .vnameLine{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .vmeta{display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-top:2px;font-weight:700}
@@ -97,6 +99,14 @@
   #popup .jobs{display:grid;grid-template-columns:1fr 1fr;gap:6px}
   .jbtn{padding:7px 4px;border-radius:8px;border:2px solid var(--ink);background:#fff8e6;font-weight:800;font-size:12px}
   .jbtn.sel{background:var(--amber)}
+  .vtrades{margin-top:6px}
+  .vtHead{font-size:11px;font-weight:800;margin-bottom:5px}
+  .vtBar{height:6px;border:1.5px solid var(--ink);border-radius:4px;background:#fff8e6;overflow:hidden;margin-top:3px}
+  .vtFill{height:100%;background:var(--amber)}
+  .vtOffer{display:flex;align-items:center;justify-content:center;gap:5px;width:100%;margin:4px 0;padding:5px 8px;border:2px solid var(--ink);border-radius:8px;background:#fff8e6;font-weight:800;font-size:12px;cursor:pointer}
+  .vtOffer .cp{white-space:nowrap}
+  .vtArr{opacity:.6}
+  .vtOffer.vtNo{opacity:.45;cursor:not-allowed}
   #popup .close{position:absolute;top:4px;right:8px;border:none;background:none;font-size:16px;font-weight:800}
   #popup .desc{font-size:11px;font-weight:700;line-height:1.45;margin-top:8px;opacity:.8;text-align:center}
 
@@ -266,7 +276,7 @@
 <div id="miniWrap"></div>
 
 <div id="hud"></div>
-<div id="hint">WASD / arrows · E to gather · Esc to pause · scroll to zoom · 1-5 to emote · click villagers to assign jobs · 🔥 chat with fellow settlers</div>
+<div id="hint">WASD / arrows · E to gather · Esc to pause · scroll to zoom · 1-5 to emote · build profession homes to grow the guild · 🔥 chat with fellow settlers</div>
 
 <button id="rosterTab" class="px">👥 Villagers</button>
 <div id="roster" class="hid">
@@ -338,7 +348,7 @@
     <span id="restoreForm" style="display:none"><input id="codeInput" placeholder="ACORN-OTTER-BIRCH-MOSS-FERN"><button id="restoreBtn">Restore</button></span>
   </div>
   <div id="onlineRow"></div>
-  <div class="fine">Gather wood &amp; stone · assign villagers to jobs · chain sawmills, smelters, docks and bakeries into a humming little industry · follow the Guild Charter · raise the Monument. Day turns to night, rain rolls in, traders wander through — lay stone paths, plant torches so the guild works after dark, race for glimmering relics — and raise the shared Valley Wonder with every settler on the server.<br>
+  <div class="fine">Gather wood &amp; stone · raise profession homes to bring the villagers you need · chain sawmills, smelters, docks and bakeries into a humming little industry · follow the Guild Charter · raise the Monument. Day turns to night, rain rolls in, traders wander through — lay stone paths, plant torches so the guild works after dark, race for glimmering relics — and raise the shared Valley Wonder with every settler on the server.<br>
   Your name, position and score are shared with other players exploring this same valley.</div>
 </div></div>
 
@@ -540,15 +550,24 @@ const RES_INFO={
   flax:{yield:'flax',n:2,time:1.4,emoji:'🌿'}
 };
 const JOBS={
-  idle:{label:'🛌 Idle',finds:null},
-  woodcutter:{label:'🪓 Woodcutter',finds:'tree'},
-  miner:{label:'⛏️ Miner',finds:['stone','iron','clay','sand','gold']},
+  idle:{label:'🥴 Nitwit',finds:null},
+  woodcutter:{label:'🪓 Lumberjack',finds:'tree'},
+  miner:{label:'⛏️ Mason',finds:['stone','iron','clay','sand','gold']},
   forager:{label:'🫐 Forager',finds:['berry','flax']},
   farmer:{label:'🌾 Farmer',finds:'farm'},
-  fisher:{label:'🎣 Fisher',finds:'dock'},
-  hunter:{label:'🏹 Hunter',finds:null},
+  fisher:{label:'🎣 Fisherman',finds:'dock'},
+  hunter:{label:'🔪 Butcher',finds:null},
   hauler:{label:'📦 Hauler',finds:null},
   guard:{label:'🛡️ Guard',finds:null},
+  shepherd:{label:'🐑 Shepherd',finds:null},
+  toolsmith:{label:'🔧 Toolsmith',finds:null,craft:1},
+  weaponsmith:{label:'⚔️ Weaponsmith',finds:null,craft:1},
+  armorer:{label:'🪖 Armorer',finds:null,craft:1},
+  leatherworker:{label:'🧳 Leatherworker',finds:null,craft:1},
+  librarian:{label:'📚 Librarian',finds:null,craft:1},
+  cleric:{label:'✨ Cleric',finds:null,craft:1},
+  fletcher:{label:'🏹 Fletcher',finds:null,craft:1},
+  cartographer:{label:'🗺️ Cartographer',finds:null,craft:1},
 };
 const BUILDS={
   sawmill:{name:'Sawmill',ico:'🪚',cost:{wood:20},desc:'2 wood → 1 plank / 4s',rate:4},
@@ -570,9 +589,30 @@ const BUILDS={
   crate:{name:'Storage Shed',ico:'🛖',cost:{plank:4,wood:2},desc:'Workers stash goods here (holds 16) — haulers ferry them to the Hall. +30 town storage'},
   warehouse:{name:'Warehouse',ico:'🏬',cost:{plank:14,stone:10},desc:'+150 town storage — upgradeable to Lv6 (+1300)'},
   market:{name:'Market Stall',ico:'🏪',cost:{plank:12,cloth:6},desc:'Post trade offers to the valley board — other settlers can buy them any time',civic:true},
-  cottage:{name:'Cottage',ico:'🐱',cost:{plank:6,stone:2},desc:'A home for 1 settler — settlers move in when built',home:true,cap:1},
-  house:{name:'House',ico:'🏠',cost:{plank:12,stone:6,bread:4},desc:'A home for 2 settlers',home:true,cap:2},
-  manor:{name:'Manor',ico:'🏛',cost:{brick:20,glass:8,bread:6},desc:'A home for 3 settlers',home:true,cap:3},
+  cottage:{name:'Cottage',ico:'🐱',cost:{plank:6,stone:2},desc:'A home for 1 settler — settlers move in when built',home:true,cap:1,legacy:true},
+  house:{name:'House',ico:'🏠',cost:{plank:12,stone:6,bread:4},desc:'A home for 2 settlers',home:true,cap:2,legacy:true},
+  manor:{name:'Manor',ico:'🏛',cost:{brick:20,glass:8,bread:6},desc:'A home for 3 settlers',home:true,cap:3,legacy:true},
+  // profession homes — placing one brings a villager of that profession (M: Professions & Pastures)
+  lumberlodge:{name:'Lumberjack Lodge',ico:'🪓',cost:{wood:12,stone:2},desc:'Home for a Lumberjack — fells trees for wood',home:true,cap:1,prof:'woodcutter'},
+  foragerhut:{name:'Forager Hut',ico:'🫐',cost:{wood:8,stone:2},desc:'Home for a Forager — picks berries and flax',home:true,cap:1,prof:'forager'},
+  farmhouse:{name:'Farmhouse',ico:'🌾',cost:{plank:6,stone:2},desc:'Home for a Farmer — tends your farms and collects eggs',home:true,cap:1,prof:'farmer'},
+  fishershack:{name:'Fisherman Shack',ico:'🎣',cost:{plank:6,wood:4},desc:'Home for a Fisherman — casts lines at your docks',home:true,cap:1,prof:'fisher'},
+  masonhouse:{name:'Mason House',ico:'⛏️',cost:{plank:6,stone:4},desc:'Home for a Mason — quarries stone, ore, clay, sand and gold',home:true,cap:1,prof:'miner'},
+  butchery:{name:'Butchery',ico:'🔪',cost:{plank:8,stone:4},desc:'Home for a Butcher — hunts wild game and butchers fattened pigs',home:true,cap:1,prof:'hunter'},
+  shepherdhut:{name:'Shepherd Hut',ico:'🐑',cost:{plank:6,wood:6},desc:'Home for a Shepherd — tends sheep pens and shears wool',home:true,cap:1,prof:'shepherd'},
+  haulerpost:{name:'Hauler Post',ico:'📦',cost:{plank:6,stone:2},desc:'Home for a Hauler — ferries goods from sheds to the Hall',home:true,cap:1,prof:'hauler'},
+  guardhouse:{name:'Guardhouse',ico:'🛡️',cost:{plank:8,stone:6},desc:'Home for a Guard — patrols the Hall and fights raiders',home:true,cap:1,prof:'guard'},
+  toolsmithy:{name:'Toolsmith House',ico:'🔧',cost:{plank:10,ingot:2},desc:'Home for a Toolsmith — barters tools and metal',home:true,cap:1,prof:'toolsmith'},
+  weaponsmithy:{name:'Weaponsmith House',ico:'⚔️',cost:{plank:10,ingot:3},desc:'Home for a Weaponsmith — barters arms-grade metal',home:true,cap:1,prof:'weaponsmith'},
+  armory:{name:'Armorer House',ico:'🪖',cost:{stone:12,ingot:3},desc:'Home for an Armorer — barters leather and heavy gear',home:true,cap:1,prof:'armorer'},
+  leatherhouse:{name:'Leatherworker House',ico:'🧳',cost:{plank:8,hide:2},desc:'Home for a Leatherworker — barters hides, rope and cloth',home:true,cap:1,prof:'leatherworker'},
+  library:{name:'Librarian House',ico:'📚',cost:{plank:12,glass:2},desc:'Home for a Librarian — trades in learned goods',home:true,cap:1,prof:'librarian'},
+  clerichouse:{name:'Cleric House',ico:'✨',cost:{brick:8,glass:2},desc:'Home for a Cleric — blesses offerings into rarities',home:true,cap:1,prof:'cleric'},
+  fletcherhouse:{name:'Fletcher House',ico:'🏹',cost:{plank:8,wood:8},desc:'Home for a Fletcher — barters around the hunt',home:true,cap:1,prof:'fletcher'},
+  maproom:{name:'Cartographer House',ico:'🗺️',cost:{plank:10,cloth:2},desc:'Home for a Cartographer — trades survey finds: clay, sand, gold ore',home:true,cap:1,prof:'cartographer'},
+  sheeppen:{name:'Sheep Pen',ico:'🐑',cost:{wood:14,plank:4},desc:'Sheep graze here — a Shepherd shears their wool (also click a fluffy sheep to shear)',pen:'sheep'},
+  pigpen:{name:'Pig Pen',ico:'🐖',cost:{wood:14,plank:4},desc:'Pigs fatten here — a Butcher turns plump ones into meat & hide',pen:'pig'},
+  fence:{name:'Fence',ico:'🪵',cost:{wood:2},desc:'A stout rail fence — keeps the yard tidy (blocks walking)'},
   well:{name:'Well',ico:'⛲',cost:{stone:10},desc:'Fresh water for the town — required to reach Village',civic:true},
   tavern:{name:'Tavern',ico:'🍺',cost:{plank:16,bread:8},desc:'Songs and suppers — required to reach Town',civic:true},
   plaza:{name:'Plaza',ico:'🎪',cost:{stone:12,plank:6},desc:'A gathering square — required to reach Town',civic:true},
@@ -738,14 +778,38 @@ function villagerTick(v,dt){
     }
     // state==='toHall': fall through so goods are delivered at the hall; sleep starts next tick
   } else if(v.state==='sleep'||v.state==='toHome'){v.state='idle';v.inside=false}
-  if(v.job==='hunter'&&!v.carry){
+  if(v.job==='shepherd'&&!v.carry){   // shear ready penned sheep, carry wool home
     let tg=null,bd=13*13;
-    if((S.inv.meat||0)<goodCap()&&invTotal()<storeCap())   // meat larder full → stand down
+    if((S.inv.wool||0)<goodCap()&&invTotal()<storeCap())
     for(const c of critters){
-      if(!c.wild||c.type==='bird')continue;
-      if(terrAt(Math.floor(c.x),Math.floor(c.y))===0&&!frozenNow())continue;  // no swimming after ducks
+      if(!c.pen||c.type!=='sheep'||!c.ready)continue;
       const d=(c.x-v.x)**2+(c.y-v.y)**2;if(d<bd){bd=d;tg=c}
     }
+    if(tg){
+      const d=Math.sqrt(bd);
+      if(d<1.05){
+        v.state='working';v.work=(v.work||0)+dt;
+        if(v.work>=1.2){v.work=0;tg.ready=0;tg.wool=24+Math.random()*20;v.carry={what:'wool',n:2};v.state='idle';spawnBurst(tg.x-.5,tg.y-.5,'#f0ede4',6)}   // idle (not working) so the carry routes to delivery, never gets hijacked by the resource block
+      }else{
+        v.state='toWork';const inv=1/Math.max(.2,d);
+        const nx2=v.x+(tg.x-v.x)*inv*spd*dt,ny2=v.y+(tg.y-v.y)*inv*spd*dt;
+        if(passable(Math.floor(nx2),Math.floor(v.y)))v.x=nx2;
+        if(passable(Math.floor(v.x),Math.floor(ny2)))v.y=ny2;
+        if(Math.abs(tg.x-v.x)>.05)v.fx=(tg.x-v.x)<0?-1:1;
+      }
+      return;
+    }
+    if(v.state==='working'||v.state==='toWork')v.state='idle';
+  }
+  if(v.job==='hunter'&&!v.carry){
+    let tg=null,bd=13*13,tgPen=false;
+    if((S.inv.meat||0)<goodCap()&&invTotal()<storeCap()){   // meat larder full → stand down
+    for(const c of critters){
+      const pig=c.pen&&c.type==='pig'&&c.fatted;
+      if(!pig){if(!c.wild||c.type==='bird')continue;
+        if(terrAt(Math.floor(c.x),Math.floor(c.y))===0&&!frozenNow())continue;}  // no swimming after ducks
+      const d=(c.x-v.x)**2+(c.y-v.y)**2;if(d<bd){bd=d;tg=c;tgPen=pig}
+    }}
     if(tg){
       const d=Math.sqrt(bd);
       if(d<1.05){
@@ -864,9 +928,12 @@ function villagerTick(v,dt){
   }
   v.wander-=dt;
   if(v.wander<=0){v.wander=2+hash2(v.id,now()%9999,1)*4;
+    // craftsmen & shepherds idle near their own home; everyone else drifts around the Hall
+    const hb=(v.home&&v.home!=='hall'&&S.buildings[v.home]);
+    const anc=((JOBS[v.job]&&JOBS[v.job].craft||v.job==='shepherd')&&hb)?hb:HALL;
     const nx=(v.x|0)+((Math.random()*3)|0)-1,ny=(v.y|0)+((Math.random()*3)|0)-1;
-    if(passable(nx,ny)&&Math.abs(nx-HALL.x)<7&&Math.abs(ny-HALL.y)<7)v.path=[{x:nx+.5,y:ny+.5}];
-    else if((Math.abs(v.x-HALL.x)>=7||Math.abs(v.y-HALL.y)>=7)&&(!v.homeTry||now()>=v.homeTry)){const ph=findPath(v.x,v.y,HALL.x,HALL.y,true);if(ph){v.homeTry=0;v.path=ph}else v.homeTry=now()+10000;}
+    if(passable(nx,ny)&&Math.abs(nx-anc.x)<7&&Math.abs(ny-anc.y)<7)v.path=[{x:nx+.5,y:ny+.5}];
+    else if((Math.abs(v.x-anc.x)>=7||Math.abs(v.y-anc.y)>=7)&&(!v.homeTry||now()>=v.homeTry)){const ph=findPath(v.x,v.y,anc.x,anc.y,true);if(ph){v.homeTry=0;v.path=ph}else v.homeTry=now()+10000;}
   }
 }
 
@@ -886,20 +953,42 @@ const RECIPES={
   kiln:[{in:{clay:2,wood:1},out:'brick'},{in:{clay:2,wood:1},out:'brick'},{in:{wood:2},out:'charcoal'}],
   glassworks:{in:{sand:2,wood:1},out:'glass'},
   forge:[{in:{ingot:2,plank:1},out:'beam'},{in:{ingot:1,charcoal:2},out:'beam'}],
-  loom:[{in:{flax:2},out:'cloth'},{in:{flax:2},out:'rope'}],
+  loom:[{in:{flax:2},out:'cloth'},{in:{flax:2},out:'rope'},{in:{wool:2},out:'cloth'}],
   gilder:[{in:{goldbar:1,glass:1},out:'ornament'},{in:{goldbar:2,cloth:1},out:'crown'}],
 };
 function countB(type){let n=0;for(const k in S.buildings)if(S.buildings[k].type===type&&S.buildings[k].mine)n++;return n}
+function anyProfHome(){for(const k in S.buildings){const b=S.buildings[k];if(b.mine&&BUILDS[b.type]&&BUILDS[b.type].prof)return true}return false}
 function popCap(){let cap=2;for(const k in S.buildings){const b=S.buildings[k];if(b.mine&&BUILDS[b.type]&&BUILDS[b.type].home)cap+=BUILDS[b.type].cap}return cap}
 function homeless(){return S.villagers.filter(v=>!v.home||(v.home!=='hall'&&!S.buildings[v.home]))}
+function professionAt(bKey){   // the job a home confers, or null for legacy/hall homes
+  const b=bKey==='hall'?null:S.buildings[bKey];
+  return (b&&BUILDS[b.type]&&BUILDS[b.type].prof)||null;
+}
+function stampProf(v,bKey){   // give a villager the profession of the home they just moved into
+  const p=professionAt(bKey);
+  if(p&&v.job!==p){v.job=p;v.state='idle';v.path=[];v.target=null;v.work=0}
+}
 function moveIn(bKey){
   const b=S.buildings[bKey];if(!b||!BUILDS[b.type]||!BUILDS[b.type].home)return;
   let free=BUILDS[b.type].cap - S.villagers.filter(v=>v.home===bKey).length - S.spawnQ.filter(q=>q.home===bKey).length;
   if(free<=0)return;
   const hs=homeless().sort((a,c)=>((a.x-b.x)**2+(a.y-b.y)**2)-((c.x-b.x)**2+(c.y-b.y)**2));
-  for(const v of hs){if(free<=0)break;v.home=bKey;free--}
+  for(const v of hs){if(free<=0)break;v.home=bKey;stampProf(v,bKey);free--}
   for(let i=0;i<free;i++)S.spawnQ.push({home:bKey,in:2*(i+1)*iMod('recruit')});
   renderRoster();
+}
+// the Hall's two residents keep the village bootable: first a Lumberjack, then a Forager.
+// Only ever upgrades Nitwits — a returning save's professions are never overridden.
+function hallProf(){
+  const hv=S.villagers.filter(v=>v.home==='hall'||!v.home);
+  if(!hv.some(v=>v.job==='woodcutter'))return 'woodcutter';
+  if(!hv.some(v=>v.job==='forager'))return 'forager';
+  return 'idle';
+}
+function stampHall(){
+  for(const v of S.villagers){
+    if((v.home==='hall'||!v.home)&&v.job==='idle'){const p=hallProf();if(p!=='idle')v.job=p;}
+  }
 }
 
 function reconcileHousing(){
@@ -916,7 +1005,10 @@ function spawnQueueTick(dt){
       S.spawnQ.splice(i,1);
       const b=q.home==='hall'?HALL:S.buildings[q.home];if(!b)continue;
       const v=makeVillager();v.home=q.home;
-      toast('👋 '+v.name+' joins the guild!');sfx('recruit');
+      v.job=professionAt(q.home)||(q.home==='hall'?hallProf():'idle');
+      v.state='idle';v.path=[];v.target=null;
+      const jl=JOBS[v.job]?JOBS[v.job].label:'🥴 Nitwit';
+      toast('👋 '+v.name+' the '+jl.replace(/^\S+\s/,'')+' joins the guild!');sfx('recruit');
       spawnBurst(b.x,b.y,'#ffe9b8',8);
       renderHUD();questTick();checkTownTier();saveSoon();
     }
@@ -998,7 +1090,7 @@ function playerTick(dt){
       markRemoved(h.x,h.y);
       toast('+'+info.n+' '+NICE[info.yield]);
       S.me.harvest=null;
-      firstTime('gather','Nice! Open the 👥 Villagers panel to put someone else on the job.');
+      firstTime('gather','Nice! Build a 🪓 Lumberjack Lodge and a villager moves in to chop wood for you.');
     }
   }
   S.cam.x+=(S.me.x-S.cam.x)*Math.min(1,dt*5);
@@ -1037,7 +1129,7 @@ function placeBuilding(type,x,y){
     toast(MONUMENT_STAGES[1].banner);
     firstTime('monu','Walk to the Monument 🗿 and click it to contribute goods to the next era.');
   }
-  if(type==='farm')firstTime('farm','Assign a villager as 🌾 Farmer and they\u2019ll work your farm.');
+  if(type==='farm')firstTime('farm','Build a 🌾 Farmhouse and its Farmer will work this farm and collect eggs.');
   if(type==='monument')S.buildSel=null;      // monument leaves the bar once placed
   checkTownTier();beautyDirty();beautyTick();
   renderBuildBar();saveSoon();
@@ -1346,6 +1438,52 @@ const FAB={
   const tw=Math.sin(now()/260+sy);if(tw>.6){cx.fillStyle='#fff';cx.beginPath();cx.arc(sx+sz*.6,sy+sz*.16,1.8,0,7);cx.fill()}
  },
 };
+// profession homes share one cottage-like body with a colored roof + a hanging trade sign (the ico emoji)
+function fabProfHouse(roof,emoji){
+  return function(b,sx,sy,sz){
+    const r=fabBase(sx,sy,sz,.66,.36,'#e8dcc0');fabRoof(r,sz*.22,roof);fabDoor(r,'#7a5836');
+    // little sign board beside the door showing the profession emoji
+    const bx=r.x+r.w*.72,by=r.y+r.h*.36;
+    cx.fillStyle='#c9a15a';cx.strokeStyle='#2b2620';cx.lineWidth=1.3;
+    cx.fillRect(bx,by,sz*.2,sz*.2);cx.strokeRect(bx,by,sz*.2,sz*.2);
+    cx.font=(sz*.17)+'px serif';cx.textAlign='center';cx.textBaseline='middle';
+    cx.fillText(emoji,bx+sz*.1,by+sz*.11);
+  };
+}
+const PROF_ROOF={lumberlodge:'#7a5836',foragerhut:'#6a8a4a',farmhouse:'#c9a54a',fishershack:'#4a8aa0',masonhouse:'#8a8680',butchery:'#b0563b',shepherdhut:'#6aa06a',haulerpost:'#a8783f',guardhouse:'#5b6b8c',
+  toolsmithy:'#8a8680',weaponsmithy:'#6b6b74',armory:'#7a8290',leatherhouse:'#a86f3a',library:'#8a6ba0',clerichouse:'#b58fb0',fletcherhouse:'#6a8a4a',maproom:'#c9a15a'};
+for(const t in BUILDS)if(BUILDS[t].prof&&!FAB[t])FAB[t]=fabProfHouse(PROF_ROOF[t]||'#a8783f',BUILDS[t].ico);
+// pens: a low rail enclosure with a feed trough + the animal emoji
+function fabPen(emoji,ground){
+  return function(b,sx,sy,sz){
+    cx.fillStyle=ground;cx.strokeStyle='#2b2620';cx.lineWidth=1.5;
+    cx.fillRect(sx+sz*.1,sy+sz*.34,sz*.8,sz*.5);cx.strokeRect(sx+sz*.1,sy+sz*.34,sz*.8,sz*.5);
+    // corner posts
+    cx.fillStyle='#8a6b45';
+    for(const[px,py]of[[.1,.34],[.9,.34],[.1,.84],[.9,.84]])cx.fillRect(sx+sz*px-2,sy+sz*py-3,4,6);
+    // top rail
+    cx.strokeStyle='#a8783f';cx.lineWidth=2;cx.beginPath();cx.moveTo(sx+sz*.1,sy+sz*.44);cx.lineTo(sx+sz*.9,sy+sz*.44);cx.stroke();
+    // trough
+    cx.fillStyle='#6b4f30';cx.fillRect(sx+sz*.2,sy+sz*.7,sz*.24,sz*.08);
+    cx.font=(sz*.32)+'px serif';cx.textAlign='center';cx.textBaseline='middle';cx.fillText(emoji,sx+sz*.62,sy+sz*.58);
+  };
+}
+FAB.sheeppen=fabPen('🐑','#dfe6cf');
+FAB.pigpen=fabPen('🐖','#d9c8b0');
+FAB.fence=function(b,sx,sy,sz){   // connection-aware: rails reach toward neighboring fences
+  const isF=(dx,dy)=>{const nb=S.buildings[key(b.x+dx,b.y+dy)];return !!nb&&nb.type==='fence'};
+  const cN=isF(0,-1),cS=isF(0,1),cW=isF(-1,0),cE=isF(1,0), cxm=sx+sz/2, cym=sy+sz*.5, any=cN||cS||cW||cE;
+  cx.strokeStyle='#a8783f';cx.lineWidth=Math.max(2.5,sz*.11);cx.lineCap='round';
+  cx.beginPath();
+  if(cW||!any){cx.moveTo(sx,cym);cx.lineTo(cxm,cym)}
+  if(cE||!any){cx.moveTo(cxm,cym);cx.lineTo(sx+sz,cym)}
+  if(cN){cx.moveTo(cxm,sy);cx.lineTo(cxm,cym)}
+  if(cS){cx.moveTo(cxm,cym);cx.lineTo(cxm,sy+sz)}
+  cx.stroke();
+  // center post
+  cx.fillStyle='#8a6b45';cx.strokeStyle='#2b2620';cx.lineWidth=1.4;
+  cx.fillRect(cxm-2.5,cym-sz*.24,5,sz*.34);cx.strokeRect(cxm-2.5,cym-sz*.24,5,sz*.34);
+};
 function drawBuilding(b,sx,sy,sz){
   if(b.type==='path'){
     // connection-aware: merge flush with neighboring paths, inset only on open sides
@@ -1490,8 +1628,33 @@ function drawMonument(b,sx,sy,sz){
     cx.font=(sz*.5)+'px serif';cx.textAlign='center';cx.textBaseline='middle';cx.fillText('🚩',sx+sz/2,sy+sz*.45);
   }
 }
-const JOBANIM={woodcutter:'axe',miner:'mining',farmer:'watering',forager:'dig',fisher:'casting',hauler:'carry',guard:'attack',hunter:'attack'};
-function drawPerson(px,py,color,name,isMe,working,ghost,anim,dir){
+const JOBANIM={woodcutter:'axe',miner:'mining',farmer:'watering',forager:'dig',fisher:'casting',hauler:'carry',guard:'attack',hunter:'attack',shepherd:'dig'};
+// per-profession headwear: each fn draws in a space translated to the head anchor, scaled by z.
+// units are ~pixels around (0,0)=crown of the head. Kept to a few ink-outlined ops, FAB-style.
+const HAT_INK='#2b2620';
+function hStroke(w){cx.strokeStyle=HAT_INK;cx.lineWidth=w||1.2}
+const HATS={
+  woodcutter:z=>{cx.fillStyle='#e8663d';cx.beginPath();cx.arc(0,-2*z,4.4*z,Math.PI,0);cx.fill();hStroke();cx.stroke();cx.fillStyle='#c9542f';cx.fillRect(-4.4*z,-2.2*z,8.8*z,1.6*z);cx.strokeRect(-4.4*z,-2.2*z,8.8*z,1.6*z)},
+  miner:z=>{cx.fillStyle='#9a978e';cx.fillRect(-4.2*z,-4*z,8.4*z,2.4*z);hStroke();cx.strokeRect(-4.2*z,-4*z,8.4*z,2.4*z);cx.fillStyle='#8a8680';cx.fillRect(-5.4*z,-2*z,10.8*z,1.4*z);cx.strokeRect(-5.4*z,-2*z,10.8*z,1.4*z)},
+  farmer:z=>{cx.fillStyle='#e0c98a';cx.beginPath();cx.ellipse(0,-1.6*z,6.6*z,1.8*z,0,0,7);cx.fill();hStroke();cx.stroke();cx.beginPath();cx.arc(0,-2.6*z,3.4*z,Math.PI,0);cx.fill();cx.stroke();cx.strokeStyle='#b58f4a';cx.beginPath();cx.moveTo(-3.4*z,-2.2*z);cx.lineTo(3.4*z,-2.2*z);cx.stroke()},
+  fisher:z=>{cx.fillStyle='#f4c542';cx.beginPath();cx.moveTo(-3.6*z,-1.6*z);cx.lineTo(-2.8*z,-5*z);cx.lineTo(2.8*z,-5*z);cx.lineTo(3.6*z,-1.6*z);cx.closePath();cx.fill();hStroke();cx.stroke()},
+  forager:z=>{cx.strokeStyle='#5aa06a';cx.lineWidth=1.6;cx.beginPath();cx.arc(0,-2*z,4.2*z,Math.PI,0);cx.stroke();cx.fillStyle='#e86a8a';cx.beginPath();cx.arc(-3*z,-3.4*z,1.2*z,0,7);cx.fill();cx.fillStyle='#f4c542';cx.beginPath();cx.arc(2.6*z,-3.6*z,1.1*z,0,7);cx.fill()},
+  hunter:z=>{cx.fillStyle='#f0ede4';cx.beginPath();cx.arc(0,-2*z,4.2*z,Math.PI,0);cx.fill();hStroke();cx.stroke();cx.fillStyle='#b0563b';cx.fillRect(-4.2*z,-2.2*z,8.4*z,1.5*z);cx.strokeRect(-4.2*z,-2.2*z,8.4*z,1.5*z)},
+  shepherd:z=>{cx.fillStyle='#5aa06a';cx.beginPath();cx.ellipse(0,-1.8*z,5.6*z,1.6*z,0,0,7);cx.fill();hStroke();cx.stroke();cx.beginPath();cx.arc(0,-2.6*z,3.2*z,Math.PI,0);cx.fill();cx.stroke()},
+  hauler:z=>{cx.fillStyle='#8a6b45';cx.fillRect(-4.4*z,-3*z,8.8*z,1.8*z);hStroke();cx.strokeRect(-4.4*z,-3*z,8.8*z,1.8*z)},
+  guard:z=>{cx.fillStyle='#9aa2ad';cx.beginPath();cx.arc(0,-2.2*z,4.4*z,Math.PI,0);cx.fill();hStroke();cx.stroke();cx.fillStyle='#8a929d';cx.fillRect(-.9*z,-3*z,1.8*z,3.4*z);cx.strokeRect(-.9*z,-3*z,1.8*z,3.4*z)},
+  toolsmith:z=>{cx.fillStyle='#a86f3a';cx.beginPath();cx.moveTo(-4.6*z,-1.4*z);cx.quadraticCurveTo(0,-2.4*z,4.6*z,-1.4*z);cx.lineTo(4.6*z,-.4*z);cx.lineTo(-4.6*z,-.4*z);cx.closePath();cx.fill();hStroke();cx.stroke()},
+  weaponsmith:z=>{cx.fillStyle='#3a3630';cx.beginPath();cx.arc(0,-2*z,4.2*z,Math.PI,0);cx.fill();hStroke();cx.stroke();cx.strokeStyle='#3a3630';cx.lineWidth=1.8;cx.beginPath();cx.moveTo(3.8*z,-1.8*z);cx.lineTo(6*z,-3*z);cx.stroke()},
+  armorer:z=>{cx.fillStyle='#7a8290';cx.beginPath();cx.arc(0,-2.2*z,4.4*z,Math.PI,0);cx.fill();hStroke();cx.stroke();cx.strokeStyle='#b0563b';cx.lineWidth=1.8;cx.beginPath();cx.moveTo(0,-6.2*z);cx.lineTo(0,-2.6*z);cx.stroke()},
+  leatherworker:z=>{cx.fillStyle='#8a5a33';cx.beginPath();cx.ellipse(0,-1.8*z,6*z,1.6*z,0,0,7);cx.fill();hStroke();cx.stroke();cx.beginPath();cx.arc(0,-2.6*z,3*z,Math.PI,0);cx.fill();cx.stroke()},
+  librarian:z=>{hStroke(1.4);cx.beginPath();cx.arc(-1.9*z,-.4*z,1.5*z,0,7);cx.moveTo(1.9*z+1.5*z,-.4*z);cx.arc(1.9*z,-.4*z,1.5*z,0,7);cx.moveTo(-.4*z,-.4*z);cx.lineTo(.4*z,-.4*z);cx.stroke()},
+  cleric:z=>{cx.fillStyle='#6a5a86';cx.beginPath();cx.arc(0,-1.4*z,4.8*z,Math.PI,0);cx.fill();hStroke();cx.stroke();cx.beginPath();cx.moveTo(-4.8*z,-1.4*z);cx.quadraticCurveTo(0,-3.6*z,0,-.4*z);cx.stroke()},
+  fletcher:z=>{cx.fillStyle='#5aa06a';cx.beginPath();cx.arc(0,-2*z,4*z,Math.PI,0);cx.fill();hStroke();cx.stroke();cx.strokeStyle='#f4c542';cx.lineWidth=1.6;cx.beginPath();cx.moveTo(2.4*z,-3*z);cx.lineTo(6.2*z,-5.4*z);cx.stroke()},
+  cartographer:z=>{cx.fillStyle='#c9a15a';cx.fillRect(-4.6*z,-2.4*z,9.2*z,1.6*z);hStroke();cx.strokeRect(-4.6*z,-2.4*z,9.2*z,1.6*z);cx.beginPath();cx.moveTo(-4.6*z,-2.4*z);cx.lineTo(-3*z,-4*z);cx.moveTo(4.6*z,-2.4*z);cx.lineTo(3*z,-4*z);cx.stroke()},
+  idle:null,
+};
+function drawHat(job,ax,ay,z){const h=job&&HATS[job];if(!h)return;cx.save();cx.translate(ax,ay);h(z);cx.restore()}
+function drawPerson(px,py,color,name,isMe,working,ghost,anim,dir,job){
   const z=ZOOM, sx=(px-S.cam.x)*TSZ+VW/2, sy=(py-S.cam.y)*TSZ+VH/2;
   if(sx<-40||sy<-40||sx>VW+40||sy>VH+40)return;
   const A=atlasReady&&ATLAS_FRAMES['char_'+(anim||'idle')];
@@ -1505,6 +1668,7 @@ function drawPerson(px,py,color,name,isMe,working,ghost,anim,dir){
     cx.save();if(ghost)cx.globalAlpha=.65;
     cx.fillStyle=color;cx.beginPath();cx.arc(sx,sy-24*z,2.6*z,0,7);cx.fill();
     cx.strokeStyle='#2b2620';cx.lineWidth=1;cx.stroke();
+    drawHat(job,sx,sy-15.5*z,1.5*z);   // sit the hat on the sprite's actual head, not the floating id-dot
     const fs2=Math.max(8,10*z);
     cx.font='700 '+fs2+'px Nunito';cx.textAlign='center';cx.textBaseline='bottom';
     cx.fillStyle='rgba(20,24,18,.75)';cx.fillText(name,sx+1,sy-27*z+1);
@@ -1520,6 +1684,7 @@ function drawPerson(px,py,color,name,isMe,working,ghost,anim,dir){
   cx.strokeStyle='#2b2620';cx.lineWidth=1.5;cx.strokeRect(sx-5*z,sy-8*z+bob,10*z,13*z);
   cx.fillStyle=color;cx.beginPath();cx.arc(sx,sy-11*z+bob,6*z,0,7);cx.fill();cx.stroke();
   cx.fillStyle='#2b2620';cx.fillRect(sx-2.5*z,sy-11*z+bob,1.8*z,1.8*z);cx.fillRect(sx+1*z,sy-11*z+bob,1.8*z,1.8*z);
+  drawHat(job,sx,sy-15*z+bob,z);
   const fs=Math.max(8,10*z);
   cx.font='700 '+fs+'px Nunito';cx.textAlign='center';cx.textBaseline='bottom';
   cx.fillStyle='rgba(20,24,18,.75)';cx.fillText(name,sx+1,sy-19*z+bob+1);
@@ -1589,7 +1754,7 @@ function render(){
       cx.beginPath();cx.arc(vsx,vsy,15*ZOOM,0,7);cx.stroke();cx.setLineDash([]);
     }
     const vAnim=v.state==='working'?(JOBANIM[v.job]||'axe'):((v.path&&v.path.length)?'walk':'idle');
-    drawPerson(v.x,v.y,v.color,v.name.split(' ')[0]+' \u00B7 '+JOBS[v.job].label.slice(0,2),false,v.state==='working',false,vAnim,v.fx||1);
+    drawPerson(v.x,v.y,v.color,v.name.split(' ')[0]+' \u00B7 '+(JOBS[v.job]||JOBS.idle).label.slice(0,2),false,v.state==='working',false,vAnim,v.fx||1,v.job);
     if(v.state==='working'){const info=RES_INFO[v.target?.type||'tree'];drawProgress(v.x,v.y,v.work/info.time,info.emoji)}
   });}
   const drawGobAt=(g)=>{
@@ -1730,6 +1895,7 @@ const ICON_SVG={
  ornament:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 9h16l-8 12z" fill="#f4c542" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><path d="M4 9h16l-4-5H8z" fill="#e8a33d" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><path d="M12 9v12M8 9l4 12M16 9l-4 12" stroke="#2b2620" stroke-width="1" opacity=".5"/></svg>',
  meat:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 14c0-5 4-9 9-9 4 0 7 2.5 7 6 0 4-4 7-9 7-4 0-7-1.5-7-4z" fill="#b0563b" stroke="#2b2620" stroke-width="2"/><path d="M8 12c1.5-2.5 4-4 7-4" fill="none" stroke="#d98a6a" stroke-width="1.8" stroke-linecap="round"/><circle cx="5.5" cy="17.5" r="2.6" fill="#f0e6c8" stroke="#2b2620" stroke-width="2"/></svg>',
  hide:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 4c2-2 10-2 12 0l2 5-2 4 2 4-3 3c-3 2-7 2-10 0l-3-3 2-4-2-4z" fill="#c9915a" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><path d="M9 8c2 1 4 1 6 0M9 13c2 1 4 1 6 0" fill="none" stroke="#8a6b45" stroke-width="1.5" stroke-linecap="round"/></svg>',
+ wool:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="9" cy="10" r="5" fill="#f0ede4" stroke="#2b2620" stroke-width="2"/><circle cx="15" cy="10" r="5" fill="#f0ede4" stroke="#2b2620" stroke-width="2"/><circle cx="12" cy="15" r="5" fill="#f0ede4" stroke="#2b2620" stroke-width="2"/><path d="M7 9c1 1 3 1 4 0M13 9c1 1 3 1 4 0M10 14c1 1 3 1 4 0" fill="none" stroke="#c9c4b4" stroke-width="1.3" stroke-linecap="round"/></svg>',
  roast:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 13c0-4 4-7 9-7s9 3 9 7-4 6-9 6-9-2-9-6z" fill="#a86f3a" stroke="#2b2620" stroke-width="2"/><path d="M7 11c1.5-1.5 3.5-2.3 5.5-2.3" fill="none" stroke="#e0b070" stroke-width="1.8" stroke-linecap="round"/><path d="M9 4.5c.6.9.6 1.7 0 2.6M12.5 3.5c.6.9.6 1.7 0 2.6M16 4.5c.6.9.6 1.7 0 2.6" fill="none" stroke="#8d8a80" stroke-width="1.4" stroke-linecap="round"/></svg>',
  charcoal:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M5 18 3 12l5-5 6-2 7 4-1 7-6 3z" fill="#3a3630" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><path d="M8 7l3 5-4 5M14 5l1 6 5 2" fill="none" stroke="#5a544c" stroke-width="1.4"/><circle cx="11" cy="13" r="1.2" fill="#e8663d"/></svg>',
  rope:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7.5" fill="none" stroke="#c9a468" stroke-width="4.4"/><circle cx="12" cy="12" r="7.5" fill="none" stroke="#2b2620" stroke-width="1.4" stroke-dasharray="3 2.4"/><circle cx="12" cy="12" r="3" fill="none" stroke="#8a6b45" stroke-width="1.4"/><path d="M18.5 15.5 21 20" stroke="#c9a468" stroke-width="3.4" stroke-linecap="round"/><path d="M18.5 15.5 21 20" stroke="#2b2620" stroke-width="1" stroke-dasharray="2.4 2"/></svg>',
@@ -1777,18 +1943,22 @@ function iconHTML(k,cls){return '<span class="ic'+(cls?' '+cls:'')+'" title="'+(
 const iconImg={};
 function preloadIcons(){for(const k in ICON_SVG){const im=new Image();im.onload=()=>{im.ready=true};im.src='data:image/svg+xml;utf8,'+encodeURIComponent(ICON_SVG[k]);iconImg[k]=im}}
 function drawIcon(c2,k,px,py,sz){const im=iconImg[k]||iconImg._missing;if(!im||!im.ready)return false;c2.drawImage(im,px-sz/2,py-sz/2,sz,sz);return true}
+// build-bar icons for the 17 profession homes: a shared house silhouette with the profession emoji as a door sign
+for(const t in BUILDS)if(BUILDS[t].prof&&!ICON_SVG[t]){
+  ICON_SVG[t]='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 12 12 4 20 12z" fill="#b07c46" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><rect x="6" y="12" width="12" height="9" fill="#f0e6c8" stroke="#2b2620" stroke-width="2"/><text x="12" y="19" font-size="7" text-anchor="middle">'+BUILDS[t].ico+'</text></svg>';
+}
 preloadIcons();
 
 /* ============ UI ============ */
 const ICONS={wood:'🪵',stone:'🪨',ore:'⚙️',berry:'🫐',fish:'🐟',egg:'🥚',plank:'📏',ingot:'🔩',wheat:'🌾',bread:'🍞',tool:'🛠️'
- ,clay:'🟤',sand:'⏳',goldore:'🟡',flax:'🌿',brick:'🧱',glass:'🪟',beam:'🏗️',cloth:'🧵',goldbar:'🪙',ornament:'💎'};
+ ,clay:'🟤',sand:'⏳',goldore:'🟡',flax:'🌿',brick:'🧱',glass:'🪟',beam:'🏗️',cloth:'🧵',goldbar:'🪙',ornament:'💎',wool:'🧶'};
 const NICE={wood:'Wood',stone:'Stone',ore:'Ore',berry:'Berries',fish:'Fish',egg:'Eggs',plank:'Planks',ingot:'Ingots',wheat:'Wheat',bread:'Bread',tool:'Tools'
  ,clay:'Clay',sand:'Sand',goldore:'Gold Ore',flax:'Flax',brick:'Brick',glass:'Glass',beam:'Steel Beam',cloth:'Cloth',goldbar:'Gold Bar',ornament:'Ornament',villagers:'Villagers'
- ,meat:'Meat',hide:'Hide',roast:'Roast',charcoal:'Charcoal',rope:'Rope',leather:'Leather',pie:'Pie',backpack:'Backpack',crown:'Crown'
+ ,meat:'Meat',hide:'Hide',roast:'Roast',charcoal:'Charcoal',rope:'Rope',leather:'Leather',pie:'Pie',backpack:'Backpack',crown:'Crown',wool:'Wool'
  ,flowerbed:'Flower Bed',hedge:'Hedge',lamppost:'Lamp Post',bench:'Bench',fountain:'Fountain',banner:'Banner',gnome:'Garden Gnome'};
 const hud=document.getElementById('hud');
 const RAW=['wood','stone','ore','berry','fish','egg'],CRAFT=['plank','ingot','wheat','bread','tool'];
-const NEWRAW=['clay','sand','goldore','flax','meat','hide'], NEWCRAFT=['brick','glass','beam','cloth','goldbar','ornament','roast','charcoal','rope','leather','pie','backpack','crown'];
+const NEWRAW=['clay','sand','goldore','flax','meat','hide','wool'], NEWCRAFT=['brick','glass','beam','cloth','goldbar','ornament','roast','charcoal','rope','leather','pie','backpack','crown'];
 function ownsGood(k){return (S.inv[k]||0)>0 || (S.stats.g[k]||0)>0}
 function chipHtml(k){return '<div class="res" id="res-'+k+'" title="'+NICE[k]+'">'+iconHTML(k,'ico')+S.inv[k]+'</div>'}
 const HUD_PIN=['wood','stone','plank','bread'];
@@ -1888,8 +2058,9 @@ function firstTime(k,msg){if(S.msgShown[k])return;S.msgShown[k]=1;toast('💡 '+
 
 /* build bar */
 function costStr(c){return Object.entries(c).map(([k,v])=>'<span class="cp">'+v+' '+iconHTML(k)+'</span>').join(' ')}
-const ERA={kiln:1,glassworks:1,forge:1,loom:2,gilder:2};
-const TIER={house:1,manor:2,tavern:1,plaza:1,chapel:2,statue:2,watchtower:1,warehouse:1,market:1};
+const ERA={kiln:1,glassworks:1,forge:1,loom:2,gilder:2,library:1,clerichouse:2};
+const TIER={house:1,manor:2,tavern:1,plaza:1,chapel:2,statue:2,watchtower:1,warehouse:1,market:1,
+  toolsmithy:1,weaponsmithy:1,fletcherhouse:1,leatherhouse:1,armory:2,library:2,maproom:2,clerichouse:2};
 const NEXT_HOME={cottage:'house',house:'manor'};
 const TOWN_TIERS=[
  {tier:'Hamlet',emoji:'⛺',ok:()=>true,bonus:0},
@@ -1951,17 +2122,18 @@ function beautyTick(){
 // listed here still appears, bucketed into a fallback "Other" category, so a forgotten
 // registration is visible rather than unbuildable.
 const BUILD_CATS={
-  homes:{label:'Homes',ico:'🏠',types:['cottage','house','manor']},
-  production:{label:'Production',ico:'⚙️',types:['sawmill','smelter','farm','dock','bakery','smokehouse','workshop','kiln','glassworks','forge','loom','gilder','fishmonger']},
+  homes:{label:'Homes',ico:'🏠',types:['lumberlodge','foragerhut','farmhouse','fishershack','masonhouse','butchery','shepherdhut','haulerpost','guardhouse']},
+  crafts:{label:'Crafters',ico:'🔧',types:['toolsmithy','weaponsmithy','armory','leatherhouse','fletcherhouse','library','clerichouse','maproom']},
+  production:{label:'Production',ico:'⚙️',types:['sawmill','smelter','farm','dock','sheeppen','pigpen','bakery','smokehouse','workshop','kiln','glassworks','forge','loom','gilder','fishmonger']},
   civic:{label:'Civic',ico:'⛲',types:['well','tavern','plaza','chapel','statue','watchtower','market']},
-  infra:{label:'Infra',ico:'🛤️',types:['torch','path','crate','warehouse']},
+  infra:{label:'Infra',ico:'🛤️',types:['torch','path','fence','crate','warehouse']},
   decor:{label:'Decor',ico:'🌷',types:['flowerbed','hedge','lamppost','bench','fountain','banner','gnome']},
   monument:{label:'Monument',ico:'🗿',types:['monument']},
 };
 function buildCatList(){
   const known=new Set();
   for(const c in BUILD_CATS)for(const t of BUILD_CATS[c].types)known.add(t);
-  const stray=Object.keys(BUILDS).filter(t=>!known.has(t));
+  const stray=Object.keys(BUILDS).filter(t=>!known.has(t)&&!BUILDS[t].legacy);
   const list=Object.entries(BUILD_CATS).map(([key,c])=>({key,label:c.label,ico:c.ico,types:c.types}));
   if(stray.length)list.push({key:'other',label:'Other',ico:'❔',types:stray});
   return list;
@@ -2033,35 +2205,38 @@ document.getElementById('rosterClose').onclick=()=>roster.classList.add('hid');
 function renderRoster(){
   const _rst=rosterList.scrollTop;
   rosterList.innerHTML='';
-  for(const v of S.villagers){
+  const counts={};for(const v of S.villagers)counts[v.job]=(counts[v.job]||0)+1;
+  for(const j in JOBS){const n=counts[j];if(!n)continue;
     const row=document.createElement('div');row.className='vill';
-    let st={idle:'resting 💤',toWork:'walking 👣',working:'working ⚒️',toHall:'hauling 📦',toCrate:'stashing 📦',toPickup:'collecting 📦',sleep:'sleeping 😴',toHome:'walking home 🏡'}[v.state]||'resting';
-    if(v.carry&&v.carry.n)st+=' · 🎒'+v.carry.n+'/'+carryCap(v);
-    row.innerHTML='<div class="vdot" style="background:'+v.color+'"></div><div class="vname"><div class="vnameLine">'+escapeHtml(v.name)+(v.hasTool?' 🛠️':'')+(v.hungry?' 🥺':'')+((!v.home||(v.home!=='hall'&&!S.buildings[v.home]))?' 🛌❓':'')+'</div><div class="vmeta"><span class="vlv">Lv'+vLvl(v)+'</span>'+(v.perk?' <span class="vlv">⭐'+v.perk+'</span>':'')+' <span class="vstat">'+st+'</span></div></div>';
-    const sel=document.createElement('select');
-    for(const j in JOBS){const o=document.createElement('option');o.value=j;o.textContent=JOBS[j].label;if(v.job===j)o.selected=true;sel.appendChild(o)}
-    sel.onchange=()=>{setJob(v,sel.value)};
-    row.appendChild(sel);rosterList.appendChild(row);
+    const lbl=JOBS[j].label, emoji=lbl.replace(/\s.*$/,''), name=lbl.replace(/^\S+\s/,'');
+    row.innerHTML='<div class="vpi">'+emoji+'</div><div class="vname"><div class="vnameLine">'+escapeHtml(name)+'</div></div><b class="vcount">×'+n+'</b>';
+    rosterList.appendChild(row);
   }
-  document.getElementById('popHint').textContent='🏠 '+S.villagers.length+'/'+popCap()+' housed capacity — build homes to attract settlers';
+  if(!S.villagers.length){const e=document.createElement('div');e.className='vill';e.innerHTML='<div class="vname"><div class="vnameLine" style="opacity:.6">No settlers yet — build a profession home</div></div>';rosterList.appendChild(e)}
+  const hungry=S.villagers.filter(v=>v.hungry).length;
+  const homeless=S.villagers.filter(v=>!v.home||(v.home!=='hall'&&!S.buildings[v.home])).length;
+  const tally=[hungry?'🥺 '+hungry+' hungry':'',homeless?'🛌 '+homeless+' homeless':''].filter(Boolean).join(' · ');
+  document.getElementById('popHint').innerHTML='🏠 '+S.villagers.length+'/'+popCap()+' housed — build profession homes to attract settlers'+(tally?'<br><span style="opacity:.8">'+tally+'</span>':'');
   rosterList.scrollTop=_rst;
 }
-setInterval(()=>{if(!roster.classList.contains('hid')&&!rosterList.contains(document.activeElement))renderRoster()},2000);
-function setJob(v,j){v.job=j;v.state='idle';v.path=[];v.target=null;
-  if(j!=='idle'){S.stats.jobs=(S.stats.jobs||0)+1;questTick()}
-  toast(JOBS[j].label+' — '+v.name.split(' ')[0]);saveSoon();
-  if(j!=='idle')firstTime('job','Villagers haul their harvest back to the Hall 🏛️ automatically.')}
+setInterval(()=>{if(!roster.classList.contains('hid'))renderRoster()},2000);
 
-/* contract popup */
+/* villager popup — profession, status, trades (trades UI arrives with M4) */
 const popup=document.getElementById('popup');
 function openVillagerPopup(v,px,py){
   S.selV=v.id;
-  popup.innerHTML='<button class="close">✕</button><h4 class="px">'+escapeHtml(v.name)+'</h4><div class="sub">GUILD WORK CONTRACT</div><div class="jobs"></div>'+
-    '<div class="desc">'+(v.hasTool?'Carries a fine tool (+60% pace).':'Works bare-handed. Build a Workshop to craft tools.')+'</div>';
-  const jobs=popup.querySelector('.jobs');
-  for(const j in JOBS){const b=document.createElement('button');b.className='jbtn'+(v.job===j?' sel':'');b.textContent=JOBS[j].label;
-    b.onclick=()=>{setJob(v,j);S.selV=null;popup.style.display='none'};jobs.appendChild(b)}
-  popup.querySelector('.close').onclick=()=>popup.style.display='none';
+  const lbl=JOBS[v.job]?JOBS[v.job].label:'🥴 Nitwit';
+  let st={idle:'resting 💤',toWork:'walking 👣',working:'working ⚒️',toHall:'hauling 📦',toCrate:'stashing 📦',toPickup:'collecting 📦',sleep:'sleeping 😴',toHome:'walking home 🏡'}[v.state]||'resting';
+  const homeName=(v.home&&v.home!=='hall'&&S.buildings[v.home]&&BUILDS[S.buildings[v.home].type])?BUILDS[S.buildings[v.home].type].name:(v.home==='hall'?'the Hall':'homeless');
+  popup.innerHTML='<button class="close">✕</button><h4 class="px">'+escapeHtml(v.name)+'</h4>'+
+    '<div class="sub">'+lbl+'</div>'+
+    '<div class="desc" style="text-align:left">🏡 Lives at <b>'+escapeHtml(homeName)+'</b><br>'+
+    '⭐ Level '+vLvl(v)+(v.perk?' · ⭐ '+v.perk:'')+'<br>'+
+    '📋 Currently '+st+(v.carry&&v.carry.n?' · 🎒'+v.carry.n+'/'+carryCap(v):'')+'<br>'+
+    (v.hasTool?'🛠️ Carries a fine tool (+60% pace).':'✋ Works bare-handed — a Workshop crafts tools.')+'</div>'+
+    '<div class="vtrades"></div>';
+  if(JOBS[v.job]&&JOBS[v.job].craft&&typeof renderVillagerTrades==='function')renderVillagerTrades(v,popup.querySelector('.vtrades'));
+  popup.querySelector('.close').onclick=()=>{S.selV=null;popup.style.display='none'};
   popup.style.display='block';
   popup.style.left=clamp(px-120,8,VW-256)+'px';
   popup.style.top=clamp(py-popup.offsetHeight-30,8,VH-240)+'px';
@@ -2074,6 +2249,9 @@ function demolishBuilding(b){
   for(const[k,v]of Object.entries(B.cost))S.inv[k]=(S.inv[k]||0)+Math.floor(v/2);
   S.score=Math.max(0,S.score-(b.sv||15));    // reclaim ALL construction/upgrade score: no farming
   if(B.home)S.spawnQ=S.spawnQ.filter(q=>q.home!==kk);
+  if(B.home)for(const v of S.villagers)if(v.home===kk){v.home=null;
+    if(B.prof){v.job='idle';v.state='idle';v.path=[];v.target=null;v.work=0;toast('🥴 '+v.name.split(' ')[0]+' is out of work — a Nitwit until rehoused')}
+  }
   delete S.buildings[kk];
   spawnBurst(b.x,b.y,'#9a978e',8);
   sfx('chop');
@@ -2304,6 +2482,10 @@ cv.addEventListener('click',e=>{
   let pc=null,pd=.9;
   for(const c of critters){if(c.type==='bird')continue;const d=Math.hypot(c.x-(t.x+.5),c.y-(t.y+.5));if(d<pd){pd=d;pc=c}}
   if(pc&&Math.hypot(t.x+.5-S.me.x,t.y+.5-S.me.y)<2.5){
+    if(pc.pen&&pc.type==='sheep'&&pc.ready){   // shear a fluffy sheep for wool
+      gain('wool',2);pc.ready=0;pc.wool=24+Math.random()*20;
+      spawnBurst(pc.x-.5,pc.y-.5,'#f0ede4',6);sfx('pick');toast('+2 🧶 Wool');return;
+    }
     if(S.legacy){S.legacy.pets=(S.legacy.pets||0)+1;saveLegacySoon()}
     spawnBurst(pc.x-.5,pc.y-.5,'#e86a8a',5);sfx('chat');achTick();return;
   }
@@ -2336,7 +2518,7 @@ function saveSoon(){clearTimeout(saveTimer);saveTimer=setTimeout(saveGame,1200)}
 async function saveGame(){
   await store.set('save-v1',{island:ISLAND,raid:S.raid,inv:S.inv,name:S.me.name,id:S.me.id,x:S.me.x,y:S.me.y,score:S.score,won:S.won,msgShown:S.msgShown,quest:S.quest,stats:S.stats,muted:S.muted,wonderRewarded:!!S.wonderRewarded,
     monu:S.monu, playSec:S.playSec, town:S.town, lastMeal:S.lastMeal,
-    villagers:S.villagers.map(v=>({name:v.name,color:v.color,job:v.job,hasTool:v.hasTool,xp:v.xp||0,home:v.home||null,hungry:!!v.hungry,perk:v.perk||null})),
+    villagers:S.villagers.map(v=>({name:v.name,color:v.color,job:v.job,hasTool:v.hasTool,xp:v.xp||0,txp:v.txp||0,home:v.home||null,hungry:!!v.hungry,perk:v.perk||null})),
     buildings:Object.values(S.buildings).filter(b=>b.mine).map(b=>({type:b.type,x:b.x,y:b.y,store:b.store,sv:b.sv,bt:b.bt||0,lvl:b.lvl||1}))});
 }
 async function loadGame(){
@@ -2356,8 +2538,9 @@ async function loadGame(){
   if(s.monu) S.monu=s.monu;
   else if(Object.values(S.buildings).some(b=>b.type==='monument')) S.monu={stage:2,given:{},lit:false}; // v1 migration: Foundation complete
   else S.monu=null;
-  for(const vs of (s.villagers||[])){const v=makeVillager();v.name=vs.name;v.color=vs.color;v.job=vs.job;v.hasTool=vs.hasTool;v.xp=vs.xp||0;v.home=vs.home||null;v.hungry=!!vs.hungry;v.perk=vs.perk||null}
+  for(const vs of (s.villagers||[])){const v=makeVillager();v.name=vs.name;v.color=vs.color;v.job=JOBS[vs.job]?vs.job:'idle';v.hasTool=vs.hasTool;v.xp=vs.xp||0;v.txp=vs.txp||0;v.home=vs.home||null;v.hungry=!!vs.hungry;v.perk=vs.perk||null}
   reconcileHousing();
+  stampHall();
   checkTownTier();
   return true;
 }
@@ -3001,6 +3184,90 @@ function drawParts(){
   for(const r of rainFx){cx.strokeStyle='rgba(190,210,235,.45)';cx.lineWidth=1.2;cx.beginPath();cx.moveTo(r.x,r.y);cx.lineTo(r.x-3,r.y-13);cx.stroke()}
 }
 const TRADES=[{give:{wood:12},get:{ingot:3}},{give:{stone:10},get:{plank:5}},{give:{berry:10},get:{wheat:6}},{give:{fish:6},get:{bread:4}},{give:{plank:8},get:{ore:8}},{give:{bread:3},get:{tool:1}},{give:{egg:6},get:{bread:4}},{give:{brick:10},get:{glass:6}},{give:{cloth:8},get:{ornament:1}},{give:{wood:15},get:{clay:4}},{give:{glass:6},get:{goldbar:2}},{give:{fish:10},get:{goldbar:1}},{give:{fish:15},get:{ornament:1}},{give:{meat:10},get:{bread:6}},{give:{hide:6},get:{cloth:2}},{give:{roast:5},get:{goldbar:1}},{give:{charcoal:8},get:{ingot:3}},{give:{rope:4},get:{tool:1}},{give:{pie:3},get:{goldbar:1}},{give:{crown:1},get:{ornament:3}}];
+// ===== villager trades: craftsman villagers barter, level up Novice→Master as you trade =====
+const TRADE_RANKS=['Novice','Apprentice','Journeyman','Expert','Master'], TRADE_XP=[0,4,10,18,30];
+function tLvl(v){let l=1;for(let i=1;i<5;i++)if((v.txp||0)>=TRADE_XP[i])l=i+1;return l}
+const VTRADES={
+ toolsmith:[
+  [{give:{ore:5},get:{ingot:2}},        {give:{ingot:2},get:{tool:1}}],
+  [{give:{plank:6},get:{ingot:2}},      {give:{charcoal:4},get:{ingot:2}}],
+  [{give:{stone:12},get:{tool:1}},      {give:{ingot:5},get:{tool:3}}],
+  [{give:{ingot:4},get:{beam:2}},       {give:{tool:2},get:{beam:1}}],
+  [{give:{beam:2},get:{goldbar:1}},     {give:{ore:18},get:{tool:4}}]],
+ weaponsmith:[
+  [{give:{charcoal:3},get:{ingot:1}},   {give:{wood:14},get:{ore:6}}],
+  [{give:{ingot:2},get:{beam:1}},       {give:{stone:10},get:{ore:6}}],
+  [{give:{beam:1},get:{ingot:3}},       {give:{meat:6},get:{tool:1}}],
+  [{give:{ingot:6},get:{beam:4}},       {give:{tool:2},get:{goldore:3}}],
+  [{give:{beam:3},get:{goldbar:2}},     {give:{goldbar:2},get:{beam:5}}]],
+ armorer:[
+  [{give:{hide:2},get:{leather:1}},     {give:{wood:12},get:{hide:2}}],
+  [{give:{leather:2},get:{ingot:2}},    {give:{ore:6},get:{hide:3}}],
+  [{give:{leather:3},get:{beam:1}},     {give:{ingot:3},get:{leather:4}}],
+  [{give:{leather:4,ingot:2},get:{backpack:1}}, {give:{beam:2},get:{leather:6}}],
+  [{give:{backpack:1},get:{goldbar:3}}, {give:{leather:8},get:{goldbar:2}}]],
+ leatherworker:[
+  [{give:{hide:2},get:{rope:1}},        {give:{berry:8},get:{hide:1}}],
+  [{give:{hide:3},get:{leather:2}},     {give:{rope:2},get:{cloth:1}}],
+  [{give:{wool:3},get:{leather:2}},     {give:{leather:2},get:{cloth:2}}],
+  [{give:{cloth:3},get:{leather:5}},    {give:{leather:3},get:{rope:5}}],
+  [{give:{leather:6},get:{backpack:1}}, {give:{hide:10},get:{goldbar:1}}]],
+ librarian:[
+  [{give:{berry:10},get:{clay:4}},      {give:{flax:4},get:{sand:4}}],
+  [{give:{cloth:1},get:{glass:2}},      {give:{leather:1},get:{clay:5}}],
+  [{give:{glass:2},get:{goldore:2}},    {give:{cloth:2},get:{ingot:3}}],
+  [{give:{goldbar:1},get:{glass:5}},    {give:{leather:3},get:{goldore:4}}],
+  [{give:{glass:6},get:{ornament:1}},   {give:{cloth:4},get:{goldbar:2}}]],
+ cleric:[
+  [{give:{fish:5},get:{bread:3}},       {give:{berry:12},get:{egg:6}}],
+  [{give:{bread:4},get:{cloth:1}},      {give:{egg:8},get:{wheat:8}}],
+  [{give:{meat:5},get:{bread:5}},       {give:{cloth:2},get:{glass:3}}],
+  [{give:{roast:3},get:{goldore:3}},    {give:{pie:2},get:{goldbar:1}}],
+  [{give:{bread:10},get:{ornament:1}},  {give:{goldbar:2},get:{ornament:2}}]],
+ fletcher:[
+  [{give:{wood:8},get:{meat:2}},        {give:{stone:6},get:{wood:8}}],
+  [{give:{rope:1},get:{meat:3}},        {give:{meat:4},get:{hide:3}}],
+  [{give:{plank:4},get:{meat:6}},       {give:{hide:2},get:{rope:2}}],
+  [{give:{tool:1},get:{meat:10}},       {give:{meat:8},get:{leather:3}}],
+  [{give:{rope:4},get:{tool:2}},        {give:{meat:12},get:{goldbar:1}}]],
+ cartographer:[
+  [{give:{fish:6},get:{clay:3}},        {give:{wood:10},get:{sand:5}}],
+  [{give:{stone:8},get:{clay:5}},       {give:{plank:4},get:{sand:6}}],
+  [{give:{ingot:2},get:{goldore:2}},    {give:{glass:2},get:{clay:8}}],
+  [{give:{tool:1},get:{goldore:4}},     {give:{cloth:2},get:{sand:12}}],
+  [{give:{goldbar:1},get:{goldore:6}},  {give:{ornament:1},get:{goldore:10}}]],
+};
+function tradeGet(g){let n=0;for(const k in g)n+=g[k];return n}   // total units received (for storage headroom check)
+function doVTrade(v,o){
+  if(!VTRADES[v.job])return;
+  if(!canAfford(o.give)){toast('You can’t afford that offer');return}
+  const gained=tradeGet(o.get), given=tradeGet(o.give);
+  if(invTotal()-given+gained>storeCap()){toast('📦 Not enough storage for that trade');return}
+  if(Math.hypot(v.x-S.me.x,v.y-S.me.y)>6){toast('Walk closer to trade with them');return}
+  for(const k in o.give)S.inv[k]-=o.give[k];
+  for(const k in o.get)gain(k,o.get[k]);
+  const was=tLvl(v);v.txp=(v.txp||0)+1;const nowL=tLvl(v);
+  sfx('quest');spawnBurst(v.x,v.y,'#f4c542',6);
+  S.legacy.vtrades=(S.legacy.vtrades||0)+1;
+  if(nowL>was){toast('🎉 '+v.name.split(' ')[0]+' is now a '+TRADE_RANKS[nowL-1]+' '+JOBS[v.job].label.replace(/^\S+\s/,'')+'!');spawnFireworks(v.x,v.y);
+    if(nowL>=5){S.legacy.masterTrader=1;saveLegacySoon()}}
+  achTick();renderHUD();saveSoon();saveLegacySoon();
+  if(S.selV===v.id){const p=document.getElementById('popup');if(p&&p.style.display==='block')openVillagerPopup(v,parseInt(p.style.left)+120,parseInt(p.style.top)+popup.offsetHeight+30)}
+}
+function renderVillagerTrades(v,el){
+  if(!el||!VTRADES[v.job])return;
+  const lv=tLvl(v), offers=VTRADES[v.job].slice(0,lv).flat();
+  const nextXP=lv<5?TRADE_XP[lv]:null, curBase=TRADE_XP[lv-1];
+  const bar=nextXP!==null?Math.max(0,Math.min(1,((v.txp||0)-curBase)/(nextXP-curBase))):1;
+  let h='<div class="vtHead">🤝 '+TRADE_RANKS[lv-1]+' trader'+(nextXP!==null?' · '+((v.txp||0))+'/'+nextXP+' to next':' · maxed')+
+    '<div class="vtBar"><div class="vtFill" style="width:'+(bar*100)+'%"></div></div></div>';
+  for(const o of offers){
+    const ok=canAfford(o.give);
+    h+='<button class="vtOffer'+(ok?'':' vtNo')+'" '+(ok?'':'disabled')+'>'+costStr(o.give)+' <span class="vtArr">→</span> '+costStr(o.get)+'</button>';
+  }
+  el.innerHTML=h;
+  el.querySelectorAll('.vtOffer').forEach((btn,i)=>{if(!btn.disabled)btn.onclick=()=>doVTrade(v,offers[i])});
+}
 const trader={active:false,offer:null,until:0,next:0};
 function traderTick(){
   // clock-derived schedule: every settler sees the same trader with the same offer
@@ -3047,7 +3314,7 @@ function renderTrader(){
 const QUESTS=[
  {t:'Gather 10 wood',icon:'\u{1FAB5}',p:()=>[Math.min(10,S.stats.g.wood||0),10],c:()=>(S.stats.g.wood||0)>=10,r:{berry:5}},
  {t:'Build a Sawmill',icon:'\u{1FA9A}',p:()=>[S.stats.b.sawmill?1:0,1],c:()=>!!S.stats.b.sawmill,r:{wood:10}},
- {t:'Assign a villager a job',icon:'\u{1F465}',p:()=>[Math.min(1,S.stats.jobs||0),1],c:()=>(S.stats.jobs||0)>=1,r:{stone:6}},
+ {t:'Build a profession home',icon:'\u{1F465}',p:()=>[anyProfHome()||(S.stats.jobs||0)>=1?1:0,1],c:()=>anyProfHome()||(S.stats.jobs||0)>=1,r:{stone:6}},
  {t:'Grow the guild to 3 settlers',icon:'\u26FA',p:()=>[Math.min(3,S.villagers.length),3],c:()=>S.villagers.length>=3,r:{plank:6}},
  {t:'Smelt 3 ingots',icon:'\u{1F525}',p:()=>[Math.min(3,S.stats.g.ingot||0),3],c:()=>(S.stats.g.ingot||0)>=3,r:{ore:6}},
  {t:'Bake 3 bread',icon:'\u{1F35E}',p:()=>[Math.min(3,S.stats.g.bread||0),3],c:()=>(S.stats.g.bread||0)>=3,r:{wheat:4}},
@@ -3059,7 +3326,7 @@ const QUESTS=[
  {t:'Craft an ornament',icon:'\u{1F48E}',p:()=>[Math.min(1,S.stats.g.ornament||0),1],c:()=>(S.stats.g.ornament||0)>=1,r:{bread:5}},
  {t:'Raise the Spire',icon:'\u{1F5FC}',p:()=>[completedStages()>=4?1:0,1],c:()=>completedStages()>=4,r:{bread:10}},
  {t:'Light the Eternal Flame',icon:'\u{1F525}',p:()=>[S.won?1:0,1],c:()=>!!S.won,r:null},
- {t:'Build a cottage',icon:'⛺',p:()=>[countB('cottage')>0?1:0,1],c:()=>countB('cottage')>0,r:{plank:4}},
+ {t:'Build a Farmhouse',icon:'\u{1F33E}',p:()=>[countB('farmhouse')>0||countB('cottage')>0?1:0,1],c:()=>countB('farmhouse')>0||countB('cottage')>0,r:{plank:4}},
  {t:'House 4 settlers',icon:'\u{1F3E0}',p:()=>[Math.min(4,S.villagers.filter(v=>v.home&&v.home!=='hall').length),4],c:()=>S.villagers.filter(v=>v.home&&v.home!=='hall').length>=4,r:{berry:6}},
  {t:'Dig a well and reach Village',icon:'⛲',p:()=>[S.town.tier>=1?1:0,1],c:()=>S.town.tier>=1,r:{stone:8}},
  {t:'Keep everyone fed for a full day',icon:'\u{1F35E}',p:()=>[S.stats.fedDay?1:0,1],c:()=>!!S.stats.fedDay,r:{bread:5}},
@@ -3126,6 +3393,9 @@ const ACH=[
  {id:'duel_10',t:'Valley Champion',i:'🤺',cat:'Combat',d:'Win 10 honor duels, lifetime',c:()=>(L().duelWins||0)>=10,s:75},
  {id:'walk_1000',t:'Wanderlust',i:'👣',cat:'Secret',secret:1,d:'Walk 1,000 tiles',c:()=>L().tiles>=1000,s:30},
  {id:'pet_1',t:'New Best Friend',i:'🐔',cat:'Secret',secret:1,d:'Pet an animal',c:()=>L().pets>=1,s:15},
+ {id:'trade_v1',t:'Local Custom',i:'🤝',cat:'Social',d:'Barter with one of your craftsman villagers',c:()=>(L().vtrades||0)>=1,s:15},
+ {id:'trade_master',t:'Master of Coin',i:'💰',cat:'Social',d:'Raise a villager to Master trader',c:()=>!!L().masterTrader,s:75},
+ {id:'pen_full',t:'Animal Farm',i:'🐖',cat:'Building',d:'Keep 6 penned animals at once',c:()=>critters.filter(c=>c.pen).length>=6,s:40},
 ];
 let achBusy=false,achT=0;
 function achTick(){
@@ -3586,6 +3856,17 @@ function critterTick(dt){
     const f=farms[(Math.random()*farms.length)|0];
     critters.push({type:'chicken',x:f.x+.5,y:f.y+1.3,hx:f.x+.5,hy:f.y+.5,vx:0,vy:0,t:0,lay:14+Math.random()*22});
   }
+  // penned livestock: sheep grow wool, pigs fatten — owned, roaming beside their pen (like chickens by a farm)
+  for(const kind of ['sheep','pig']){
+    const myPens=Object.values(S.buildings).filter(b=>b.mine&&BUILDS[b.type]&&BUILDS[b.type].pen===kind);
+    if(!myPens.length)continue;
+    const n=critters.reduce((a,c)=>a+((c.type===kind&&c.pen)?1:0),0);
+    if(n<Math.min(6,myPens.length*2)&&Math.random()<dt*.22){
+      const p=myPens[(Math.random()*myPens.length)|0];
+      critters.push({type:kind,pen:1,x:p.x+.5,y:p.y+1.3,hx:p.x+.5,hy:p.y+.5,vx:0,vy:0,t:0,fx2:1,
+        wool:kind==='sheep'?24+Math.random()*20:undefined, fat:kind==='pig'?0:undefined});
+    }
+  }
   const wild=critters.reduce((a,c)=>a+(c.wild?1:0),0);
   if(wild<7&&Math.random()<dt*.16){
     const a=Math.random()*6.283,r=10+Math.random()*8;
@@ -3629,8 +3910,14 @@ function critterTick(dt){
       if(c.t<=0){c.t=.8+Math.random();
         c.vx=(Math.random()-.5)*.9+(c.hx-c.x)*.25;c.vy=(Math.random()-.5)*.9+(c.hy-c.y)*.25}
       if(Math.abs(c.vx)>.05)c.fx2=c.vx<0?-1:1;
-      c.lay-=dt;
-      if(c.lay<=0){c.lay=18+Math.random()*24;if(eggs.length<8)eggs.push({x:c.x,y:c.y+.2})}
+      if(c.type==='chicken'){
+        c.lay-=dt;
+        if(c.lay<=0){c.lay=18+Math.random()*24;if(eggs.length<8)eggs.push({x:c.x,y:c.y+.2})}
+      }else if(c.type==='sheep'&&c.pen){
+        if(!c.ready){c.wool-=dt;if(c.wool<=0){c.wool=0;c.ready=1}}   // grows fluffy, then shear-ready
+      }else if(c.type==='pig'&&c.pen){
+        if(!c.fatted){c.fat=(c.fat||0)+dt;if(c.fat>=45)c.fatted=1}   // fattens, then ready for the butcher
+      }
     }
     const nx=c.x+c.vx*dt,ny=c.y+c.vy*dt;
     const ok=c.type==='duck'?((x2,y2)=>terrAt(x2,y2)===0):passable;
@@ -3682,12 +3969,18 @@ function drawCritters(){
       const moving=Math.hypot(c.vx||0,c.vy||0)>.12;
       const rate=c.type==='bird'?90:(moving?140:340);          // flap fast, walk medium, graze slow
       const idx=Math.floor(now()/rate+(c.life||0))%A[4];
-      const scale=(A[3]<=16?1.0:0.9)*z;                        // small strips 1 tile-ish, big ones slightly under
+      let scale=(A[3]<=16?1.0:0.9)*z;                          // small strips 1 tile-ish, big ones slightly under
+      if(c.pen&&c.type==='pig'&&c.fatted)scale*=1.15;          // plump pigs are visibly bigger
       const w=A[2]*scale,h=A[3]*scale;
       if(c.type!=='bird'&&c.type!=='duck'){cx.fillStyle='rgba(0,0,0,.18)';cx.beginPath();cx.ellipse(sx,sy+h*.42,w*.32,2.2*z,0,0,7);cx.fill();}
       cx.save();cx.translate(sx,sy);cx.scale((c.fx2||1)>0?-1:1,1);   // Sunnyside animals face LEFT natively
       cx.drawImage(atlasImg,A[0]+idx*A[2],A[1],A[2],A[3],-w/2,-h*.55,w,h);
       cx.restore();
+      if(c.pen&&c.type==='sheep'&&c.ready){   // shear-ready: extra wool puff + scissors sparkle
+        cx.fillStyle='#f4f1e8';cx.strokeStyle='#c9c4b4';cx.lineWidth=1;
+        for(const[ox,oy]of[[-4,-8],[2,-9],[-1,-6]]){cx.beginPath();cx.arc(sx+ox*z*.5,sy+oy*z*.4,3*z*.5,0,7);cx.fill();cx.stroke();}
+        cx.font=(9*z)+'px serif';cx.textAlign='center';cx.textBaseline='middle';cx.fillText('✂️',sx,sy-13*z);
+      }
       continue;
     }
     cx.fillStyle='rgba(0,0,0,.18)';cx.beginPath();cx.ellipse(sx,sy+4*z,4.5*z,1.8*z,0,0,7);cx.fill();
@@ -3793,7 +4086,7 @@ async function boot(){
     try{ni.blur();if(document.activeElement&&document.activeElement.blur)document.activeElement.blur()}catch(e){}
     for(const k in keys)keys[k]=false;
     document.getElementById('splash').style.display='none';
-    if(!had||S.villagers.length===0){const a=makeVillager(),b2=makeVillager();a.home='hall';b2.home='hall';toast('Two villagers await your orders 👥')}
+    if(!had||S.villagers.length===0){const a=makeVillager(),b2=makeVillager();a.home='hall';b2.home='hall';stampHall();toast('Two villagers await your orders 👥')}
     renderHUD();renderBuildBar();renderQuest();renderSnd();chatLastT=now();
     syncWorld().then(()=>{syncPresence();syncBuildings();syncGifts();syncChat();syncWonder()});
     netConnect();
@@ -3834,7 +4127,7 @@ async function setSail(){
     try{clearTimeout(legacyTimer);await store.set('legacy-v1',S.legacy,false)}catch(e){}
   }
   const inv={tool:S.inv.tool||0};   // a fresh island means a fresh economy — only tools (needed to keep villagers geared) survive the crossing
-  const crew=S.villagers.slice(0,3).map(v=>({name:v.name,color:v.color,job:'idle',hasTool:v.hasTool,xp:v.xp||0,home:null,hungry:false,perk:v.perk||null}));
+  const crew=S.villagers.slice(0,3).map(v=>({name:v.name,color:v.color,job:'idle',hasTool:v.hasTool,xp:v.xp||0,txp:v.txp||0,home:null,hungry:false,perk:v.perk||null}));
   await store.set('save-v1',{island:ISLAND+1,inv,name:S.me.name,id:S.me.id,x:null,y:null,score:S.score,won:false,msgShown:(()=>{const m={...S.msgShown};delete m.monu;return m})(),quest:0,stats:{g:{},b:{},jobs:0},muted:S.muted,wonderRewarded:false,monu:null,playSec:S.playSec,town:{tier:0},lastMeal:Math.floor(now()/1000/DAYLEN),villagers:crew,buildings:[]});
   try{localStorage.setItem('emberpine:p:island',String(ISLAND+1))}catch(e){}
   location.reload();
