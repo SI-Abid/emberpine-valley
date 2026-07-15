@@ -975,8 +975,11 @@ function playerTick(dt){
     for(const id in S.others){const o=S.others[id];if(id!==S.me.id&&now()-o.t<70000&&Math.hypot((o.dx!==undefined?o.dx:o.x)-S.me.x,(o.dy!==undefined?o.dy:o.y)-S.me.y)<4){buddy=true;break}}
     if(buddy&&Math.random()<dt*1.5)parts.push({x:S.me.x+(Math.random()-.5),y:S.me.y-1+(Math.random()-.5)*.5,vx:0,vy:-.4,life:.9,max:.9,color:'#ffe9a0',sz:2});
     const sp=4.4*dt*(onPath(S.me.x,S.me.y)?1.35:1)*(buddy?1.05:1)*(feastOn()?1.1:1),nx=S.me.x+dx*sp,ny=S.me.y+dy*sp;
-    if(passable(Math.floor(nx),Math.floor(S.me.y)))S.me.x=nx;
-    if(passable(Math.floor(S.me.x),Math.floor(ny)))S.me.y=ny;
+    // a step is fine if it lands on a passable tile OR stays inside the current tile — the
+    // latter lets you walk OUT when something solid materialized under your feet (another
+    // settler's building arriving over the relay), without allowing tunneling through walls
+    if(passable(Math.floor(nx),Math.floor(S.me.y))||Math.floor(nx)===Math.floor(S.me.x))S.me.x=nx;
+    if(passable(Math.floor(S.me.x),Math.floor(ny))||Math.floor(ny)===Math.floor(S.me.y))S.me.y=ny;
     if(S.legacy)S.legacy.tiles+=sp;
   }
   {
