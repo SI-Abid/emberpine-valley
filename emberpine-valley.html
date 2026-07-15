@@ -338,7 +338,7 @@
     <span id="restoreForm" style="display:none"><input id="codeInput" placeholder="ACORN-OTTER-BIRCH-MOSS-FERN"><button id="restoreBtn">Restore</button></span>
   </div>
   <div id="onlineRow"></div>
-  <div class="fine">Gather wood &amp; stone · assign villagers to jobs · chain sawmills, smelters, docks and bakeries into a humming little industry · follow the Guild Charter · raise the Monument. Day turns to night, rain rolls in, traders wander through — lay stone paths, plant torches so the guild works after dark, race for glimmering relics — and raise the shared Valley Wonder with every settler on the server.<br>
+  <div class="fine">Gather wood &amp; stone · raise profession homes to bring the villagers you need · chain sawmills, smelters, docks and bakeries into a humming little industry · follow the Guild Charter · raise the Monument. Day turns to night, rain rolls in, traders wander through — lay stone paths, plant torches so the guild works after dark, race for glimmering relics — and raise the shared Valley Wonder with every settler on the server.<br>
   Your name, position and score are shared with other players exploring this same valley.</div>
 </div></div>
 
@@ -540,15 +540,24 @@ const RES_INFO={
   flax:{yield:'flax',n:2,time:1.4,emoji:'🌿'}
 };
 const JOBS={
-  idle:{label:'🛌 Idle',finds:null},
-  woodcutter:{label:'🪓 Woodcutter',finds:'tree'},
-  miner:{label:'⛏️ Miner',finds:['stone','iron','clay','sand','gold']},
+  idle:{label:'🥴 Nitwit',finds:null},
+  woodcutter:{label:'🪓 Lumberjack',finds:'tree'},
+  miner:{label:'⛏️ Mason',finds:['stone','iron','clay','sand','gold']},
   forager:{label:'🫐 Forager',finds:['berry','flax']},
   farmer:{label:'🌾 Farmer',finds:'farm'},
-  fisher:{label:'🎣 Fisher',finds:'dock'},
-  hunter:{label:'🏹 Hunter',finds:null},
+  fisher:{label:'🎣 Fisherman',finds:'dock'},
+  hunter:{label:'🔪 Butcher',finds:null},
   hauler:{label:'📦 Hauler',finds:null},
   guard:{label:'🛡️ Guard',finds:null},
+  shepherd:{label:'🐑 Shepherd',finds:null},
+  toolsmith:{label:'🔧 Toolsmith',finds:null,craft:1},
+  weaponsmith:{label:'⚔️ Weaponsmith',finds:null,craft:1},
+  armorer:{label:'🪖 Armorer',finds:null,craft:1},
+  leatherworker:{label:'🧳 Leatherworker',finds:null,craft:1},
+  librarian:{label:'📚 Librarian',finds:null,craft:1},
+  cleric:{label:'✨ Cleric',finds:null,craft:1},
+  fletcher:{label:'🏹 Fletcher',finds:null,craft:1},
+  cartographer:{label:'🗺️ Cartographer',finds:null,craft:1},
 };
 const BUILDS={
   sawmill:{name:'Sawmill',ico:'🪚',cost:{wood:20},desc:'2 wood → 1 plank / 4s',rate:4},
@@ -570,9 +579,27 @@ const BUILDS={
   crate:{name:'Storage Shed',ico:'🛖',cost:{plank:4,wood:2},desc:'Workers stash goods here (holds 16) — haulers ferry them to the Hall. +30 town storage'},
   warehouse:{name:'Warehouse',ico:'🏬',cost:{plank:14,stone:10},desc:'+150 town storage — upgradeable to Lv6 (+1300)'},
   market:{name:'Market Stall',ico:'🏪',cost:{plank:12,cloth:6},desc:'Post trade offers to the valley board — other settlers can buy them any time',civic:true},
-  cottage:{name:'Cottage',ico:'🐱',cost:{plank:6,stone:2},desc:'A home for 1 settler — settlers move in when built',home:true,cap:1},
-  house:{name:'House',ico:'🏠',cost:{plank:12,stone:6,bread:4},desc:'A home for 2 settlers',home:true,cap:2},
-  manor:{name:'Manor',ico:'🏛',cost:{brick:20,glass:8,bread:6},desc:'A home for 3 settlers',home:true,cap:3},
+  cottage:{name:'Cottage',ico:'🐱',cost:{plank:6,stone:2},desc:'A home for 1 settler — settlers move in when built',home:true,cap:1,legacy:true},
+  house:{name:'House',ico:'🏠',cost:{plank:12,stone:6,bread:4},desc:'A home for 2 settlers',home:true,cap:2,legacy:true},
+  manor:{name:'Manor',ico:'🏛',cost:{brick:20,glass:8,bread:6},desc:'A home for 3 settlers',home:true,cap:3,legacy:true},
+  // profession homes — placing one brings a villager of that profession (M: Professions & Pastures)
+  lumberlodge:{name:'Lumberjack Lodge',ico:'🪓',cost:{wood:12,stone:2},desc:'Home for a Lumberjack — fells trees for wood',home:true,cap:1,prof:'woodcutter'},
+  foragerhut:{name:'Forager Hut',ico:'🫐',cost:{wood:8,stone:2},desc:'Home for a Forager — picks berries and flax',home:true,cap:1,prof:'forager'},
+  farmhouse:{name:'Farmhouse',ico:'🌾',cost:{plank:6,stone:2},desc:'Home for a Farmer — tends your farms and collects eggs',home:true,cap:1,prof:'farmer'},
+  fishershack:{name:'Fisherman Shack',ico:'🎣',cost:{plank:6,wood:4},desc:'Home for a Fisherman — casts lines at your docks',home:true,cap:1,prof:'fisher'},
+  masonhouse:{name:'Mason House',ico:'⛏️',cost:{plank:6,stone:4},desc:'Home for a Mason — quarries stone, ore, clay, sand and gold',home:true,cap:1,prof:'miner'},
+  butchery:{name:'Butchery',ico:'🔪',cost:{plank:8,stone:4},desc:'Home for a Butcher — hunts wild game and butchers fattened pigs',home:true,cap:1,prof:'hunter'},
+  shepherdhut:{name:'Shepherd Hut',ico:'🐑',cost:{plank:6,wood:6},desc:'Home for a Shepherd — tends sheep pens and shears wool',home:true,cap:1,prof:'shepherd'},
+  haulerpost:{name:'Hauler Post',ico:'📦',cost:{plank:6,stone:2},desc:'Home for a Hauler — ferries goods from sheds to the Hall',home:true,cap:1,prof:'hauler'},
+  guardhouse:{name:'Guardhouse',ico:'🛡️',cost:{plank:8,stone:6},desc:'Home for a Guard — patrols the Hall and fights raiders',home:true,cap:1,prof:'guard'},
+  toolsmithy:{name:'Toolsmith House',ico:'🔧',cost:{plank:10,ingot:2},desc:'Home for a Toolsmith — barters tools and metal',home:true,cap:1,prof:'toolsmith'},
+  weaponsmithy:{name:'Weaponsmith House',ico:'⚔️',cost:{plank:10,ingot:3},desc:'Home for a Weaponsmith — barters arms-grade metal',home:true,cap:1,prof:'weaponsmith'},
+  armory:{name:'Armorer House',ico:'🪖',cost:{stone:12,ingot:3},desc:'Home for an Armorer — barters leather and heavy gear',home:true,cap:1,prof:'armorer'},
+  leatherhouse:{name:'Leatherworker House',ico:'🧳',cost:{plank:8,hide:2},desc:'Home for a Leatherworker — barters hides, rope and cloth',home:true,cap:1,prof:'leatherworker'},
+  library:{name:'Librarian House',ico:'📚',cost:{plank:12,glass:2},desc:'Home for a Librarian — trades in learned goods',home:true,cap:1,prof:'librarian'},
+  clerichouse:{name:'Cleric House',ico:'✨',cost:{brick:8,glass:2},desc:'Home for a Cleric — blesses offerings into rarities',home:true,cap:1,prof:'cleric'},
+  fletcherhouse:{name:'Fletcher House',ico:'🏹',cost:{plank:8,wood:8},desc:'Home for a Fletcher — barters around the hunt',home:true,cap:1,prof:'fletcher'},
+  maproom:{name:'Cartographer House',ico:'🗺️',cost:{plank:10,cloth:2},desc:'Home for a Cartographer — trades survey finds: clay, sand, gold ore',home:true,cap:1,prof:'cartographer'},
   well:{name:'Well',ico:'⛲',cost:{stone:10},desc:'Fresh water for the town — required to reach Village',civic:true},
   tavern:{name:'Tavern',ico:'🍺',cost:{plank:16,bread:8},desc:'Songs and suppers — required to reach Town',civic:true},
   plaza:{name:'Plaza',ico:'🎪',cost:{stone:12,plank:6},desc:'A gathering square — required to reach Town',civic:true},
@@ -864,9 +891,12 @@ function villagerTick(v,dt){
   }
   v.wander-=dt;
   if(v.wander<=0){v.wander=2+hash2(v.id,now()%9999,1)*4;
+    // craftsmen & shepherds idle near their own home; everyone else drifts around the Hall
+    const hb=(v.home&&v.home!=='hall'&&S.buildings[v.home]);
+    const anc=((JOBS[v.job]&&JOBS[v.job].craft||v.job==='shepherd')&&hb)?hb:HALL;
     const nx=(v.x|0)+((Math.random()*3)|0)-1,ny=(v.y|0)+((Math.random()*3)|0)-1;
-    if(passable(nx,ny)&&Math.abs(nx-HALL.x)<7&&Math.abs(ny-HALL.y)<7)v.path=[{x:nx+.5,y:ny+.5}];
-    else if((Math.abs(v.x-HALL.x)>=7||Math.abs(v.y-HALL.y)>=7)&&(!v.homeTry||now()>=v.homeTry)){const ph=findPath(v.x,v.y,HALL.x,HALL.y,true);if(ph){v.homeTry=0;v.path=ph}else v.homeTry=now()+10000;}
+    if(passable(nx,ny)&&Math.abs(nx-anc.x)<7&&Math.abs(ny-anc.y)<7)v.path=[{x:nx+.5,y:ny+.5}];
+    else if((Math.abs(v.x-anc.x)>=7||Math.abs(v.y-anc.y)>=7)&&(!v.homeTry||now()>=v.homeTry)){const ph=findPath(v.x,v.y,anc.x,anc.y,true);if(ph){v.homeTry=0;v.path=ph}else v.homeTry=now()+10000;}
   }
 }
 
@@ -890,16 +920,38 @@ const RECIPES={
   gilder:[{in:{goldbar:1,glass:1},out:'ornament'},{in:{goldbar:2,cloth:1},out:'crown'}],
 };
 function countB(type){let n=0;for(const k in S.buildings)if(S.buildings[k].type===type&&S.buildings[k].mine)n++;return n}
+function anyProfHome(){for(const k in S.buildings){const b=S.buildings[k];if(b.mine&&BUILDS[b.type]&&BUILDS[b.type].prof)return true}return false}
 function popCap(){let cap=2;for(const k in S.buildings){const b=S.buildings[k];if(b.mine&&BUILDS[b.type]&&BUILDS[b.type].home)cap+=BUILDS[b.type].cap}return cap}
 function homeless(){return S.villagers.filter(v=>!v.home||(v.home!=='hall'&&!S.buildings[v.home]))}
+function professionAt(bKey){   // the job a home confers, or null for legacy/hall homes
+  const b=bKey==='hall'?null:S.buildings[bKey];
+  return (b&&BUILDS[b.type]&&BUILDS[b.type].prof)||null;
+}
+function stampProf(v,bKey){   // give a villager the profession of the home they just moved into
+  const p=professionAt(bKey);
+  if(p&&v.job!==p){v.job=p;v.state='idle';v.path=[];v.target=null;v.work=0}
+}
 function moveIn(bKey){
   const b=S.buildings[bKey];if(!b||!BUILDS[b.type]||!BUILDS[b.type].home)return;
   let free=BUILDS[b.type].cap - S.villagers.filter(v=>v.home===bKey).length - S.spawnQ.filter(q=>q.home===bKey).length;
   if(free<=0)return;
   const hs=homeless().sort((a,c)=>((a.x-b.x)**2+(a.y-b.y)**2)-((c.x-b.x)**2+(c.y-b.y)**2));
-  for(const v of hs){if(free<=0)break;v.home=bKey;free--}
+  for(const v of hs){if(free<=0)break;v.home=bKey;stampProf(v,bKey);free--}
   for(let i=0;i<free;i++)S.spawnQ.push({home:bKey,in:2*(i+1)*iMod('recruit')});
   renderRoster();
+}
+// the Hall's two residents keep the village bootable: first a Lumberjack, then a Forager.
+// Only ever upgrades Nitwits — a returning save's professions are never overridden.
+function hallProf(){
+  const hv=S.villagers.filter(v=>v.home==='hall'||!v.home);
+  if(!hv.some(v=>v.job==='woodcutter'))return 'woodcutter';
+  if(!hv.some(v=>v.job==='forager'))return 'forager';
+  return 'idle';
+}
+function stampHall(){
+  for(const v of S.villagers){
+    if((v.home==='hall'||!v.home)&&v.job==='idle'){const p=hallProf();if(p!=='idle')v.job=p;}
+  }
 }
 
 function reconcileHousing(){
@@ -916,7 +968,10 @@ function spawnQueueTick(dt){
       S.spawnQ.splice(i,1);
       const b=q.home==='hall'?HALL:S.buildings[q.home];if(!b)continue;
       const v=makeVillager();v.home=q.home;
-      toast('👋 '+v.name+' joins the guild!');sfx('recruit');
+      v.job=professionAt(q.home)||(q.home==='hall'?hallProf():'idle');
+      v.state='idle';v.path=[];v.target=null;
+      const jl=JOBS[v.job]?JOBS[v.job].label:'🥴 Nitwit';
+      toast('👋 '+v.name+' the '+jl.replace(/^\S+\s/,'')+' joins the guild!');sfx('recruit');
       spawnBurst(b.x,b.y,'#ffe9b8',8);
       renderHUD();questTick();checkTownTier();saveSoon();
     }
@@ -998,7 +1053,7 @@ function playerTick(dt){
       markRemoved(h.x,h.y);
       toast('+'+info.n+' '+NICE[info.yield]);
       S.me.harvest=null;
-      firstTime('gather','Nice! Open the 👥 Villagers panel to put someone else on the job.');
+      firstTime('gather','Nice! Build a 🪓 Lumberjack Lodge and a villager moves in to chop wood for you.');
     }
   }
   S.cam.x+=(S.me.x-S.cam.x)*Math.min(1,dt*5);
@@ -1037,7 +1092,7 @@ function placeBuilding(type,x,y){
     toast(MONUMENT_STAGES[1].banner);
     firstTime('monu','Walk to the Monument 🗿 and click it to contribute goods to the next era.');
   }
-  if(type==='farm')firstTime('farm','Assign a villager as 🌾 Farmer and they\u2019ll work your farm.');
+  if(type==='farm')firstTime('farm','Build a 🌾 Farmhouse and its Farmer will work this farm and collect eggs.');
   if(type==='monument')S.buildSel=null;      // monument leaves the bar once placed
   checkTownTier();beautyDirty();beautyTick();
   renderBuildBar();saveSoon();
@@ -1346,6 +1401,21 @@ const FAB={
   const tw=Math.sin(now()/260+sy);if(tw>.6){cx.fillStyle='#fff';cx.beginPath();cx.arc(sx+sz*.6,sy+sz*.16,1.8,0,7);cx.fill()}
  },
 };
+// profession homes share one cottage-like body with a colored roof + a hanging trade sign (the ico emoji)
+function fabProfHouse(roof,emoji){
+  return function(b,sx,sy,sz){
+    const r=fabBase(sx,sy,sz,.66,.36,'#e8dcc0');fabRoof(r,sz*.22,roof);fabDoor(r,'#7a5836');
+    // little sign board beside the door showing the profession emoji
+    const bx=r.x+r.w*.72,by=r.y+r.h*.36;
+    cx.fillStyle='#c9a15a';cx.strokeStyle='#2b2620';cx.lineWidth=1.3;
+    cx.fillRect(bx,by,sz*.2,sz*.2);cx.strokeRect(bx,by,sz*.2,sz*.2);
+    cx.font=(sz*.17)+'px serif';cx.textAlign='center';cx.textBaseline='middle';
+    cx.fillText(emoji,bx+sz*.1,by+sz*.11);
+  };
+}
+const PROF_ROOF={lumberlodge:'#7a5836',foragerhut:'#6a8a4a',farmhouse:'#c9a54a',fishershack:'#4a8aa0',masonhouse:'#8a8680',butchery:'#b0563b',shepherdhut:'#6aa06a',haulerpost:'#a8783f',guardhouse:'#5b6b8c',
+  toolsmithy:'#8a8680',weaponsmithy:'#6b6b74',armory:'#7a8290',leatherhouse:'#a86f3a',library:'#8a6ba0',clerichouse:'#b58fb0',fletcherhouse:'#6a8a4a',maproom:'#c9a15a'};
+for(const t in BUILDS)if(BUILDS[t].prof&&!FAB[t])FAB[t]=fabProfHouse(PROF_ROOF[t]||'#a8783f',BUILDS[t].ico);
 function drawBuilding(b,sx,sy,sz){
   if(b.type==='path'){
     // connection-aware: merge flush with neighboring paths, inset only on open sides
@@ -1490,7 +1560,7 @@ function drawMonument(b,sx,sy,sz){
     cx.font=(sz*.5)+'px serif';cx.textAlign='center';cx.textBaseline='middle';cx.fillText('🚩',sx+sz/2,sy+sz*.45);
   }
 }
-const JOBANIM={woodcutter:'axe',miner:'mining',farmer:'watering',forager:'dig',fisher:'casting',hauler:'carry',guard:'attack',hunter:'attack'};
+const JOBANIM={woodcutter:'axe',miner:'mining',farmer:'watering',forager:'dig',fisher:'casting',hauler:'carry',guard:'attack',hunter:'attack',shepherd:'dig'};
 function drawPerson(px,py,color,name,isMe,working,ghost,anim,dir){
   const z=ZOOM, sx=(px-S.cam.x)*TSZ+VW/2, sy=(py-S.cam.y)*TSZ+VH/2;
   if(sx<-40||sy<-40||sx>VW+40||sy>VH+40)return;
@@ -1777,6 +1847,10 @@ function iconHTML(k,cls){return '<span class="ic'+(cls?' '+cls:'')+'" title="'+(
 const iconImg={};
 function preloadIcons(){for(const k in ICON_SVG){const im=new Image();im.onload=()=>{im.ready=true};im.src='data:image/svg+xml;utf8,'+encodeURIComponent(ICON_SVG[k]);iconImg[k]=im}}
 function drawIcon(c2,k,px,py,sz){const im=iconImg[k]||iconImg._missing;if(!im||!im.ready)return false;c2.drawImage(im,px-sz/2,py-sz/2,sz,sz);return true}
+// build-bar icons for the 17 profession homes: a shared house silhouette with the profession emoji as a door sign
+for(const t in BUILDS)if(BUILDS[t].prof&&!ICON_SVG[t]){
+  ICON_SVG[t]='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 12 12 4 20 12z" fill="#b07c46" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><rect x="6" y="12" width="12" height="9" fill="#f0e6c8" stroke="#2b2620" stroke-width="2"/><text x="12" y="19" font-size="7" text-anchor="middle">'+BUILDS[t].ico+'</text></svg>';
+}
 preloadIcons();
 
 /* ============ UI ============ */
@@ -1888,8 +1962,9 @@ function firstTime(k,msg){if(S.msgShown[k])return;S.msgShown[k]=1;toast('💡 '+
 
 /* build bar */
 function costStr(c){return Object.entries(c).map(([k,v])=>'<span class="cp">'+v+' '+iconHTML(k)+'</span>').join(' ')}
-const ERA={kiln:1,glassworks:1,forge:1,loom:2,gilder:2};
-const TIER={house:1,manor:2,tavern:1,plaza:1,chapel:2,statue:2,watchtower:1,warehouse:1,market:1};
+const ERA={kiln:1,glassworks:1,forge:1,loom:2,gilder:2,library:1,clerichouse:2};
+const TIER={house:1,manor:2,tavern:1,plaza:1,chapel:2,statue:2,watchtower:1,warehouse:1,market:1,
+  toolsmithy:1,weaponsmithy:1,fletcherhouse:1,leatherhouse:1,armory:2,library:2,maproom:2,clerichouse:2};
 const NEXT_HOME={cottage:'house',house:'manor'};
 const TOWN_TIERS=[
  {tier:'Hamlet',emoji:'⛺',ok:()=>true,bonus:0},
@@ -1951,7 +2026,8 @@ function beautyTick(){
 // listed here still appears, bucketed into a fallback "Other" category, so a forgotten
 // registration is visible rather than unbuildable.
 const BUILD_CATS={
-  homes:{label:'Homes',ico:'🏠',types:['cottage','house','manor']},
+  homes:{label:'Homes',ico:'🏠',types:['lumberlodge','foragerhut','farmhouse','fishershack','masonhouse','butchery','shepherdhut','haulerpost','guardhouse']},
+  crafts:{label:'Crafters',ico:'🔧',types:['toolsmithy','weaponsmithy','armory','leatherhouse','fletcherhouse','library','clerichouse','maproom']},
   production:{label:'Production',ico:'⚙️',types:['sawmill','smelter','farm','dock','bakery','smokehouse','workshop','kiln','glassworks','forge','loom','gilder','fishmonger']},
   civic:{label:'Civic',ico:'⛲',types:['well','tavern','plaza','chapel','statue','watchtower','market']},
   infra:{label:'Infra',ico:'🛤️',types:['torch','path','crate','warehouse']},
@@ -1961,7 +2037,7 @@ const BUILD_CATS={
 function buildCatList(){
   const known=new Set();
   for(const c in BUILD_CATS)for(const t of BUILD_CATS[c].types)known.add(t);
-  const stray=Object.keys(BUILDS).filter(t=>!known.has(t));
+  const stray=Object.keys(BUILDS).filter(t=>!known.has(t)&&!BUILDS[t].legacy);
   const list=Object.entries(BUILD_CATS).map(([key,c])=>({key,label:c.label,ico:c.ico,types:c.types}));
   if(stray.length)list.push({key:'other',label:'Other',ico:'❔',types:stray});
   return list;
@@ -2074,6 +2150,9 @@ function demolishBuilding(b){
   for(const[k,v]of Object.entries(B.cost))S.inv[k]=(S.inv[k]||0)+Math.floor(v/2);
   S.score=Math.max(0,S.score-(b.sv||15));    // reclaim ALL construction/upgrade score: no farming
   if(B.home)S.spawnQ=S.spawnQ.filter(q=>q.home!==kk);
+  if(B.home)for(const v of S.villagers)if(v.home===kk){v.home=null;
+    if(B.prof){v.job='idle';v.state='idle';v.path=[];v.target=null;v.work=0;toast('🥴 '+v.name.split(' ')[0]+' is out of work — a Nitwit until rehoused')}
+  }
   delete S.buildings[kk];
   spawnBurst(b.x,b.y,'#9a978e',8);
   sfx('chop');
@@ -2356,8 +2435,9 @@ async function loadGame(){
   if(s.monu) S.monu=s.monu;
   else if(Object.values(S.buildings).some(b=>b.type==='monument')) S.monu={stage:2,given:{},lit:false}; // v1 migration: Foundation complete
   else S.monu=null;
-  for(const vs of (s.villagers||[])){const v=makeVillager();v.name=vs.name;v.color=vs.color;v.job=vs.job;v.hasTool=vs.hasTool;v.xp=vs.xp||0;v.home=vs.home||null;v.hungry=!!vs.hungry;v.perk=vs.perk||null}
+  for(const vs of (s.villagers||[])){const v=makeVillager();v.name=vs.name;v.color=vs.color;v.job=JOBS[vs.job]?vs.job:'idle';v.hasTool=vs.hasTool;v.xp=vs.xp||0;v.home=vs.home||null;v.hungry=!!vs.hungry;v.perk=vs.perk||null}
   reconcileHousing();
+  stampHall();
   checkTownTier();
   return true;
 }
@@ -3047,7 +3127,7 @@ function renderTrader(){
 const QUESTS=[
  {t:'Gather 10 wood',icon:'\u{1FAB5}',p:()=>[Math.min(10,S.stats.g.wood||0),10],c:()=>(S.stats.g.wood||0)>=10,r:{berry:5}},
  {t:'Build a Sawmill',icon:'\u{1FA9A}',p:()=>[S.stats.b.sawmill?1:0,1],c:()=>!!S.stats.b.sawmill,r:{wood:10}},
- {t:'Assign a villager a job',icon:'\u{1F465}',p:()=>[Math.min(1,S.stats.jobs||0),1],c:()=>(S.stats.jobs||0)>=1,r:{stone:6}},
+ {t:'Build a profession home',icon:'\u{1F465}',p:()=>[anyProfHome()||(S.stats.jobs||0)>=1?1:0,1],c:()=>anyProfHome()||(S.stats.jobs||0)>=1,r:{stone:6}},
  {t:'Grow the guild to 3 settlers',icon:'\u26FA',p:()=>[Math.min(3,S.villagers.length),3],c:()=>S.villagers.length>=3,r:{plank:6}},
  {t:'Smelt 3 ingots',icon:'\u{1F525}',p:()=>[Math.min(3,S.stats.g.ingot||0),3],c:()=>(S.stats.g.ingot||0)>=3,r:{ore:6}},
  {t:'Bake 3 bread',icon:'\u{1F35E}',p:()=>[Math.min(3,S.stats.g.bread||0),3],c:()=>(S.stats.g.bread||0)>=3,r:{wheat:4}},
@@ -3059,7 +3139,7 @@ const QUESTS=[
  {t:'Craft an ornament',icon:'\u{1F48E}',p:()=>[Math.min(1,S.stats.g.ornament||0),1],c:()=>(S.stats.g.ornament||0)>=1,r:{bread:5}},
  {t:'Raise the Spire',icon:'\u{1F5FC}',p:()=>[completedStages()>=4?1:0,1],c:()=>completedStages()>=4,r:{bread:10}},
  {t:'Light the Eternal Flame',icon:'\u{1F525}',p:()=>[S.won?1:0,1],c:()=>!!S.won,r:null},
- {t:'Build a cottage',icon:'⛺',p:()=>[countB('cottage')>0?1:0,1],c:()=>countB('cottage')>0,r:{plank:4}},
+ {t:'Build a Farmhouse',icon:'\u{1F33E}',p:()=>[countB('farmhouse')>0||countB('cottage')>0?1:0,1],c:()=>countB('farmhouse')>0||countB('cottage')>0,r:{plank:4}},
  {t:'House 4 settlers',icon:'\u{1F3E0}',p:()=>[Math.min(4,S.villagers.filter(v=>v.home&&v.home!=='hall').length),4],c:()=>S.villagers.filter(v=>v.home&&v.home!=='hall').length>=4,r:{berry:6}},
  {t:'Dig a well and reach Village',icon:'⛲',p:()=>[S.town.tier>=1?1:0,1],c:()=>S.town.tier>=1,r:{stone:8}},
  {t:'Keep everyone fed for a full day',icon:'\u{1F35E}',p:()=>[S.stats.fedDay?1:0,1],c:()=>!!S.stats.fedDay,r:{bread:5}},
@@ -3793,7 +3873,7 @@ async function boot(){
     try{ni.blur();if(document.activeElement&&document.activeElement.blur)document.activeElement.blur()}catch(e){}
     for(const k in keys)keys[k]=false;
     document.getElementById('splash').style.display='none';
-    if(!had||S.villagers.length===0){const a=makeVillager(),b2=makeVillager();a.home='hall';b2.home='hall';toast('Two villagers await your orders 👥')}
+    if(!had||S.villagers.length===0){const a=makeVillager(),b2=makeVillager();a.home='hall';b2.home='hall';stampHall();toast('Two villagers await your orders 👥')}
     renderHUD();renderBuildBar();renderQuest();renderSnd();chatLastT=now();
     syncWorld().then(()=>{syncPresence();syncBuildings();syncGifts();syncChat();syncWonder()});
     netConnect();
