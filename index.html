@@ -1480,10 +1480,27 @@ function fabProfHouse(roof,emoji,wall){
     cx.font=(sz*.15)+'px serif';cx.textAlign='center';cx.textBaseline='middle';cx.fillText(emoji,cxm,sgy+sg*.44);
   };
 }
-// per-trade roof + a faint wall tint so each home reads distinct even before the sign
+// per-trade roof (used only by the procedural fallback if the atlas isn't ready)
 const PROF_ROOF={lumberlodge:'#7a5836',foragerhut:'#6a8a4a',farmhouse:'#c9a54a',fishershack:'#4a8aa0',masonhouse:'#8a8680',butchery:'#b0563b',shepherdhut:'#6aa06a',haulerpost:'#a8783f',guardhouse:'#5b6b8c',
   toolsmithy:'#8a8680',weaponsmithy:'#6b6b74',armory:'#7a8290',leatherhouse:'#a86f3a',library:'#8a6ba0',clerichouse:'#b58fb0',fletcherhouse:'#6a8a4a',maproom:'#c9a15a'};
 for(const t in BUILDS)if(BUILDS[t].prof&&!FAB[t])FAB[t]=fabProfHouse(PROF_ROOF[t]||'#a8783f',BUILDS[t].ico);
+// PRIMARY look for profession homes: reuse the game's real pixel-art house sprites, themed
+// for variety (rustic cottage / sturdy house / grand manor / tavern), with a small trade
+// emblem so each trade is identifiable. Falls back to the procedural cottage if the atlas
+// is still loading. drawBuilding resolves this before FAB.
+const PROF_FRAME={
+  lumberlodge:'bld_cottage',foragerhut:'bld_cottage',farmhouse:'bld_house',fishershack:'bld_cottage',
+  masonhouse:'bld_house',butchery:'bld_house',shepherdhut:'bld_cottage',haulerpost:'bld_cottage',guardhouse:'bld_tavern',
+  toolsmithy:'bld_house',weaponsmithy:'bld_house',armory:'bld_house',leatherhouse:'bld_house',
+  library:'bld_manor',clerichouse:'bld_manor',fletcherhouse:'bld_cottage',maproom:'bld_manor'};
+function drawProfEmblem(sx,sy,sz,emoji){   // a small wood-framed shop emblem at the upper-right eave
+  const bx=sx+sz*.82,by=sy+sz*.26,r=sz*.15;
+  cx.save();
+  cx.fillStyle='rgba(0,0,0,.18)';cx.beginPath();cx.arc(bx+1,by+1.5,r,0,7);cx.fill();
+  cx.fillStyle='#f3e6c4';cx.strokeStyle='#2b2620';cx.lineWidth=1.4;cx.beginPath();cx.arc(bx,by,r,0,7);cx.fill();cx.stroke();
+  cx.font=(sz*.17)+'px serif';cx.textAlign='center';cx.textBaseline='middle';cx.fillText(emoji,bx,by+sz*.008);
+  cx.restore();
+}
 // pens: a proper post-and-rail enclosure with a feed trough (real animals roam beside it)
 function fabPen(emoji,ground){
   return function(b,sx,sy,sz){
@@ -1544,12 +1561,14 @@ function drawBuilding(b,sx,sy,sz){
   }
   if(b.type==='monument'){drawMonument(b,sx,sy,sz);return;}
   if(BUILDS[b.type]&&BUILDS[b.type].decor){drawDecor(b,sx,sy,sz);return;}
-  const bf=ATLAS_FRAMES&&ATLAS_FRAMES['bld_'+b.type];
+  const isProf=BUILDS[b.type]&&BUILDS[b.type].prof;
+  const bf=ATLAS_FRAMES&&(ATLAS_FRAMES['bld_'+b.type]||(isProf&&ATLAS_FRAMES[PROF_FRAME[b.type]||'bld_cottage']));
   if(atlasReady&&bf){                       // compact 3/4-view sprite: 1 tile wide, roof extends up
     const bh=sz*bf[3]/16;
     const flat=b.type==='farm'||b.type==='dock'||b.type==='plaza';
     if(!flat){cx.fillStyle='rgba(0,0,0,.22)';cx.beginPath();cx.ellipse(sx+sz/2,sy+sz*.85,sz*.42,sz*.11,0,0,7);cx.fill()}
     cx.drawImage(atlasImg,bf[0],bf[1],bf[2],bf[3],sx,sy+sz-bh,sz,bh);
+    if(isProf)drawProfEmblem(sx,sy,sz,BUILDS[b.type].ico);
     if(b.type==='crate'){const tot=Object.values(b.store||{}).reduce((a,c2)=>a+c2,0);
       cx.fillStyle='#2b2620';cx.fillRect(sx+5,sy+sz-6,sz-10,4);
       cx.fillStyle='#e8a33d';cx.fillRect(sx+5,sy+sz-6,(sz-10)*Math.min(1,tot/16),4);}
