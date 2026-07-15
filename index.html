@@ -610,6 +610,9 @@ const BUILDS={
   clerichouse:{name:'Cleric House',ico:'✨',cost:{brick:8,glass:2},desc:'Home for a Cleric — blesses offerings into rarities',home:true,cap:1,prof:'cleric'},
   fletcherhouse:{name:'Fletcher House',ico:'🏹',cost:{plank:8,wood:8},desc:'Home for a Fletcher — barters around the hunt',home:true,cap:1,prof:'fletcher'},
   maproom:{name:'Cartographer House',ico:'🗺️',cost:{plank:10,cloth:2},desc:'Home for a Cartographer — trades survey finds: clay, sand, gold ore',home:true,cap:1,prof:'cartographer'},
+  sheeppen:{name:'Sheep Pen',ico:'🐑',cost:{wood:14,plank:4},desc:'Sheep graze here — a Shepherd shears their wool (also click a fluffy sheep to shear)',pen:'sheep'},
+  pigpen:{name:'Pig Pen',ico:'🐖',cost:{wood:14,plank:4},desc:'Pigs fatten here — a Butcher turns plump ones into meat & hide',pen:'pig'},
+  fence:{name:'Fence',ico:'🪵',cost:{wood:2},desc:'A stout rail fence — keeps the yard tidy (blocks walking)'},
   well:{name:'Well',ico:'⛲',cost:{stone:10},desc:'Fresh water for the town — required to reach Village',civic:true},
   tavern:{name:'Tavern',ico:'🍺',cost:{plank:16,bread:8},desc:'Songs and suppers — required to reach Town',civic:true},
   plaza:{name:'Plaza',ico:'🎪',cost:{stone:12,plank:6},desc:'A gathering square — required to reach Town',civic:true},
@@ -775,14 +778,38 @@ function villagerTick(v,dt){
     }
     // state==='toHall': fall through so goods are delivered at the hall; sleep starts next tick
   } else if(v.state==='sleep'||v.state==='toHome'){v.state='idle';v.inside=false}
-  if(v.job==='hunter'&&!v.carry){
+  if(v.job==='shepherd'&&!v.carry){   // shear ready penned sheep, carry wool home
     let tg=null,bd=13*13;
-    if((S.inv.meat||0)<goodCap()&&invTotal()<storeCap())   // meat larder full → stand down
+    if((S.inv.wool||0)<goodCap()&&invTotal()<storeCap())
     for(const c of critters){
-      if(!c.wild||c.type==='bird')continue;
-      if(terrAt(Math.floor(c.x),Math.floor(c.y))===0&&!frozenNow())continue;  // no swimming after ducks
+      if(!c.pen||c.type!=='sheep'||!c.ready)continue;
       const d=(c.x-v.x)**2+(c.y-v.y)**2;if(d<bd){bd=d;tg=c}
     }
+    if(tg){
+      const d=Math.sqrt(bd);
+      if(d<1.05){
+        v.state='working';v.work=(v.work||0)+dt;
+        if(v.work>=1.2){v.work=0;tg.ready=0;tg.wool=24+Math.random()*20;v.carry={what:'wool',n:2};v.state='idle';spawnBurst(tg.x-.5,tg.y-.5,'#f0ede4',6)}   // idle (not working) so the carry routes to delivery, never gets hijacked by the resource block
+      }else{
+        v.state='toWork';const inv=1/Math.max(.2,d);
+        const nx2=v.x+(tg.x-v.x)*inv*spd*dt,ny2=v.y+(tg.y-v.y)*inv*spd*dt;
+        if(passable(Math.floor(nx2),Math.floor(v.y)))v.x=nx2;
+        if(passable(Math.floor(v.x),Math.floor(ny2)))v.y=ny2;
+        if(Math.abs(tg.x-v.x)>.05)v.fx=(tg.x-v.x)<0?-1:1;
+      }
+      return;
+    }
+    if(v.state==='working'||v.state==='toWork')v.state='idle';
+  }
+  if(v.job==='hunter'&&!v.carry){
+    let tg=null,bd=13*13,tgPen=false;
+    if((S.inv.meat||0)<goodCap()&&invTotal()<storeCap()){   // meat larder full → stand down
+    for(const c of critters){
+      const pig=c.pen&&c.type==='pig'&&c.fatted;
+      if(!pig){if(!c.wild||c.type==='bird')continue;
+        if(terrAt(Math.floor(c.x),Math.floor(c.y))===0&&!frozenNow())continue;}  // no swimming after ducks
+      const d=(c.x-v.x)**2+(c.y-v.y)**2;if(d<bd){bd=d;tg=c;tgPen=pig}
+    }}
     if(tg){
       const d=Math.sqrt(bd);
       if(d<1.05){
@@ -926,7 +953,7 @@ const RECIPES={
   kiln:[{in:{clay:2,wood:1},out:'brick'},{in:{clay:2,wood:1},out:'brick'},{in:{wood:2},out:'charcoal'}],
   glassworks:{in:{sand:2,wood:1},out:'glass'},
   forge:[{in:{ingot:2,plank:1},out:'beam'},{in:{ingot:1,charcoal:2},out:'beam'}],
-  loom:[{in:{flax:2},out:'cloth'},{in:{flax:2},out:'rope'}],
+  loom:[{in:{flax:2},out:'cloth'},{in:{flax:2},out:'rope'},{in:{wool:2},out:'cloth'}],
   gilder:[{in:{goldbar:1,glass:1},out:'ornament'},{in:{goldbar:2,cloth:1},out:'crown'}],
 };
 function countB(type){let n=0;for(const k in S.buildings)if(S.buildings[k].type===type&&S.buildings[k].mine)n++;return n}
@@ -1426,6 +1453,37 @@ function fabProfHouse(roof,emoji){
 const PROF_ROOF={lumberlodge:'#7a5836',foragerhut:'#6a8a4a',farmhouse:'#c9a54a',fishershack:'#4a8aa0',masonhouse:'#8a8680',butchery:'#b0563b',shepherdhut:'#6aa06a',haulerpost:'#a8783f',guardhouse:'#5b6b8c',
   toolsmithy:'#8a8680',weaponsmithy:'#6b6b74',armory:'#7a8290',leatherhouse:'#a86f3a',library:'#8a6ba0',clerichouse:'#b58fb0',fletcherhouse:'#6a8a4a',maproom:'#c9a15a'};
 for(const t in BUILDS)if(BUILDS[t].prof&&!FAB[t])FAB[t]=fabProfHouse(PROF_ROOF[t]||'#a8783f',BUILDS[t].ico);
+// pens: a low rail enclosure with a feed trough + the animal emoji
+function fabPen(emoji,ground){
+  return function(b,sx,sy,sz){
+    cx.fillStyle=ground;cx.strokeStyle='#2b2620';cx.lineWidth=1.5;
+    cx.fillRect(sx+sz*.1,sy+sz*.34,sz*.8,sz*.5);cx.strokeRect(sx+sz*.1,sy+sz*.34,sz*.8,sz*.5);
+    // corner posts
+    cx.fillStyle='#8a6b45';
+    for(const[px,py]of[[.1,.34],[.9,.34],[.1,.84],[.9,.84]])cx.fillRect(sx+sz*px-2,sy+sz*py-3,4,6);
+    // top rail
+    cx.strokeStyle='#a8783f';cx.lineWidth=2;cx.beginPath();cx.moveTo(sx+sz*.1,sy+sz*.44);cx.lineTo(sx+sz*.9,sy+sz*.44);cx.stroke();
+    // trough
+    cx.fillStyle='#6b4f30';cx.fillRect(sx+sz*.2,sy+sz*.7,sz*.24,sz*.08);
+    cx.font=(sz*.32)+'px serif';cx.textAlign='center';cx.textBaseline='middle';cx.fillText(emoji,sx+sz*.62,sy+sz*.58);
+  };
+}
+FAB.sheeppen=fabPen('🐑','#dfe6cf');
+FAB.pigpen=fabPen('🐖','#d9c8b0');
+FAB.fence=function(b,sx,sy,sz){   // connection-aware: rails reach toward neighboring fences
+  const isF=(dx,dy)=>{const nb=S.buildings[key(b.x+dx,b.y+dy)];return !!nb&&nb.type==='fence'};
+  const cN=isF(0,-1),cS=isF(0,1),cW=isF(-1,0),cE=isF(1,0), cxm=sx+sz/2, cym=sy+sz*.5, any=cN||cS||cW||cE;
+  cx.strokeStyle='#a8783f';cx.lineWidth=Math.max(2.5,sz*.11);cx.lineCap='round';
+  cx.beginPath();
+  if(cW||!any){cx.moveTo(sx,cym);cx.lineTo(cxm,cym)}
+  if(cE||!any){cx.moveTo(cxm,cym);cx.lineTo(sx+sz,cym)}
+  if(cN){cx.moveTo(cxm,sy);cx.lineTo(cxm,cym)}
+  if(cS){cx.moveTo(cxm,cym);cx.lineTo(cxm,sy+sz)}
+  cx.stroke();
+  // center post
+  cx.fillStyle='#8a6b45';cx.strokeStyle='#2b2620';cx.lineWidth=1.4;
+  cx.fillRect(cxm-2.5,cym-sz*.24,5,sz*.34);cx.strokeRect(cxm-2.5,cym-sz*.24,5,sz*.34);
+};
 function drawBuilding(b,sx,sy,sz){
   if(b.type==='path'){
     // connection-aware: merge flush with neighboring paths, inset only on open sides
@@ -1810,6 +1868,7 @@ const ICON_SVG={
  ornament:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 9h16l-8 12z" fill="#f4c542" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><path d="M4 9h16l-4-5H8z" fill="#e8a33d" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><path d="M12 9v12M8 9l4 12M16 9l-4 12" stroke="#2b2620" stroke-width="1" opacity=".5"/></svg>',
  meat:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 14c0-5 4-9 9-9 4 0 7 2.5 7 6 0 4-4 7-9 7-4 0-7-1.5-7-4z" fill="#b0563b" stroke="#2b2620" stroke-width="2"/><path d="M8 12c1.5-2.5 4-4 7-4" fill="none" stroke="#d98a6a" stroke-width="1.8" stroke-linecap="round"/><circle cx="5.5" cy="17.5" r="2.6" fill="#f0e6c8" stroke="#2b2620" stroke-width="2"/></svg>',
  hide:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 4c2-2 10-2 12 0l2 5-2 4 2 4-3 3c-3 2-7 2-10 0l-3-3 2-4-2-4z" fill="#c9915a" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><path d="M9 8c2 1 4 1 6 0M9 13c2 1 4 1 6 0" fill="none" stroke="#8a6b45" stroke-width="1.5" stroke-linecap="round"/></svg>',
+ wool:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="9" cy="10" r="5" fill="#f0ede4" stroke="#2b2620" stroke-width="2"/><circle cx="15" cy="10" r="5" fill="#f0ede4" stroke="#2b2620" stroke-width="2"/><circle cx="12" cy="15" r="5" fill="#f0ede4" stroke="#2b2620" stroke-width="2"/><path d="M7 9c1 1 3 1 4 0M13 9c1 1 3 1 4 0M10 14c1 1 3 1 4 0" fill="none" stroke="#c9c4b4" stroke-width="1.3" stroke-linecap="round"/></svg>',
  roast:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 13c0-4 4-7 9-7s9 3 9 7-4 6-9 6-9-2-9-6z" fill="#a86f3a" stroke="#2b2620" stroke-width="2"/><path d="M7 11c1.5-1.5 3.5-2.3 5.5-2.3" fill="none" stroke="#e0b070" stroke-width="1.8" stroke-linecap="round"/><path d="M9 4.5c.6.9.6 1.7 0 2.6M12.5 3.5c.6.9.6 1.7 0 2.6M16 4.5c.6.9.6 1.7 0 2.6" fill="none" stroke="#8d8a80" stroke-width="1.4" stroke-linecap="round"/></svg>',
  charcoal:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M5 18 3 12l5-5 6-2 7 4-1 7-6 3z" fill="#3a3630" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><path d="M8 7l3 5-4 5M14 5l1 6 5 2" fill="none" stroke="#5a544c" stroke-width="1.4"/><circle cx="11" cy="13" r="1.2" fill="#e8663d"/></svg>',
  rope:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7.5" fill="none" stroke="#c9a468" stroke-width="4.4"/><circle cx="12" cy="12" r="7.5" fill="none" stroke="#2b2620" stroke-width="1.4" stroke-dasharray="3 2.4"/><circle cx="12" cy="12" r="3" fill="none" stroke="#8a6b45" stroke-width="1.4"/><path d="M18.5 15.5 21 20" stroke="#c9a468" stroke-width="3.4" stroke-linecap="round"/><path d="M18.5 15.5 21 20" stroke="#2b2620" stroke-width="1" stroke-dasharray="2.4 2"/></svg>',
@@ -1865,14 +1924,14 @@ preloadIcons();
 
 /* ============ UI ============ */
 const ICONS={wood:'🪵',stone:'🪨',ore:'⚙️',berry:'🫐',fish:'🐟',egg:'🥚',plank:'📏',ingot:'🔩',wheat:'🌾',bread:'🍞',tool:'🛠️'
- ,clay:'🟤',sand:'⏳',goldore:'🟡',flax:'🌿',brick:'🧱',glass:'🪟',beam:'🏗️',cloth:'🧵',goldbar:'🪙',ornament:'💎'};
+ ,clay:'🟤',sand:'⏳',goldore:'🟡',flax:'🌿',brick:'🧱',glass:'🪟',beam:'🏗️',cloth:'🧵',goldbar:'🪙',ornament:'💎',wool:'🧶'};
 const NICE={wood:'Wood',stone:'Stone',ore:'Ore',berry:'Berries',fish:'Fish',egg:'Eggs',plank:'Planks',ingot:'Ingots',wheat:'Wheat',bread:'Bread',tool:'Tools'
  ,clay:'Clay',sand:'Sand',goldore:'Gold Ore',flax:'Flax',brick:'Brick',glass:'Glass',beam:'Steel Beam',cloth:'Cloth',goldbar:'Gold Bar',ornament:'Ornament',villagers:'Villagers'
- ,meat:'Meat',hide:'Hide',roast:'Roast',charcoal:'Charcoal',rope:'Rope',leather:'Leather',pie:'Pie',backpack:'Backpack',crown:'Crown'
+ ,meat:'Meat',hide:'Hide',roast:'Roast',charcoal:'Charcoal',rope:'Rope',leather:'Leather',pie:'Pie',backpack:'Backpack',crown:'Crown',wool:'Wool'
  ,flowerbed:'Flower Bed',hedge:'Hedge',lamppost:'Lamp Post',bench:'Bench',fountain:'Fountain',banner:'Banner',gnome:'Garden Gnome'};
 const hud=document.getElementById('hud');
 const RAW=['wood','stone','ore','berry','fish','egg'],CRAFT=['plank','ingot','wheat','bread','tool'];
-const NEWRAW=['clay','sand','goldore','flax','meat','hide'], NEWCRAFT=['brick','glass','beam','cloth','goldbar','ornament','roast','charcoal','rope','leather','pie','backpack','crown'];
+const NEWRAW=['clay','sand','goldore','flax','meat','hide','wool'], NEWCRAFT=['brick','glass','beam','cloth','goldbar','ornament','roast','charcoal','rope','leather','pie','backpack','crown'];
 function ownsGood(k){return (S.inv[k]||0)>0 || (S.stats.g[k]||0)>0}
 function chipHtml(k){return '<div class="res" id="res-'+k+'" title="'+NICE[k]+'">'+iconHTML(k,'ico')+S.inv[k]+'</div>'}
 const HUD_PIN=['wood','stone','plank','bread'];
@@ -2038,9 +2097,9 @@ function beautyTick(){
 const BUILD_CATS={
   homes:{label:'Homes',ico:'🏠',types:['lumberlodge','foragerhut','farmhouse','fishershack','masonhouse','butchery','shepherdhut','haulerpost','guardhouse']},
   crafts:{label:'Crafters',ico:'🔧',types:['toolsmithy','weaponsmithy','armory','leatherhouse','fletcherhouse','library','clerichouse','maproom']},
-  production:{label:'Production',ico:'⚙️',types:['sawmill','smelter','farm','dock','bakery','smokehouse','workshop','kiln','glassworks','forge','loom','gilder','fishmonger']},
+  production:{label:'Production',ico:'⚙️',types:['sawmill','smelter','farm','dock','sheeppen','pigpen','bakery','smokehouse','workshop','kiln','glassworks','forge','loom','gilder','fishmonger']},
   civic:{label:'Civic',ico:'⛲',types:['well','tavern','plaza','chapel','statue','watchtower','market']},
-  infra:{label:'Infra',ico:'🛤️',types:['torch','path','crate','warehouse']},
+  infra:{label:'Infra',ico:'🛤️',types:['torch','path','fence','crate','warehouse']},
   decor:{label:'Decor',ico:'🌷',types:['flowerbed','hedge','lamppost','bench','fountain','banner','gnome']},
   monument:{label:'Monument',ico:'🗿',types:['monument']},
 };
@@ -2396,6 +2455,10 @@ cv.addEventListener('click',e=>{
   let pc=null,pd=.9;
   for(const c of critters){if(c.type==='bird')continue;const d=Math.hypot(c.x-(t.x+.5),c.y-(t.y+.5));if(d<pd){pd=d;pc=c}}
   if(pc&&Math.hypot(t.x+.5-S.me.x,t.y+.5-S.me.y)<2.5){
+    if(pc.pen&&pc.type==='sheep'&&pc.ready){   // shear a fluffy sheep for wool
+      gain('wool',2);pc.ready=0;pc.wool=24+Math.random()*20;
+      spawnBurst(pc.x-.5,pc.y-.5,'#f0ede4',6);sfx('pick');toast('+2 🧶 Wool');return;
+    }
     if(S.legacy){S.legacy.pets=(S.legacy.pets||0)+1;saveLegacySoon()}
     spawnBurst(pc.x-.5,pc.y-.5,'#e86a8a',5);sfx('chat');achTick();return;
   }
@@ -3305,6 +3368,7 @@ const ACH=[
  {id:'pet_1',t:'New Best Friend',i:'🐔',cat:'Secret',secret:1,d:'Pet an animal',c:()=>L().pets>=1,s:15},
  {id:'trade_v1',t:'Local Custom',i:'🤝',cat:'Social',d:'Barter with one of your craftsman villagers',c:()=>(L().vtrades||0)>=1,s:15},
  {id:'trade_master',t:'Master of Coin',i:'💰',cat:'Social',d:'Raise a villager to Master trader',c:()=>!!L().masterTrader,s:75},
+ {id:'pen_full',t:'Animal Farm',i:'🐖',cat:'Building',d:'Keep 6 penned animals at once',c:()=>critters.filter(c=>c.pen).length>=6,s:40},
 ];
 let achBusy=false,achT=0;
 function achTick(){
@@ -3765,6 +3829,17 @@ function critterTick(dt){
     const f=farms[(Math.random()*farms.length)|0];
     critters.push({type:'chicken',x:f.x+.5,y:f.y+1.3,hx:f.x+.5,hy:f.y+.5,vx:0,vy:0,t:0,lay:14+Math.random()*22});
   }
+  // penned livestock: sheep grow wool, pigs fatten — owned, roaming beside their pen (like chickens by a farm)
+  for(const kind of ['sheep','pig']){
+    const myPens=Object.values(S.buildings).filter(b=>b.mine&&BUILDS[b.type]&&BUILDS[b.type].pen===kind);
+    if(!myPens.length)continue;
+    const n=critters.reduce((a,c)=>a+((c.type===kind&&c.pen)?1:0),0);
+    if(n<Math.min(6,myPens.length*2)&&Math.random()<dt*.22){
+      const p=myPens[(Math.random()*myPens.length)|0];
+      critters.push({type:kind,pen:1,x:p.x+.5,y:p.y+1.3,hx:p.x+.5,hy:p.y+.5,vx:0,vy:0,t:0,fx2:1,
+        wool:kind==='sheep'?24+Math.random()*20:undefined, fat:kind==='pig'?0:undefined});
+    }
+  }
   const wild=critters.reduce((a,c)=>a+(c.wild?1:0),0);
   if(wild<7&&Math.random()<dt*.16){
     const a=Math.random()*6.283,r=10+Math.random()*8;
@@ -3808,8 +3883,14 @@ function critterTick(dt){
       if(c.t<=0){c.t=.8+Math.random();
         c.vx=(Math.random()-.5)*.9+(c.hx-c.x)*.25;c.vy=(Math.random()-.5)*.9+(c.hy-c.y)*.25}
       if(Math.abs(c.vx)>.05)c.fx2=c.vx<0?-1:1;
-      c.lay-=dt;
-      if(c.lay<=0){c.lay=18+Math.random()*24;if(eggs.length<8)eggs.push({x:c.x,y:c.y+.2})}
+      if(c.type==='chicken'){
+        c.lay-=dt;
+        if(c.lay<=0){c.lay=18+Math.random()*24;if(eggs.length<8)eggs.push({x:c.x,y:c.y+.2})}
+      }else if(c.type==='sheep'&&c.pen){
+        if(!c.ready){c.wool-=dt;if(c.wool<=0){c.wool=0;c.ready=1}}   // grows fluffy, then shear-ready
+      }else if(c.type==='pig'&&c.pen){
+        if(!c.fatted){c.fat=(c.fat||0)+dt;if(c.fat>=45)c.fatted=1}   // fattens, then ready for the butcher
+      }
     }
     const nx=c.x+c.vx*dt,ny=c.y+c.vy*dt;
     const ok=c.type==='duck'?((x2,y2)=>terrAt(x2,y2)===0):passable;
@@ -3861,12 +3942,18 @@ function drawCritters(){
       const moving=Math.hypot(c.vx||0,c.vy||0)>.12;
       const rate=c.type==='bird'?90:(moving?140:340);          // flap fast, walk medium, graze slow
       const idx=Math.floor(now()/rate+(c.life||0))%A[4];
-      const scale=(A[3]<=16?1.0:0.9)*z;                        // small strips 1 tile-ish, big ones slightly under
+      let scale=(A[3]<=16?1.0:0.9)*z;                          // small strips 1 tile-ish, big ones slightly under
+      if(c.pen&&c.type==='pig'&&c.fatted)scale*=1.15;          // plump pigs are visibly bigger
       const w=A[2]*scale,h=A[3]*scale;
       if(c.type!=='bird'&&c.type!=='duck'){cx.fillStyle='rgba(0,0,0,.18)';cx.beginPath();cx.ellipse(sx,sy+h*.42,w*.32,2.2*z,0,0,7);cx.fill();}
       cx.save();cx.translate(sx,sy);cx.scale((c.fx2||1)>0?-1:1,1);   // Sunnyside animals face LEFT natively
       cx.drawImage(atlasImg,A[0]+idx*A[2],A[1],A[2],A[3],-w/2,-h*.55,w,h);
       cx.restore();
+      if(c.pen&&c.type==='sheep'&&c.ready){   // shear-ready: extra wool puff + scissors sparkle
+        cx.fillStyle='#f4f1e8';cx.strokeStyle='#c9c4b4';cx.lineWidth=1;
+        for(const[ox,oy]of[[-4,-8],[2,-9],[-1,-6]]){cx.beginPath();cx.arc(sx+ox*z*.5,sy+oy*z*.4,3*z*.5,0,7);cx.fill();cx.stroke();}
+        cx.font=(9*z)+'px serif';cx.textAlign='center';cx.textBaseline='middle';cx.fillText('✂️',sx,sy-13*z);
+      }
       continue;
     }
     cx.fillStyle='rgba(0,0,0,.18)';cx.beginPath();cx.ellipse(sx,sy+4*z,4.5*z,1.8*z,0,0,7);cx.fill();
