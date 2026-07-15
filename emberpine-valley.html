@@ -1629,7 +1629,32 @@ function drawMonument(b,sx,sy,sz){
   }
 }
 const JOBANIM={woodcutter:'axe',miner:'mining',farmer:'watering',forager:'dig',fisher:'casting',hauler:'carry',guard:'attack',hunter:'attack',shepherd:'dig'};
-function drawPerson(px,py,color,name,isMe,working,ghost,anim,dir){
+// per-profession headwear: each fn draws in a space translated to the head anchor, scaled by z.
+// units are ~pixels around (0,0)=crown of the head. Kept to a few ink-outlined ops, FAB-style.
+const HAT_INK='#2b2620';
+function hStroke(w){cx.strokeStyle=HAT_INK;cx.lineWidth=w||1.2}
+const HATS={
+  woodcutter:z=>{cx.fillStyle='#e8663d';cx.beginPath();cx.arc(0,-2*z,4.4*z,Math.PI,0);cx.fill();hStroke();cx.stroke();cx.fillStyle='#c9542f';cx.fillRect(-4.4*z,-2.2*z,8.8*z,1.6*z);cx.strokeRect(-4.4*z,-2.2*z,8.8*z,1.6*z)},
+  miner:z=>{cx.fillStyle='#9a978e';cx.fillRect(-4.2*z,-4*z,8.4*z,2.4*z);hStroke();cx.strokeRect(-4.2*z,-4*z,8.4*z,2.4*z);cx.fillStyle='#8a8680';cx.fillRect(-5.4*z,-2*z,10.8*z,1.4*z);cx.strokeRect(-5.4*z,-2*z,10.8*z,1.4*z)},
+  farmer:z=>{cx.fillStyle='#e0c98a';cx.beginPath();cx.ellipse(0,-1.6*z,6.6*z,1.8*z,0,0,7);cx.fill();hStroke();cx.stroke();cx.beginPath();cx.arc(0,-2.6*z,3.4*z,Math.PI,0);cx.fill();cx.stroke();cx.strokeStyle='#b58f4a';cx.beginPath();cx.moveTo(-3.4*z,-2.2*z);cx.lineTo(3.4*z,-2.2*z);cx.stroke()},
+  fisher:z=>{cx.fillStyle='#f4c542';cx.beginPath();cx.moveTo(-3.6*z,-1.6*z);cx.lineTo(-2.8*z,-5*z);cx.lineTo(2.8*z,-5*z);cx.lineTo(3.6*z,-1.6*z);cx.closePath();cx.fill();hStroke();cx.stroke()},
+  forager:z=>{cx.strokeStyle='#5aa06a';cx.lineWidth=1.6;cx.beginPath();cx.arc(0,-2*z,4.2*z,Math.PI,0);cx.stroke();cx.fillStyle='#e86a8a';cx.beginPath();cx.arc(-3*z,-3.4*z,1.2*z,0,7);cx.fill();cx.fillStyle='#f4c542';cx.beginPath();cx.arc(2.6*z,-3.6*z,1.1*z,0,7);cx.fill()},
+  hunter:z=>{cx.fillStyle='#f0ede4';cx.beginPath();cx.arc(0,-2*z,4.2*z,Math.PI,0);cx.fill();hStroke();cx.stroke();cx.fillStyle='#b0563b';cx.fillRect(-4.2*z,-2.2*z,8.4*z,1.5*z);cx.strokeRect(-4.2*z,-2.2*z,8.4*z,1.5*z)},
+  shepherd:z=>{cx.fillStyle='#5aa06a';cx.beginPath();cx.ellipse(0,-1.8*z,5.6*z,1.6*z,0,0,7);cx.fill();hStroke();cx.stroke();cx.beginPath();cx.arc(0,-2.6*z,3.2*z,Math.PI,0);cx.fill();cx.stroke()},
+  hauler:z=>{cx.fillStyle='#8a6b45';cx.fillRect(-4.4*z,-3*z,8.8*z,1.8*z);hStroke();cx.strokeRect(-4.4*z,-3*z,8.8*z,1.8*z)},
+  guard:z=>{cx.fillStyle='#9aa2ad';cx.beginPath();cx.arc(0,-2.2*z,4.4*z,Math.PI,0);cx.fill();hStroke();cx.stroke();cx.fillStyle='#8a929d';cx.fillRect(-.9*z,-3*z,1.8*z,3.4*z);cx.strokeRect(-.9*z,-3*z,1.8*z,3.4*z)},
+  toolsmith:z=>{cx.fillStyle='#a86f3a';cx.beginPath();cx.moveTo(-4.6*z,-1.4*z);cx.quadraticCurveTo(0,-2.4*z,4.6*z,-1.4*z);cx.lineTo(4.6*z,-.4*z);cx.lineTo(-4.6*z,-.4*z);cx.closePath();cx.fill();hStroke();cx.stroke()},
+  weaponsmith:z=>{cx.fillStyle='#3a3630';cx.beginPath();cx.arc(0,-2*z,4.2*z,Math.PI,0);cx.fill();hStroke();cx.stroke();cx.strokeStyle='#3a3630';cx.lineWidth=1.8;cx.beginPath();cx.moveTo(3.8*z,-1.8*z);cx.lineTo(6*z,-3*z);cx.stroke()},
+  armorer:z=>{cx.fillStyle='#7a8290';cx.beginPath();cx.arc(0,-2.2*z,4.4*z,Math.PI,0);cx.fill();hStroke();cx.stroke();cx.strokeStyle='#b0563b';cx.lineWidth=1.8;cx.beginPath();cx.moveTo(0,-6.2*z);cx.lineTo(0,-2.6*z);cx.stroke()},
+  leatherworker:z=>{cx.fillStyle='#8a5a33';cx.beginPath();cx.ellipse(0,-1.8*z,6*z,1.6*z,0,0,7);cx.fill();hStroke();cx.stroke();cx.beginPath();cx.arc(0,-2.6*z,3*z,Math.PI,0);cx.fill();cx.stroke()},
+  librarian:z=>{hStroke(1.4);cx.beginPath();cx.arc(-1.9*z,-.4*z,1.5*z,0,7);cx.moveTo(1.9*z+1.5*z,-.4*z);cx.arc(1.9*z,-.4*z,1.5*z,0,7);cx.moveTo(-.4*z,-.4*z);cx.lineTo(.4*z,-.4*z);cx.stroke()},
+  cleric:z=>{cx.fillStyle='#6a5a86';cx.beginPath();cx.arc(0,-1.4*z,4.8*z,Math.PI,0);cx.fill();hStroke();cx.stroke();cx.beginPath();cx.moveTo(-4.8*z,-1.4*z);cx.quadraticCurveTo(0,-3.6*z,0,-.4*z);cx.stroke()},
+  fletcher:z=>{cx.fillStyle='#5aa06a';cx.beginPath();cx.arc(0,-2*z,4*z,Math.PI,0);cx.fill();hStroke();cx.stroke();cx.strokeStyle='#f4c542';cx.lineWidth=1.6;cx.beginPath();cx.moveTo(2.4*z,-3*z);cx.lineTo(6.2*z,-5.4*z);cx.stroke()},
+  cartographer:z=>{cx.fillStyle='#c9a15a';cx.fillRect(-4.6*z,-2.4*z,9.2*z,1.6*z);hStroke();cx.strokeRect(-4.6*z,-2.4*z,9.2*z,1.6*z);cx.beginPath();cx.moveTo(-4.6*z,-2.4*z);cx.lineTo(-3*z,-4*z);cx.moveTo(4.6*z,-2.4*z);cx.lineTo(3*z,-4*z);cx.stroke()},
+  idle:null,
+};
+function drawHat(job,ax,ay,z){const h=job&&HATS[job];if(!h)return;cx.save();cx.translate(ax,ay);h(z);cx.restore()}
+function drawPerson(px,py,color,name,isMe,working,ghost,anim,dir,job){
   const z=ZOOM, sx=(px-S.cam.x)*TSZ+VW/2, sy=(py-S.cam.y)*TSZ+VH/2;
   if(sx<-40||sy<-40||sx>VW+40||sy>VH+40)return;
   const A=atlasReady&&ATLAS_FRAMES['char_'+(anim||'idle')];
@@ -1643,6 +1668,7 @@ function drawPerson(px,py,color,name,isMe,working,ghost,anim,dir){
     cx.save();if(ghost)cx.globalAlpha=.65;
     cx.fillStyle=color;cx.beginPath();cx.arc(sx,sy-24*z,2.6*z,0,7);cx.fill();
     cx.strokeStyle='#2b2620';cx.lineWidth=1;cx.stroke();
+    drawHat(job,sx,sy-15.5*z,1.5*z);   // sit the hat on the sprite's actual head, not the floating id-dot
     const fs2=Math.max(8,10*z);
     cx.font='700 '+fs2+'px Nunito';cx.textAlign='center';cx.textBaseline='bottom';
     cx.fillStyle='rgba(20,24,18,.75)';cx.fillText(name,sx+1,sy-27*z+1);
@@ -1658,6 +1684,7 @@ function drawPerson(px,py,color,name,isMe,working,ghost,anim,dir){
   cx.strokeStyle='#2b2620';cx.lineWidth=1.5;cx.strokeRect(sx-5*z,sy-8*z+bob,10*z,13*z);
   cx.fillStyle=color;cx.beginPath();cx.arc(sx,sy-11*z+bob,6*z,0,7);cx.fill();cx.stroke();
   cx.fillStyle='#2b2620';cx.fillRect(sx-2.5*z,sy-11*z+bob,1.8*z,1.8*z);cx.fillRect(sx+1*z,sy-11*z+bob,1.8*z,1.8*z);
+  drawHat(job,sx,sy-15*z+bob,z);
   const fs=Math.max(8,10*z);
   cx.font='700 '+fs+'px Nunito';cx.textAlign='center';cx.textBaseline='bottom';
   cx.fillStyle='rgba(20,24,18,.75)';cx.fillText(name,sx+1,sy-19*z+bob+1);
@@ -1727,7 +1754,7 @@ function render(){
       cx.beginPath();cx.arc(vsx,vsy,15*ZOOM,0,7);cx.stroke();cx.setLineDash([]);
     }
     const vAnim=v.state==='working'?(JOBANIM[v.job]||'axe'):((v.path&&v.path.length)?'walk':'idle');
-    drawPerson(v.x,v.y,v.color,v.name.split(' ')[0]+' \u00B7 '+JOBS[v.job].label.slice(0,2),false,v.state==='working',false,vAnim,v.fx||1);
+    drawPerson(v.x,v.y,v.color,v.name.split(' ')[0]+' \u00B7 '+(JOBS[v.job]||JOBS.idle).label.slice(0,2),false,v.state==='working',false,vAnim,v.fx||1,v.job);
     if(v.state==='working'){const info=RES_INFO[v.target?.type||'tree'];drawProgress(v.x,v.y,v.work/info.time,info.emoji)}
   });}
   const drawGobAt=(g)=>{
