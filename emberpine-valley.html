@@ -1723,7 +1723,7 @@ function drawPerson(px,py,color,name,isMe,working,ghost,anim,dir,job){
     cx.save();if(ghost)cx.globalAlpha=.65;
     cx.fillStyle=color;cx.beginPath();cx.arc(sx,sy-24*z,2.6*z,0,7);cx.fill();
     cx.strokeStyle='#2b2620';cx.lineWidth=1;cx.stroke();
-    drawHat(job,sx,sy-15.5*z,1.5*z);   // sit the hat on the sprite's actual head, not the floating id-dot
+    drawHat(job,sx,sy-9.5*z,1.3*z);   // sit the hat on the sprite's actual head, not the floating id-dot
     const fs2=Math.max(8,10*z);
     cx.font='700 '+fs2+'px Nunito';cx.textAlign='center';cx.textBaseline='bottom';
     cx.fillStyle='rgba(20,24,18,.75)';cx.fillText(name,sx+1,sy-27*z+1);
@@ -1739,7 +1739,7 @@ function drawPerson(px,py,color,name,isMe,working,ghost,anim,dir,job){
   cx.strokeStyle='#2b2620';cx.lineWidth=1.5;cx.strokeRect(sx-5*z,sy-8*z+bob,10*z,13*z);
   cx.fillStyle=color;cx.beginPath();cx.arc(sx,sy-11*z+bob,6*z,0,7);cx.fill();cx.stroke();
   cx.fillStyle='#2b2620';cx.fillRect(sx-2.5*z,sy-11*z+bob,1.8*z,1.8*z);cx.fillRect(sx+1*z,sy-11*z+bob,1.8*z,1.8*z);
-  drawHat(job,sx,sy-15*z+bob,z);
+  drawHat(job,sx,sy-13*z+bob,z);
   const fs=Math.max(8,10*z);
   cx.font='700 '+fs+'px Nunito';cx.textAlign='center';cx.textBaseline='bottom';
   cx.fillStyle='rgba(20,24,18,.75)';cx.fillText(name,sx+1,sy-19*z+bob+1);
