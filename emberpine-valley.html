@@ -99,6 +99,14 @@
   #popup .jobs{display:grid;grid-template-columns:1fr 1fr;gap:6px}
   .jbtn{padding:7px 4px;border-radius:8px;border:2px solid var(--ink);background:#fff8e6;font-weight:800;font-size:12px}
   .jbtn.sel{background:var(--amber)}
+  .vtrades{margin-top:6px}
+  .vtHead{font-size:11px;font-weight:800;margin-bottom:5px}
+  .vtBar{height:6px;border:1.5px solid var(--ink);border-radius:4px;background:#fff8e6;overflow:hidden;margin-top:3px}
+  .vtFill{height:100%;background:var(--amber)}
+  .vtOffer{display:flex;align-items:center;justify-content:center;gap:5px;width:100%;margin:4px 0;padding:5px 8px;border:2px solid var(--ink);border-radius:8px;background:#fff8e6;font-weight:800;font-size:12px;cursor:pointer}
+  .vtOffer .cp{white-space:nowrap}
+  .vtArr{opacity:.6}
+  .vtOffer.vtNo{opacity:.45;cursor:not-allowed}
   #popup .close{position:absolute;top:4px;right:8px;border:none;background:none;font-size:16px;font-weight:800}
   #popup .desc{font-size:11px;font-weight:700;line-height:1.45;margin-top:8px;opacity:.8;text-align:center}
 
@@ -2420,7 +2428,7 @@ function saveSoon(){clearTimeout(saveTimer);saveTimer=setTimeout(saveGame,1200)}
 async function saveGame(){
   await store.set('save-v1',{island:ISLAND,raid:S.raid,inv:S.inv,name:S.me.name,id:S.me.id,x:S.me.x,y:S.me.y,score:S.score,won:S.won,msgShown:S.msgShown,quest:S.quest,stats:S.stats,muted:S.muted,wonderRewarded:!!S.wonderRewarded,
     monu:S.monu, playSec:S.playSec, town:S.town, lastMeal:S.lastMeal,
-    villagers:S.villagers.map(v=>({name:v.name,color:v.color,job:v.job,hasTool:v.hasTool,xp:v.xp||0,home:v.home||null,hungry:!!v.hungry,perk:v.perk||null})),
+    villagers:S.villagers.map(v=>({name:v.name,color:v.color,job:v.job,hasTool:v.hasTool,xp:v.xp||0,txp:v.txp||0,home:v.home||null,hungry:!!v.hungry,perk:v.perk||null})),
     buildings:Object.values(S.buildings).filter(b=>b.mine).map(b=>({type:b.type,x:b.x,y:b.y,store:b.store,sv:b.sv,bt:b.bt||0,lvl:b.lvl||1}))});
 }
 async function loadGame(){
@@ -2440,7 +2448,7 @@ async function loadGame(){
   if(s.monu) S.monu=s.monu;
   else if(Object.values(S.buildings).some(b=>b.type==='monument')) S.monu={stage:2,given:{},lit:false}; // v1 migration: Foundation complete
   else S.monu=null;
-  for(const vs of (s.villagers||[])){const v=makeVillager();v.name=vs.name;v.color=vs.color;v.job=JOBS[vs.job]?vs.job:'idle';v.hasTool=vs.hasTool;v.xp=vs.xp||0;v.home=vs.home||null;v.hungry=!!vs.hungry;v.perk=vs.perk||null}
+  for(const vs of (s.villagers||[])){const v=makeVillager();v.name=vs.name;v.color=vs.color;v.job=JOBS[vs.job]?vs.job:'idle';v.hasTool=vs.hasTool;v.xp=vs.xp||0;v.txp=vs.txp||0;v.home=vs.home||null;v.hungry=!!vs.hungry;v.perk=vs.perk||null}
   reconcileHousing();
   stampHall();
   checkTownTier();
@@ -3086,6 +3094,90 @@ function drawParts(){
   for(const r of rainFx){cx.strokeStyle='rgba(190,210,235,.45)';cx.lineWidth=1.2;cx.beginPath();cx.moveTo(r.x,r.y);cx.lineTo(r.x-3,r.y-13);cx.stroke()}
 }
 const TRADES=[{give:{wood:12},get:{ingot:3}},{give:{stone:10},get:{plank:5}},{give:{berry:10},get:{wheat:6}},{give:{fish:6},get:{bread:4}},{give:{plank:8},get:{ore:8}},{give:{bread:3},get:{tool:1}},{give:{egg:6},get:{bread:4}},{give:{brick:10},get:{glass:6}},{give:{cloth:8},get:{ornament:1}},{give:{wood:15},get:{clay:4}},{give:{glass:6},get:{goldbar:2}},{give:{fish:10},get:{goldbar:1}},{give:{fish:15},get:{ornament:1}},{give:{meat:10},get:{bread:6}},{give:{hide:6},get:{cloth:2}},{give:{roast:5},get:{goldbar:1}},{give:{charcoal:8},get:{ingot:3}},{give:{rope:4},get:{tool:1}},{give:{pie:3},get:{goldbar:1}},{give:{crown:1},get:{ornament:3}}];
+// ===== villager trades: craftsman villagers barter, level up Novice→Master as you trade =====
+const TRADE_RANKS=['Novice','Apprentice','Journeyman','Expert','Master'], TRADE_XP=[0,4,10,18,30];
+function tLvl(v){let l=1;for(let i=1;i<5;i++)if((v.txp||0)>=TRADE_XP[i])l=i+1;return l}
+const VTRADES={
+ toolsmith:[
+  [{give:{ore:5},get:{ingot:2}},        {give:{ingot:2},get:{tool:1}}],
+  [{give:{plank:6},get:{ingot:2}},      {give:{charcoal:4},get:{ingot:2}}],
+  [{give:{stone:12},get:{tool:1}},      {give:{ingot:5},get:{tool:3}}],
+  [{give:{ingot:4},get:{beam:2}},       {give:{tool:2},get:{beam:1}}],
+  [{give:{beam:2},get:{goldbar:1}},     {give:{ore:18},get:{tool:4}}]],
+ weaponsmith:[
+  [{give:{charcoal:3},get:{ingot:1}},   {give:{wood:14},get:{ore:6}}],
+  [{give:{ingot:2},get:{beam:1}},       {give:{stone:10},get:{ore:6}}],
+  [{give:{beam:1},get:{ingot:3}},       {give:{meat:6},get:{tool:1}}],
+  [{give:{ingot:6},get:{beam:4}},       {give:{tool:2},get:{goldore:3}}],
+  [{give:{beam:3},get:{goldbar:2}},     {give:{goldbar:2},get:{beam:5}}]],
+ armorer:[
+  [{give:{hide:2},get:{leather:1}},     {give:{wood:12},get:{hide:2}}],
+  [{give:{leather:2},get:{ingot:2}},    {give:{ore:6},get:{hide:3}}],
+  [{give:{leather:3},get:{beam:1}},     {give:{ingot:3},get:{leather:4}}],
+  [{give:{leather:4,ingot:2},get:{backpack:1}}, {give:{beam:2},get:{leather:6}}],
+  [{give:{backpack:1},get:{goldbar:3}}, {give:{leather:8},get:{goldbar:2}}]],
+ leatherworker:[
+  [{give:{hide:2},get:{rope:1}},        {give:{berry:8},get:{hide:1}}],
+  [{give:{hide:3},get:{leather:2}},     {give:{rope:2},get:{cloth:1}}],
+  [{give:{wool:3},get:{leather:2}},     {give:{leather:2},get:{cloth:2}}],
+  [{give:{cloth:3},get:{leather:5}},    {give:{leather:3},get:{rope:5}}],
+  [{give:{leather:6},get:{backpack:1}}, {give:{hide:10},get:{goldbar:1}}]],
+ librarian:[
+  [{give:{berry:10},get:{clay:4}},      {give:{flax:4},get:{sand:4}}],
+  [{give:{cloth:1},get:{glass:2}},      {give:{leather:1},get:{clay:5}}],
+  [{give:{glass:2},get:{goldore:2}},    {give:{cloth:2},get:{ingot:3}}],
+  [{give:{goldbar:1},get:{glass:5}},    {give:{leather:3},get:{goldore:4}}],
+  [{give:{glass:6},get:{ornament:1}},   {give:{cloth:4},get:{goldbar:2}}]],
+ cleric:[
+  [{give:{fish:5},get:{bread:3}},       {give:{berry:12},get:{egg:6}}],
+  [{give:{bread:4},get:{cloth:1}},      {give:{egg:8},get:{wheat:8}}],
+  [{give:{meat:5},get:{bread:5}},       {give:{cloth:2},get:{glass:3}}],
+  [{give:{roast:3},get:{goldore:3}},    {give:{pie:2},get:{goldbar:1}}],
+  [{give:{bread:10},get:{ornament:1}},  {give:{goldbar:2},get:{ornament:2}}]],
+ fletcher:[
+  [{give:{wood:8},get:{meat:2}},        {give:{stone:6},get:{wood:8}}],
+  [{give:{rope:1},get:{meat:3}},        {give:{meat:4},get:{hide:3}}],
+  [{give:{plank:4},get:{meat:6}},       {give:{hide:2},get:{rope:2}}],
+  [{give:{tool:1},get:{meat:10}},       {give:{meat:8},get:{leather:3}}],
+  [{give:{rope:4},get:{tool:2}},        {give:{meat:12},get:{goldbar:1}}]],
+ cartographer:[
+  [{give:{fish:6},get:{clay:3}},        {give:{wood:10},get:{sand:5}}],
+  [{give:{stone:8},get:{clay:5}},       {give:{plank:4},get:{sand:6}}],
+  [{give:{ingot:2},get:{goldore:2}},    {give:{glass:2},get:{clay:8}}],
+  [{give:{tool:1},get:{goldore:4}},     {give:{cloth:2},get:{sand:12}}],
+  [{give:{goldbar:1},get:{goldore:6}},  {give:{ornament:1},get:{goldore:10}}]],
+};
+function tradeGet(g){let n=0;for(const k in g)n+=g[k];return n}   // total units received (for storage headroom check)
+function doVTrade(v,o){
+  if(!VTRADES[v.job])return;
+  if(!canAfford(o.give)){toast('You can’t afford that offer');return}
+  const gained=tradeGet(o.get), given=tradeGet(o.give);
+  if(invTotal()-given+gained>storeCap()){toast('📦 Not enough storage for that trade');return}
+  if(Math.hypot(v.x-S.me.x,v.y-S.me.y)>6){toast('Walk closer to trade with them');return}
+  for(const k in o.give)S.inv[k]-=o.give[k];
+  for(const k in o.get)gain(k,o.get[k]);
+  const was=tLvl(v);v.txp=(v.txp||0)+1;const nowL=tLvl(v);
+  sfx('quest');spawnBurst(v.x,v.y,'#f4c542',6);
+  S.legacy.vtrades=(S.legacy.vtrades||0)+1;
+  if(nowL>was){toast('🎉 '+v.name.split(' ')[0]+' is now a '+TRADE_RANKS[nowL-1]+' '+JOBS[v.job].label.replace(/^\S+\s/,'')+'!');spawnFireworks(v.x,v.y);
+    if(nowL>=5){S.legacy.masterTrader=1;saveLegacySoon()}}
+  achTick();renderHUD();saveSoon();saveLegacySoon();
+  if(S.selV===v.id){const p=document.getElementById('popup');if(p&&p.style.display==='block')openVillagerPopup(v,parseInt(p.style.left)+120,parseInt(p.style.top)+popup.offsetHeight+30)}
+}
+function renderVillagerTrades(v,el){
+  if(!el||!VTRADES[v.job])return;
+  const lv=tLvl(v), offers=VTRADES[v.job].slice(0,lv).flat();
+  const nextXP=lv<5?TRADE_XP[lv]:null, curBase=TRADE_XP[lv-1];
+  const bar=nextXP!==null?Math.max(0,Math.min(1,((v.txp||0)-curBase)/(nextXP-curBase))):1;
+  let h='<div class="vtHead">🤝 '+TRADE_RANKS[lv-1]+' trader'+(nextXP!==null?' · '+((v.txp||0))+'/'+nextXP+' to next':' · maxed')+
+    '<div class="vtBar"><div class="vtFill" style="width:'+(bar*100)+'%"></div></div></div>';
+  for(const o of offers){
+    const ok=canAfford(o.give);
+    h+='<button class="vtOffer'+(ok?'':' vtNo')+'" '+(ok?'':'disabled')+'>'+costStr(o.give)+' <span class="vtArr">→</span> '+costStr(o.get)+'</button>';
+  }
+  el.innerHTML=h;
+  el.querySelectorAll('.vtOffer').forEach((btn,i)=>{if(!btn.disabled)btn.onclick=()=>doVTrade(v,offers[i])});
+}
 const trader={active:false,offer:null,until:0,next:0};
 function traderTick(){
   // clock-derived schedule: every settler sees the same trader with the same offer
@@ -3211,6 +3303,8 @@ const ACH=[
  {id:'duel_10',t:'Valley Champion',i:'🤺',cat:'Combat',d:'Win 10 honor duels, lifetime',c:()=>(L().duelWins||0)>=10,s:75},
  {id:'walk_1000',t:'Wanderlust',i:'👣',cat:'Secret',secret:1,d:'Walk 1,000 tiles',c:()=>L().tiles>=1000,s:30},
  {id:'pet_1',t:'New Best Friend',i:'🐔',cat:'Secret',secret:1,d:'Pet an animal',c:()=>L().pets>=1,s:15},
+ {id:'trade_v1',t:'Local Custom',i:'🤝',cat:'Social',d:'Barter with one of your craftsman villagers',c:()=>(L().vtrades||0)>=1,s:15},
+ {id:'trade_master',t:'Master of Coin',i:'💰',cat:'Social',d:'Raise a villager to Master trader',c:()=>!!L().masterTrader,s:75},
 ];
 let achBusy=false,achT=0;
 function achTick(){
@@ -3919,7 +4013,7 @@ async function setSail(){
     try{clearTimeout(legacyTimer);await store.set('legacy-v1',S.legacy,false)}catch(e){}
   }
   const inv={tool:S.inv.tool||0};   // a fresh island means a fresh economy — only tools (needed to keep villagers geared) survive the crossing
-  const crew=S.villagers.slice(0,3).map(v=>({name:v.name,color:v.color,job:'idle',hasTool:v.hasTool,xp:v.xp||0,home:null,hungry:false,perk:v.perk||null}));
+  const crew=S.villagers.slice(0,3).map(v=>({name:v.name,color:v.color,job:'idle',hasTool:v.hasTool,xp:v.xp||0,txp:v.txp||0,home:null,hungry:false,perk:v.perk||null}));
   await store.set('save-v1',{island:ISLAND+1,inv,name:S.me.name,id:S.me.id,x:null,y:null,score:S.score,won:false,msgShown:(()=>{const m={...S.msgShown};delete m.monu;return m})(),quest:0,stats:{g:{},b:{},jobs:0},muted:S.muted,wonderRewarded:false,monu:null,playSec:S.playSec,town:{tier:0},lastMeal:Math.floor(now()/1000/DAYLEN),villagers:crew,buildings:[]});
   try{localStorage.setItem('emberpine:p:island',String(ISLAND+1))}catch(e){}
   location.reload();
