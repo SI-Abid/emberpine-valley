@@ -70,6 +70,8 @@
   .vill{display:flex;align-items:center;gap:7px;padding:6px;border-radius:8px;margin-bottom:4px;background:rgba(255,255,255,.4);border:1.5px solid rgba(43,38,32,.25)}
   .vill:hover{background:rgba(255,255,255,.7)}
   .vdot{width:14px;height:14px;border-radius:50%;border:2px solid var(--ink);flex:none}
+  .vpi{font-size:16px;flex:none;width:20px;text-align:center}
+  .vcount{font-size:13px;font-weight:800;flex:none;background:var(--amber);border:1.5px solid var(--ink);border-radius:8px;padding:1px 7px}
   .vname{font-size:12px;font-weight:800;flex:1 1 0;min-width:34px}
   .vnameLine{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .vmeta{display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-top:2px;font-weight:700}
@@ -266,7 +268,7 @@
 <div id="miniWrap"></div>
 
 <div id="hud"></div>
-<div id="hint">WASD / arrows · E to gather · Esc to pause · scroll to zoom · 1-5 to emote · click villagers to assign jobs · 🔥 chat with fellow settlers</div>
+<div id="hint">WASD / arrows · E to gather · Esc to pause · scroll to zoom · 1-5 to emote · build profession homes to grow the guild · 🔥 chat with fellow settlers</div>
 
 <button id="rosterTab" class="px">👥 Villagers</button>
 <div id="roster" class="hid">
@@ -2109,35 +2111,38 @@ document.getElementById('rosterClose').onclick=()=>roster.classList.add('hid');
 function renderRoster(){
   const _rst=rosterList.scrollTop;
   rosterList.innerHTML='';
-  for(const v of S.villagers){
+  const counts={};for(const v of S.villagers)counts[v.job]=(counts[v.job]||0)+1;
+  for(const j in JOBS){const n=counts[j];if(!n)continue;
     const row=document.createElement('div');row.className='vill';
-    let st={idle:'resting 💤',toWork:'walking 👣',working:'working ⚒️',toHall:'hauling 📦',toCrate:'stashing 📦',toPickup:'collecting 📦',sleep:'sleeping 😴',toHome:'walking home 🏡'}[v.state]||'resting';
-    if(v.carry&&v.carry.n)st+=' · 🎒'+v.carry.n+'/'+carryCap(v);
-    row.innerHTML='<div class="vdot" style="background:'+v.color+'"></div><div class="vname"><div class="vnameLine">'+escapeHtml(v.name)+(v.hasTool?' 🛠️':'')+(v.hungry?' 🥺':'')+((!v.home||(v.home!=='hall'&&!S.buildings[v.home]))?' 🛌❓':'')+'</div><div class="vmeta"><span class="vlv">Lv'+vLvl(v)+'</span>'+(v.perk?' <span class="vlv">⭐'+v.perk+'</span>':'')+' <span class="vstat">'+st+'</span></div></div>';
-    const sel=document.createElement('select');
-    for(const j in JOBS){const o=document.createElement('option');o.value=j;o.textContent=JOBS[j].label;if(v.job===j)o.selected=true;sel.appendChild(o)}
-    sel.onchange=()=>{setJob(v,sel.value)};
-    row.appendChild(sel);rosterList.appendChild(row);
+    const lbl=JOBS[j].label, emoji=lbl.replace(/\s.*$/,''), name=lbl.replace(/^\S+\s/,'');
+    row.innerHTML='<div class="vpi">'+emoji+'</div><div class="vname"><div class="vnameLine">'+escapeHtml(name)+'</div></div><b class="vcount">×'+n+'</b>';
+    rosterList.appendChild(row);
   }
-  document.getElementById('popHint').textContent='🏠 '+S.villagers.length+'/'+popCap()+' housed capacity — build homes to attract settlers';
+  if(!S.villagers.length){const e=document.createElement('div');e.className='vill';e.innerHTML='<div class="vname"><div class="vnameLine" style="opacity:.6">No settlers yet — build a profession home</div></div>';rosterList.appendChild(e)}
+  const hungry=S.villagers.filter(v=>v.hungry).length;
+  const homeless=S.villagers.filter(v=>!v.home||(v.home!=='hall'&&!S.buildings[v.home])).length;
+  const tally=[hungry?'🥺 '+hungry+' hungry':'',homeless?'🛌 '+homeless+' homeless':''].filter(Boolean).join(' · ');
+  document.getElementById('popHint').innerHTML='🏠 '+S.villagers.length+'/'+popCap()+' housed — build profession homes to attract settlers'+(tally?'<br><span style="opacity:.8">'+tally+'</span>':'');
   rosterList.scrollTop=_rst;
 }
-setInterval(()=>{if(!roster.classList.contains('hid')&&!rosterList.contains(document.activeElement))renderRoster()},2000);
-function setJob(v,j){v.job=j;v.state='idle';v.path=[];v.target=null;
-  if(j!=='idle'){S.stats.jobs=(S.stats.jobs||0)+1;questTick()}
-  toast(JOBS[j].label+' — '+v.name.split(' ')[0]);saveSoon();
-  if(j!=='idle')firstTime('job','Villagers haul their harvest back to the Hall 🏛️ automatically.')}
+setInterval(()=>{if(!roster.classList.contains('hid'))renderRoster()},2000);
 
-/* contract popup */
+/* villager popup — profession, status, trades (trades UI arrives with M4) */
 const popup=document.getElementById('popup');
 function openVillagerPopup(v,px,py){
   S.selV=v.id;
-  popup.innerHTML='<button class="close">✕</button><h4 class="px">'+escapeHtml(v.name)+'</h4><div class="sub">GUILD WORK CONTRACT</div><div class="jobs"></div>'+
-    '<div class="desc">'+(v.hasTool?'Carries a fine tool (+60% pace).':'Works bare-handed. Build a Workshop to craft tools.')+'</div>';
-  const jobs=popup.querySelector('.jobs');
-  for(const j in JOBS){const b=document.createElement('button');b.className='jbtn'+(v.job===j?' sel':'');b.textContent=JOBS[j].label;
-    b.onclick=()=>{setJob(v,j);S.selV=null;popup.style.display='none'};jobs.appendChild(b)}
-  popup.querySelector('.close').onclick=()=>popup.style.display='none';
+  const lbl=JOBS[v.job]?JOBS[v.job].label:'🥴 Nitwit';
+  let st={idle:'resting 💤',toWork:'walking 👣',working:'working ⚒️',toHall:'hauling 📦',toCrate:'stashing 📦',toPickup:'collecting 📦',sleep:'sleeping 😴',toHome:'walking home 🏡'}[v.state]||'resting';
+  const homeName=(v.home&&v.home!=='hall'&&S.buildings[v.home]&&BUILDS[S.buildings[v.home].type])?BUILDS[S.buildings[v.home].type].name:(v.home==='hall'?'the Hall':'homeless');
+  popup.innerHTML='<button class="close">✕</button><h4 class="px">'+escapeHtml(v.name)+'</h4>'+
+    '<div class="sub">'+lbl+'</div>'+
+    '<div class="desc" style="text-align:left">🏡 Lives at <b>'+escapeHtml(homeName)+'</b><br>'+
+    '⭐ Level '+vLvl(v)+(v.perk?' · ⭐ '+v.perk:'')+'<br>'+
+    '📋 Currently '+st+(v.carry&&v.carry.n?' · 🎒'+v.carry.n+'/'+carryCap(v):'')+'<br>'+
+    (v.hasTool?'🛠️ Carries a fine tool (+60% pace).':'✋ Works bare-handed — a Workshop crafts tools.')+'</div>'+
+    '<div class="vtrades"></div>';
+  if(JOBS[v.job]&&JOBS[v.job].craft&&typeof renderVillagerTrades==='function')renderVillagerTrades(v,popup.querySelector('.vtrades'));
+  popup.querySelector('.close').onclick=()=>{S.selV=null;popup.style.display='none'};
   popup.style.display='block';
   popup.style.left=clamp(px-120,8,VW-256)+'px';
   popup.style.top=clamp(py-popup.offsetHeight-30,8,VH-240)+'px';
