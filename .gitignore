@@ -3,4 +3,4 @@
 node_modules/
 relay/cf-worker/.wrangler/
 relay/cf-worker/.dev.vars
-!assets/buildings/*.png
+!assets/**/*.png
