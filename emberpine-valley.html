@@ -41,22 +41,34 @@
     background:linear-gradient(var(--parch),var(--parch2));border:3px solid var(--ink);border-radius:14px;
     box-shadow:0 6px 0 var(--shadow);overflow:hidden;display:flex;flex-direction:column}
   #buildPanel.hid{display:none}
-  #buildTabs{display:flex;gap:4px;flex-wrap:wrap;background:var(--pine2);padding:7px 8px}
-  .bcat{display:flex;align-items:center;gap:4px;border:2px solid transparent;background:rgba(255,255,255,.12);color:var(--parch);
-    border-radius:8px;padding:5px 9px;font-weight:800;font-size:12px}
-  .bcat:hover{background:rgba(255,255,255,.25)}
+  #buildHead{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:10px 15px 8px;
+    border-bottom:2px solid rgba(43,38,32,.16)}
+  #buildHead .bh-title{font-weight:900;font-size:19px;letter-spacing:.07em;color:var(--ink);text-shadow:0 1px 0 rgba(255,251,238,.5)}
+  #buildHead .bh-sub{font-weight:800;font-size:12.5px;color:var(--clay)}
+  #buildTabs{display:flex;gap:5px;flex-wrap:wrap;padding:9px 12px 4px}
+  .bcat{display:flex;align-items:center;gap:4px;border:2px solid transparent;background:var(--pine2);color:var(--parch);
+    border-radius:8px;padding:5px 10px;font-weight:800;font-size:12px}
+  .bcat:hover{background:var(--pine)}
   .bcat.sel{background:var(--amber);color:var(--ink);border-color:#fff}
-  #buildGrid{display:flex;flex-wrap:wrap;gap:8px;padding:10px;max-height:50dvh;overflow-y:auto;justify-content:center}
-  .bbtn{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:74px;padding:6px 8px;border-radius:9px;
-    border:2px solid var(--ink);background:#fff8e6;transition:transform .08s}
-  .bbtn:hover{transform:translateY(-2px);background:#fffdf4}
-  .bbtn.sel{background:var(--amber);box-shadow:inset 0 0 0 2px #fff}
-  .bbtn.locked{opacity:.45;filter:grayscale(.6)}
-  .bbtn.eralock{opacity:.4;filter:grayscale(.85);cursor:not-allowed}
+  #buildGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:11px;padding:12px 14px 16px;
+    max-height:50dvh;overflow-y:auto}
+  .bbtn{display:flex;flex-direction:column;align-items:center;gap:4px;padding:0;border:0;background:transparent;transition:transform .08s}
+  .bbtn:hover{transform:translateY(-2px)}
+  .bbtn .bi{position:relative;overflow:hidden;width:100%;aspect-ratio:1;display:flex;align-items:flex-end;justify-content:center;
+    padding:7px 6px 6px;font-size:30px;border-radius:12px;border:2px solid rgba(43,38,32,.42);
+    background:linear-gradient(#eaddb8,#dccb9c);
+    box-shadow:inset 0 2px 4px rgba(43,38,32,.2),inset 0 -1px 0 rgba(255,251,238,.55);transition:border-color .1s,box-shadow .1s}
+  .bbtn:hover .bi{border-color:var(--ink)}
+  .bbtn.sel .bi{border-color:var(--amber);box-shadow:inset 0 0 0 2px rgba(232,163,61,.55),0 0 8px rgba(232,163,61,.5)}
+  /* sprite is absolutely positioned so a tall building can't stretch the box — every slot is an identical square */
+  .bbtn .bi img.bthumb{position:absolute;top:8px;left:8px;width:calc(100% - 16px);height:calc(100% - 15px);
+    object-fit:contain;object-position:bottom;display:block;image-rendering:auto;filter:drop-shadow(0 2px 2px rgba(43,38,32,.3))}
+  .bbtn .bi .ic svg{filter:drop-shadow(0 1px 1px rgba(43,38,32,.25))}
+  .bbtn.locked{opacity:.5;filter:grayscale(.5)}
+  .bbtn.eralock{opacity:.45;filter:grayscale(.75);cursor:not-allowed}
   .bbtn.eralock .bc{color:var(--clay)}
-  .bbtn .bi{font-size:30px}
-  .bbtn .bn{font-size:11px;font-weight:800}
-  .bbtn .bc{display:flex;align-items:center;gap:2px;flex-wrap:wrap;justify-content:center;font-size:10px;font-weight:700;opacity:.75}
+  .bbtn .bn{font-size:11px;font-weight:800;color:var(--ink);text-align:center;line-height:1.15;text-shadow:0 1px 0 rgba(255,251,238,.4)}
+  .bbtn .bc{display:flex;align-items:center;gap:2px;flex-wrap:wrap;justify-content:center;font-size:10px;font-weight:700;color:var(--ink);opacity:.72}
   .bc .cp{display:inline-flex;align-items:center;gap:1px;white-space:nowrap}
   .cp .ic{font-size:14px}
 
@@ -162,9 +174,12 @@
     #hint{top:52px;font-size:10.5px;max-width:92vw;text-align:center}
     #buildBtn{font-size:13px;padding:8px 14px}
     #buildPanel{width:96vw;bottom:58px}
-    #buildTabs{padding:6px}
+    #buildHead{padding:9px 12px 6px}
+    #buildHead .bh-title{font-size:17px}
+    #buildHead .bh-sub{font-size:11px}
+    #buildTabs{padding:7px 8px 3px}
     .bcat{font-size:11px;padding:4px 7px}
-    #buildGrid{padding:8px;gap:6px;max-height:46dvh}
+    #buildGrid{grid-template-columns:repeat(auto-fill,minmax(78px,1fr));padding:9px;gap:8px;max-height:46dvh}
     .bbtn{min-width:64px;padding:5px 6px}
   }
 
@@ -287,6 +302,7 @@
 
 <button id="buildBtn" class="px" title="Build (B)">🔨 Build</button>
 <div id="buildPanel" class="hid">
+  <div id="buildHead"><span class="bh-title">BUILD</span><span class="bh-sub">Select a structure</span></div>
   <div id="buildTabs"></div>
   <div id="buildGrid"></div>
 </div>
@@ -635,7 +651,7 @@ const FOOT={
   toolsmithy:[2,2],weaponsmithy:[2,2],armory:[2,2],leatherhouse:[2,2],library:[2,2],clerichouse:[2,2],fletcherhouse:[2,2],maproom:[2,2],
   sawmill:[2,2],smelter:[2,2],bakery:[2,2],workshop:[2,2],kiln:[2,2],glassworks:[2,2],forge:[2,2],loom:[2,2],gilder:[2,2],fishmonger:[2,2],smokehouse:[2,2],
   sheeppen:[2,2],pigpen:[2,2],
-  tavern:[2,2],plaza:[2,2],chapel:[2,2],market:[2,2],warehouse:[2,2],
+  tavern:[2,2],plaza:[2,2],chapel:[2,2],market:[2,2],warehouse:[2,2],well:[2,2],
   watchtower:[1,2],
 };
 function foot(type){return FOOT[type]||[1,1]}
@@ -676,7 +692,7 @@ function walkable(x,y){
   if(terrAt(x,y)===0&&!frozenNow())return false;   // winter: the frozen river is crossable
   if(x===WONDER.x&&y===WONDER.y)return false;
   const b=buildingAt(x,y);
-  if(b&&b.type!=='farm'&&b.type!=='dock'&&b.type!=='path')return false;
+  if(b&&b.type!=='farm'&&b.type!=='dock'&&b.type!=='path'&&b.type!=='plaza')return false;
   return true;
 }
 function passable(x,y){ return walkable(x,y)&&!resAt(x,y) }
@@ -1650,7 +1666,12 @@ function drawBuilding(b,sx,sy,sz){
 }
 // external building sprites: assets/buildings/<type>.png (trimmed to the sprite, base at bottom, transparent).
 // Only listed types are fetched, so unlisted types never 404. Add a type here when its PNG is committed.
-const BLD_ASSETS=new Set(['lumberlodge']);
+const BLD_ASSETS=new Set(['lumberlodge',
+  'forge','kiln','butchery','chapel','haulerpost','farm','farmhouse','fishershack','dock','foragerhut',
+  'glassworks','guardhouse','market','pigpen','sheeppen','shepherdhut','smelter','statue','masonhouse',
+  'tavern','toolsmithy','warehouse','watchtower','workshop',
+  'armory','bakery','clerichouse','fishmonger','fletcherhouse','gilder','leatherhouse','library','loom',
+  'plaza','sawmill','smokehouse','weaponsmithy','well','maproom']);
 const _bldImg={};
 function bldImg(type){
   if(!BLD_ASSETS.has(type))return null;
@@ -1904,10 +1925,10 @@ function render(){
     if(S.me.harvest){const h=S.me.harvest;drawProgress(S.me.x,S.me.y,h.t/RES_INFO[h.type].time,RES_INFO[h.type].emoji)}
     if(duel.mode==='active')drawDuelHearts(S.me.x,S.me.y,duel.myHp);
   });
-  // ground decals first: paths never occlude people or objects
+  // ground decals first: flat walkable tiles (paths, plazas) never occlude people or objects
   for(let y=ty0;y<=ty1;y++)for(let x=tx0;x<=tx1;x++){
     const b=S.buildings[key(x,y)];
-    if(b&&b.type==='path')drawBuilding(b,(x-S.cam.x)*TSZ+VW/2,(y-S.cam.y)*TSZ+VH/2,TSZ);
+    if(b&&(b.type==='path'||b.type==='plaza'))drawBuilding(b,(b.x-S.cam.x)*TSZ+VW/2,(b.y-S.cam.y)*TSZ+VH/2,TSZ);
   }
   for(let y=ty0;y<=ty1;y++){
     for(let x=tx0;x<=tx1;x++){
@@ -1916,7 +1937,7 @@ function render(){
       if(x===HALL.x&&y===HALL.y)drawBuilding({type:'hall',mine:true},sx,sy,TSZ);
       // draw a multi-tile building once, when the loop reaches its FRONT-LEFT tile, from the anchor pos
       const bb=buildingAt(x,y);
-      if(bb&&bb.type!=='path'&&bb.x===x&&bb.y+bH(bb)-1===y)drawBuilding(bb,(bb.x-S.cam.x)*TSZ+VW/2,(bb.y-S.cam.y)*TSZ+VH/2,TSZ);
+      if(bb&&bb.type!=='path'&&bb.type!=='plaza'&&bb.x===x&&bb.y+bH(bb)-1===y)drawBuilding(bb,(bb.x-S.cam.x)*TSZ+VW/2,(bb.y-S.cam.y)*TSZ+VH/2,TSZ);
     }
     const ps=rowP[y]; if(ps){ps.sort((q,w)=>q.py-w.py);for(const p of ps)p.fn();}
   }
@@ -2064,6 +2085,15 @@ const ICON_SVG={
  gnome:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 21c0-6 2.5-10 6-10s6 4 6 10z" fill="#9a978e" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="10.5" r="3" fill="#e8c39a" stroke="#2b2620" stroke-width="1.8"/><path d="M8.5 9.5 12 2l3.5 7.5z" fill="#b0563b" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/><path d="M9.8 13c.6 1.4 3.8 1.4 4.4 0-1 2.4-3.4 2.4-4.4 0z" fill="#f0f0e8" stroke="#2b2620" stroke-width="1.2"/></svg>',
 };
 function iconHTML(k,cls){return '<span class="ic'+(cls?' '+cls:'')+'" title="'+(NICE[k]||'')+'">'+(ICON_SVG[k]||ICON_SVG._missing)+'</span>'}
+// If a building type has a real sprite (assets/buildings/<type>.png), the build
+// menu shows a scaled thumbnail of it; otherwise it falls back to the SVG glyph.
+// onerror restores the glyph so a missing/failed image never leaves a blank tile.
+function bthumbFail(img){img.parentNode.innerHTML=ICON_SVG[img.dataset.k]||ICON_SVG._missing}
+function buildIcon(t){
+  if(typeof BLD_ASSETS!=='undefined'&&BLD_ASSETS.has(t))
+    return '<span class="ic bti" title="'+((BUILDS[t]&&BUILDS[t].name)||NICE[t]||'')+'"><img class="bthumb" src="assets/buildings/'+t+'.png" alt="" data-k="'+t+'" onerror="bthumbFail(this)"></span>';
+  return iconHTML(t);
+}
 const iconImg={};
 function preloadIcons(){for(const k in ICON_SVG){const im=new Image();im.onload=()=>{im.ready=true};im.src='data:image/svg+xml;utf8,'+encodeURIComponent(ICON_SVG[k]);iconImg[k]=im}}
 function drawIcon(c2,k,px,py,sz){const im=iconImg[k]||iconImg._missing;if(!im||!im.ready)return false;c2.drawImage(im,px-sz/2,py-sz/2,sz,sz);return true}
@@ -2270,12 +2300,12 @@ function buildTileEl(t){
   if(eraLocked||tierLocked){
     btn.className='bbtn eralock';
     const lockName=eraLocked?MONUMENT_STAGES[eraReq].name:TOWN_TIERS[tierReq].tier;
-    btn.innerHTML='<span class="bi">'+iconHTML(t)+'</span><span class="bn">'+B.name+'</span><span class="bc">🔒 '+lockName+'</span>';
+    btn.innerHTML='<span class="bi">'+buildIcon(t)+'</span><span class="bn">'+B.name+'</span><span class="bc">🔒 '+lockName+'</span>';
     btn.title=eraLocked?('Unlocks when the '+lockName+' is complete'):('Unlocks when the town reaches '+lockName);
     btn.onclick=()=>toast(eraLocked?('🔒 Complete the '+lockName+' first'):('🔒 Reach '+lockName+' first'));
   }else{
     btn.className='bbtn'+(S.buildSel===t?' sel':'')+(canAfford(B.cost)?'':' locked');
-    btn.innerHTML='<span class="bi">'+iconHTML(t)+'</span><span class="bn">'+B.name+'</span><span class="bc">'+costStr(B.cost)+'</span>';
+    btn.innerHTML='<span class="bi">'+buildIcon(t)+'</span><span class="bn">'+B.name+'</span><span class="bc">'+costStr(B.cost)+'</span>';
     btn.title=B.desc;
     btn.onclick=()=>{S.buildSel=S.buildSel===t?null:t;
       if(S.buildSel)toast('Tap a tile to place the '+B.name);
