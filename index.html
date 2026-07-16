@@ -1736,7 +1736,7 @@ function bldImg(type){
 }
 // external resource-node sprites: assets/resources/<type>.png (trimmed, base at bottom, transparent).
 // When a type's sprite is loaded, drawRes() uses it in place of the procedural art.
-const RES_ASSETS=new Set(['tree','stone','iron','gold','clay','sand','flax']);
+const RES_ASSETS=new Set(['tree','stone','iron','gold','clay','sand','flax','berry','berry_spent']);
 const _resImg={};
 function resImg(type){
   if(!RES_ASSETS.has(type))return null;
