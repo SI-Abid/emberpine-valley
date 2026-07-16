@@ -1205,6 +1205,34 @@ const ATLAS_B64='iVBORw0KGgoAAAANSUhEUgAABAAAAAFeCAYAAAAboW2jAABvVElEQVR42u3deZw
 let atlasReady=false;
 const atlasImg=new Image();
 if(ATLAS_B64){atlasImg.onload=()=>{atlasReady=true};atlasImg.src='data:image/png;base64,'+ATLAS_B64;}
+// external terrain tiles: assets/terrain/<name>.png, seamless 64px (water is a 2x2 animation sheet).
+// When loaded they replace the 16px atlas tiles in drawTile(); until then the atlas/colour fallback shows.
+const TERR_NAMES=['grass','grass2','grass3','sand','stone','ice','dirt','water'];
+const _terrImg={};
+function terrTile(name){
+  let im=_terrImg[name]; if(im)return im;
+  im=new Image();im.onload=()=>{im.ready=true};im.onerror=()=>{im.failed=true};
+  im.src='assets/terrain/'+name+'.png';return _terrImg[name]=im;
+}
+TERR_NAMES.forEach(terrTile); // preload so the ground paints as tiles from the first frame
+// terrain type (0 water,1 sand,2 grass,3 dark grass,4 rock) -> tile name (null = no external tile).
+// grass = lush green, grass2 = dark green, grass3 = golden. In spring/summer/winter grass stays
+// green (mostly uniform per type, rare cross-patch — no checkerboard). In autumn the golden tile
+// takes over as a mottled meadow, with lingering green patches so it reads as foliage turning.
+function terrTileName(x,y,t){
+  if(t===0)return 'water';
+  if(t===1)return 'sand';
+  if(t===2||t===3){
+    if(seasonIdx()===2){ // autumn: golden-dominant meadow, mottled with lingering green
+      const r=hash2(x,y,5);
+      return r<0.62?'grass3':(r<0.85?'grass':'grass2');
+    }
+    if(t===2)return hash2(x,y,5)>0.9?'grass2':'grass';
+    return hash2(x,y,7)>0.9?'grass':'grass2';
+  }
+  if(t===4)return 'stone';
+  return null;
+}
 // per-terrain frame variants; grass2 (flowers) kept rare
 const TVAR=[['water0','water1'],['sand0','sand1'],['grass0','grass0','grass0','grass0','grass0','grass0','grass0','grass1','grass1','grass1','grass1','grass2'],['gdark0','gdark1'],['rock0','rock1']];
 // 4-bit mask of grass-side neighbors (N=1,E=2,S=4,W=8) -> grass-edged sand tile
@@ -1223,16 +1251,33 @@ function tileFrame(x,y,t){
 }
 function drawTile(x,y,sx,sy,w,h){
   const t=terrAt(x,y);
-  if(atlasReady){
-    const f=tileFrame(x,y,t);
-    cx.drawImage(atlasImg,f[0],f[1],16,16,sx,sy,w,h);
-  }else{
-    cx.fillStyle=hash2(x,y,5)>.5?TCOL[t]:TCOL2[t];
-    cx.fillRect(sx,sy,w+1,h+1);
-    if(t===2&&hash2(x,y,77)>.86){cx.fillStyle='rgba(255,255,255,.14)';cx.fillRect(sx+w*.3,sy+h*.3,2,2);cx.fillRect(sx+w*.6,sy+h*.55,2,2)}
+  let drew=false;
+  // frozen water -> ice tile as the base; when it's up we skip foam/waves entirely
+  if(t===0&&frozenNow()){
+    const ice=terrTile('ice');
+    if(ice.ready){cx.drawImage(ice,0,0,ice.width,ice.height,sx,sy,w+1,h+1);return;}
+  }
+  const nm=terrTileName(x,y,t);
+  if(nm==='water'){
+    const im=terrTile('water');
+    if(im.ready){const s=im.width/2,fr=((now()/240)|0)%4;   // 2x2 animation sheet, 4 frames
+      cx.drawImage(im,(fr&1)*s,(fr>>1)*s,s,s,sx,sy,w+1,h+1);drew=true;}
+  }else if(nm){
+    const im=terrTile(nm);
+    if(im.ready){cx.drawImage(im,0,0,im.width,im.height,sx,sy,w+1,h+1);drew=true;}
+  }
+  if(!drew){
+    if(atlasReady){
+      const f=tileFrame(x,y,t);
+      cx.drawImage(atlasImg,f[0],f[1],16,16,sx,sy,w,h);
+    }else{
+      cx.fillStyle=hash2(x,y,5)>.5?TCOL[t]:TCOL2[t];
+      cx.fillRect(sx,sy,w+1,h+1);
+      if(t===2&&hash2(x,y,77)>.86){cx.fillStyle='rgba(255,255,255,.14)';cx.fillRect(sx+w*.3,sy+h*.3,2,2);cx.fillRect(sx+w*.6,sy+h*.55,2,2)}
+    }
   }
   if(t===0){
-    if(frozenNow()){ // winter: solid ice — matte wash, cracks, sheen; no foam or waves
+    if(frozenNow()){ // ice tile wasn't ready above -> procedural ice fallback
       cx.fillStyle='rgba(206,229,240,.78)';cx.fillRect(sx,sy,w,h);
       const hh2=hash2(x,y,31);
       if(hh2>.7){cx.strokeStyle='rgba(140,175,198,.55)';cx.lineWidth=1;
@@ -1241,7 +1286,7 @@ function drawTile(x,y,sx,sy,w,h){
       return;
     }
     const nb=(terrAt(x,y-1)>0)|((terrAt(x+1,y)>0)<<1)|((terrAt(x,y+1)>0)<<2)|((terrAt(x-1,y)>0)<<3);
-    if(nb){ // shoreline foam, gently breathing
+    if(nb){ // shoreline foam, gently breathing — blends the water tile into the shore
       cx.fillStyle='rgba(255,255,255,'+(.16+.1*Math.sin(now()/650+x*.9+y*1.7)).toFixed(3)+')';
       const fw=Math.max(2,h*.1);
       if(nb&1)cx.fillRect(sx,sy,w,fw);
@@ -1249,12 +1294,21 @@ function drawTile(x,y,sx,sy,w,h){
       if(nb&4)cx.fillRect(sx,sy+h-fw,w,fw);
       if(nb&8)cx.fillRect(sx,sy,fw,h);
     }
-    const wv=Math.sin(now()/700+x*1.3+y*2.1);
-    if(wv>0.75){cx.fillStyle='rgba(255,255,255,.18)';cx.fillRect(sx+w*.2,sy+h*.45,w*.5,2)}
+    if(!drew){const wv=Math.sin(now()/700+x*1.3+y*2.1); // extra wave flecks only on the flat atlas/colour water
+      if(wv>0.75){cx.fillStyle='rgba(255,255,255,.18)';cx.fillRect(sx+w*.2,sy+h*.45,w*.5,2)}}
   }
+}
+// draw a resource sprite: contact shadow + base-aligned, ~1.25 tiles wide (trees overflow upward)
+function blitRes(im,sx,sy,sz){
+  const cxm=sx+sz/2;
+  cx.fillStyle='rgba(0,0,0,.2)';cx.beginPath();cx.ellipse(cxm,sy+sz*.86,sz*.3,sz*.1,0,0,7);cx.fill();
+  const scale=sz*1.25/im.width, dw=im.width*scale, dh=im.height*scale;
+  cx.drawImage(im,cxm-dw/2,sy+sz*.94-dh,dw,dh);
 }
 function drawRes(r,x,y,sx,sy,sz){
   const cxm=sx+sz/2;
+  const rim=resImg(r.type);
+  if(rim&&rim.ready){blitRes(rim,sx,sy,sz);return;}
   if(r.type==='tree'){
     cx.fillStyle='rgba(0,0,0,.2)';cx.beginPath();cx.ellipse(cxm,sy+sz*.85,sz*.3,sz*.1,0,0,7);cx.fill();
     cx.fillStyle='#6b4a2f';cx.fillRect(cxm-2,sy+sz*.55,4,sz*.32);
@@ -1680,6 +1734,17 @@ function bldImg(type){
   im.src='assets/buildings/'+type+'.png';
   return _bldImg[type]=im;
 }
+// external resource-node sprites: assets/resources/<type>.png (trimmed, base at bottom, transparent).
+// When a type's sprite is loaded, drawRes() uses it in place of the procedural art.
+const RES_ASSETS=new Set(['tree','stone','iron','gold','clay','sand','flax','berry','berry_spent']);
+const _resImg={};
+function resImg(type){
+  if(!RES_ASSETS.has(type))return null;
+  if(_resImg[type])return _resImg[type];
+  const im=new Image();im.onload=()=>{im.ready=true};im.onerror=()=>{im.failed=true};
+  im.src='assets/resources/'+type+'.png';
+  return _resImg[type]=im;
+}
 const FB_PALS=[['#e86a8a','#f4c542','#f0f0e8'],['#f4c542','#b58fb0','#e86a8a'],['#f0f0e8','#5b8fb0','#f4c542'],['#e86a8a','#e8a33d','#b58fb0'],['#b58fb0','#f0f0e8','#e8a33d']];
 function drawDecor(b,sx,sy,sz){
   const cxm=sx+sz/2, h=(b.x*7+b.y*13)%5;
@@ -1934,6 +1999,10 @@ function render(){
     for(let x=tx0;x<=tx1;x++){
       const sx=(x-S.cam.x)*TSZ+VW/2, sy=(y-S.cam.y)*TSZ+VH/2;
       const r=resAt(x,y); if(r&&!(x===WONDER.x&&y===WONDER.y))drawRes(r,x,y,sx,sy,TSZ);
+      else if(!r&&!(x===WONDER.x&&y===WONDER.y)){ // harvested berry bush regrowing -> show its spent/default state instead of vanishing
+        const br=baseRes[key(x,y)];
+        if(br&&br.type==='berry'&&!buildingAt(x,y)){const sp=resImg('berry_spent');if(sp&&sp.ready)blitRes(sp,sx,sy,TSZ);}
+      }
       if(x===HALL.x&&y===HALL.y)drawBuilding({type:'hall',mine:true},sx,sy,TSZ);
       // draw a multi-tile building once, when the loop reaches its FRONT-LEFT tile, from the anchor pos
       const bb=buildingAt(x,y);
