@@ -627,6 +627,32 @@ const BUILDS={
   banner:{name:'Banner',ico:'🚩',cost:{cloth:2,wood:2},desc:'Town colors fluttering in the wind',decor:4},
   gnome:{name:'Garden Gnome',ico:'🧙',cost:{stone:1,ore:1},desc:'He judges silently',decor:5},
 };
+// ===== building footprints (tiles wide × tall). Anchor tile is the TOP-LEFT of the footprint. =====
+// AI-worked tiles (farm/dock) and small props stay 1×1; homes/production/pens/big-civic get room to breathe.
+const FOOT={
+  cottage:[2,2],house:[2,2],manor:[2,2],
+  lumberlodge:[2,2],foragerhut:[2,2],farmhouse:[2,2],fishershack:[2,2],masonhouse:[2,2],butchery:[2,2],shepherdhut:[2,2],haulerpost:[2,2],guardhouse:[2,2],
+  toolsmithy:[2,2],weaponsmithy:[2,2],armory:[2,2],leatherhouse:[2,2],library:[2,2],clerichouse:[2,2],fletcherhouse:[2,2],maproom:[2,2],
+  sawmill:[2,2],smelter:[2,2],bakery:[2,2],workshop:[2,2],kiln:[2,2],glassworks:[2,2],forge:[2,2],loom:[2,2],gilder:[2,2],fishmonger:[2,2],smokehouse:[2,2],
+  sheeppen:[2,2],pigpen:[2,2],
+  tavern:[2,2],plaza:[2,2],chapel:[2,2],market:[2,2],warehouse:[2,2],
+  watchtower:[1,2],
+};
+function foot(type){return FOOT[type]||[1,1]}
+function bW(b){return (b&&b.w)||foot(b&&b.type)[0]||1}
+function bH(b){return (b&&b.h)||foot(b&&b.type)[1]||1}
+function bCenter(b){return {x:b.x+bW(b)/2, y:b.y+bH(b)/2}}
+function bTiles(b){const t=[],w=bW(b),h=bH(b);for(let dy=0;dy<h;dy++)for(let dx=0;dx<w;dx++)t.push([b.x+dx,b.y+dy]);return t}
+// derived occupancy index: any footprint tile → its building record. Rebuilt lazily when buildings change.
+let _occ=null;
+function occDirty(){_occ=null}
+function occIndex(){
+  if(_occ)return _occ;
+  _occ={};
+  for(const k in S.buildings){const b=S.buildings[k];for(const[tx,ty]of bTiles(b))_occ[key(tx,ty)]=b}
+  return _occ;
+}
+function buildingAt(x,y){return occIndex()[key(x,y)]||null}   // resolves ANY footprint tile to its building
 const MONUMENT_STAGES=[
  null,
  {name:'Foundation',   need:{stone:40,plank:20},  bonus:50,  banner:'⛏️ The Foundation is laid — the Era of Stone begins'},
@@ -640,7 +666,7 @@ const VCOLORS=['#e8a33d','#b0563b','#5b8fb0','#8a6bb0','#5aa06a','#c96a8b','#c9b
 
 function resAt(x,y){ // effective resource, accounting for shared removals + regrowth (150s)
   const k=key(x,y), b=baseRes[k]; if(!b)return null;
-  if(S.buildings[k])return null; // occupied tile — nothing regrows under a building or path
+  if(buildingAt(x,y))return null; // occupied tile — nothing regrows under a building or path
   const rm=S.removed[k];
   if(rm&&now()-rm<150000)return null;
   return b;
@@ -649,7 +675,7 @@ function walkable(x,y){
   if(x<0||y<0||x>=MW||y>=MH)return false;
   if(terrAt(x,y)===0&&!frozenNow())return false;   // winter: the frozen river is crossable
   if(x===WONDER.x&&y===WONDER.y)return false;
-  const b=S.buildings[key(x,y)];
+  const b=buildingAt(x,y);
   if(b&&b.type!=='farm'&&b.type!=='dock'&&b.type!=='path')return false;
   return true;
 }
@@ -659,7 +685,11 @@ function passable(x,y){ return walkable(x,y)&&!resAt(x,y) }
 function findPath(sx,sy,tx,ty,adjacent){
   sx|=0;sy|=0;tx|=0;ty|=0;
   const goal={};
-  if(adjacent){for(const[dx,dy]of[[1,0],[-1,0],[0,1],[0,-1]]){const nx=tx+dx,ny=ty+dy;if(passable(nx,ny))goal[key(nx,ny)]=1}}
+  if(adjacent){
+    // reach any tile bordering the target — for a multi-tile building that's its whole perimeter
+    const b=buildingAt(tx,ty), tiles=b?bTiles(b):[[tx,ty]];
+    for(const[cxT,cyT]of tiles)for(const[dx,dy]of[[1,0],[-1,0],[0,1],[0,-1]]){const nx=cxT+dx,ny=cyT+dy;if(passable(nx,ny))goal[key(nx,ny)]=1}
+  }
   else goal[key(tx,ty)]=1;
   if(!Object.keys(goal).length)return null;
   if(goal[key(sx,sy)])return [];
@@ -679,12 +709,14 @@ function findPath(sx,sy,tx,ty,adjacent){
 function isInside(v){
   if(v.state!=='sleep'||!v.home)return false;
   if(v.home!=='hall'&&!S.buildings[v.home])return false;
-  const hp=homeTarget(v);return Math.hypot(v.x-hp.x,v.y-hp.y)<=1.7;
+  const hp=homeTarget(v), b=v.home!=='hall'&&S.buildings[v.home];
+  const reach=1.7+(b?Math.max(bW(b),bH(b))*.5:0);   // bigger homes have a bigger "inside" radius
+  return Math.hypot(v.x-hp.x,v.y-hp.y)<=reach;
 }
-function homeTarget(v){
-  if(v.home==='hall')return HALL;
-  if(v.home){const b=S.buildings[v.home];if(b)return b;v.home=null}
-  return HALL;
+function homeTarget(v){   // a POINT (footprint centre) villagers path to / sleep at
+  if(v.home==='hall')return {x:HALL.x,y:HALL.y};
+  if(v.home){const b=S.buildings[v.home];if(b)return bCenter(b);v.home=null}
+  return {x:HALL.x,y:HALL.y};
 }
 function claimedRes(self){ // work tiles (resources, farms, docks) already targeted by other villagers
   const c={};
@@ -1112,14 +1144,20 @@ function tryHarvest(){
 function canAfford(cost){return Object.entries(cost).every(([k,v])=>S.inv[k]>=v)}
 function placeBuilding(type,x,y){
   const B=BUILDS[type];
+  const[fw,fh]=foot(type);
   if(!canAfford(B.cost)){toast('Not enough materials');return}
-  if(terrAt(x,y)===0){toast(frozenNow()?'The ice is too thin to build on \u{1F9CA}':'Can\u2019t build on water');return}
-  if(!walkable(x,y)||resAt(x,y)||S.buildings[key(x,y)]||(x===HALL.x&&y===HALL.y)){toast('Can\u2019t build there');return}
-  if(type!=='path'&&Math.floor(S.me.x)===x&&Math.floor(S.me.y)===y){toast('You\u2019re standing there!');return}
+  // every footprint tile must be on land, clear of resources/buildings, and not the Hall/Wonder/you
+  for(let dy=0;dy<fh;dy++)for(let dx=0;dx<fw;dx++){
+    const tx=x+dx,ty=y+dy;
+    if(terrAt(tx,ty)===0){toast(frozenNow()?'The ice is too thin to build on \u{1F9CA}':'Can\u2019t build on water');return}
+    if(!walkable(tx,ty)||resAt(tx,ty)||buildingAt(tx,ty)||(tx===HALL.x&&ty===HALL.y)){toast('Can\u2019t build there \u2014 needs '+fw+'\u00d7'+fh+' clear tiles');return}
+    if(type!=='path'&&Math.floor(S.me.x)===tx&&Math.floor(S.me.y)===ty){toast('You\u2019re standing there!');return}
+  }
   if(type==='dock'&&![[1,0],[-1,0],[0,1],[0,-1]].some(([dx,dy])=>terrAt(x+dx,y+dy)===0)){toast('The dock must touch water 🌊');return}
   for(const[k,v]of Object.entries(B.cost))S.inv[k]-=v;
-  S.buildings[key(x,y)]={type,x,y,mine:true,bt:now()};syncBldSoon();
-  netSend({t:'bld',k:key(x,y),e:{t:S.buildings[key(x,y)].bt,type,owner:S.me.id,onm:S.me.name}});
+  const rec={type,x,y,w:fw,h:fh,mine:true,bt:now()};
+  S.buildings[key(x,y)]=rec;occDirty();syncBldSoon();
+  netSend({t:'bld',k:key(x,y),e:{t:rec.bt,type,w:fw,h:fh,owner:S.me.id,onm:S.me.name}});
   if(B.home)moveIn(key(x,y));
   S.stats.b[type]=(S.stats.b[type]||0)+1;if(S.legacy){S.legacy.b[type]=(S.legacy.b[type]||0)+1;saveLegacySoon()}S.score+=15;sfx('build');spawnBurst(x,y,'#e8a33d',10);questTick();
   toast(B.name+' built!');
@@ -1561,41 +1599,65 @@ function drawBuilding(b,sx,sy,sz){
   }
   if(b.type==='monument'){drawMonument(b,sx,sy,sz);return;}
   if(BUILDS[b.type]&&BUILDS[b.type].decor){drawDecor(b,sx,sy,sz);return;}
+  // footprint pixel box: W wide, base at the front-row bottom (roof/upper floors rise above sy)
+  const w=bW(b), h=bH(b), W=w*sz, baseY=sy+h*sz;
+  const flat=b.type==='farm'||b.type==='dock'||b.type==='plaza';
+  const shadow=()=>{if(!flat){cx.fillStyle='rgba(0,0,0,.22)';cx.beginPath();cx.ellipse(sx+W/2,baseY-sz*.15,W*.42,sz*.11,0,0,7);cx.fill()}};
+  const ghost=(gx,gy,gw,gh)=>{if(!b.mine&&b.type!=='hall'){cx.globalAlpha=.3;cx.fillStyle='#fff';cx.fillRect(gx,gy,gw,gh);cx.globalAlpha=1}};
+  // 1) real external sprite (assets/buildings/<type>.png) — the new-art pipeline, scaled to the footprint
+  const img=bldImg(b.type);
+  if(img&&img.ready){
+    shadow();
+    const dh=W*img.naturalHeight/Math.max(1,img.naturalWidth);
+    cx.drawImage(img,sx,baseY-dh,W,dh);
+    fabStatus(b,sx,sy,sz);ghost(sx,baseY-dh,W,dh);
+    return;
+  }
+  // 2) baked atlas sprite, scaled up to fill the footprint width (stepping stone until real art lands)
   const isProf=BUILDS[b.type]&&BUILDS[b.type].prof;
   const bf=ATLAS_FRAMES&&(ATLAS_FRAMES['bld_'+b.type]||(isProf&&ATLAS_FRAMES[PROF_FRAME[b.type]||'bld_cottage']));
-  if(atlasReady&&bf){                       // compact 3/4-view sprite: 1 tile wide, roof extends up
-    const bh=sz*bf[3]/16;
-    const flat=b.type==='farm'||b.type==='dock'||b.type==='plaza';
-    if(!flat){cx.fillStyle='rgba(0,0,0,.22)';cx.beginPath();cx.ellipse(sx+sz/2,sy+sz*.85,sz*.42,sz*.11,0,0,7);cx.fill()}
-    cx.drawImage(atlasImg,bf[0],bf[1],bf[2],bf[3],sx,sy+sz-bh,sz,bh);
-    if(isProf)drawProfEmblem(sx,sy,sz,BUILDS[b.type].ico);
+  if(atlasReady&&bf){
+    const dh=W*bf[3]/bf[2];
+    shadow();
+    cx.drawImage(atlasImg,bf[0],bf[1],bf[2],bf[3],sx,baseY-dh,W,dh);
+    if(isProf)drawProfEmblem(sx,sy,W,BUILDS[b.type].ico);
     if(b.type==='crate'){const tot=Object.values(b.store||{}).reduce((a,c2)=>a+c2,0);
-      cx.fillStyle='#2b2620';cx.fillRect(sx+5,sy+sz-6,sz-10,4);
-      cx.fillStyle='#e8a33d';cx.fillRect(sx+5,sy+sz-6,(sz-10)*Math.min(1,tot/16),4);}
-    if(b.type==='warehouse'&&(b.lvl||1)>1){   // level pips
+      cx.fillStyle='#2b2620';cx.fillRect(sx+5,baseY-6,W-10,4);
+      cx.fillStyle='#e8a33d';cx.fillRect(sx+5,baseY-6,(W-10)*Math.min(1,tot/16),4);}
+    if(b.type==='warehouse'&&(b.lvl||1)>1){
       cx.fillStyle='#2b2620';cx.fillRect(sx+3,sy+2,4+((b.lvl-1)*5),7);
-      cx.fillStyle='#f4c542';
-      for(let i=0;i<b.lvl-1;i++)cx.fillRect(sx+5+i*5,sy+4,3,3);
-    }
-    fabStatus(b,sx,sy,sz);
-    if(!b.mine&&b.type!=='hall'){cx.globalAlpha=.3;cx.fillStyle='#fff';cx.fillRect(sx,sy+sz-bh,sz,bh);cx.globalAlpha=1}
+      cx.fillStyle='#f4c542';for(let i=0;i<b.lvl-1;i++)cx.fillRect(sx+5+i*5,sy+4,3,3);}
+    fabStatus(b,sx,sy,sz);ghost(sx,baseY-dh,W,dh);
     return;
   }
+  // 3) procedural FAB, scaled to the (square) footprint box
   if(FAB[b.type]){
-    if(b.type!=='farm'&&b.type!=='dock'&&b.type!=='plaza'){cx.fillStyle='rgba(0,0,0,.22)';cx.beginPath();cx.ellipse(sx+sz/2,sy+sz*.85,sz*.42,sz*.11,0,0,7);cx.fill()}
-    FAB[b.type](b,sx,sy,sz);
-    fabStatus(b,sx,sy,sz);
-    if(!b.mine){cx.globalAlpha=.3;cx.fillStyle='#fff';cx.fillRect(sx+2,sy-sz*.3,sz-4,sz*1.1);cx.globalAlpha=1}
+    if(!flat){cx.fillStyle='rgba(0,0,0,.22)';cx.beginPath();cx.ellipse(sx+W/2,baseY-sz*.15,W*.42,sz*.11,0,0,7);cx.fill()}
+    FAB[b.type](b,sx,sy,W);
+    fabStatus(b,sx,sy,sz);ghost(sx+2,sy-W*.3,W-4,W*1.1);
     return;
   }
-  cx.fillStyle='rgba(0,0,0,.22)';cx.fillRect(sx+3,sy+sz*.75,sz-6,sz*.2);
-  cx.fillStyle=BCOLS[b.type];cx.fillRect(sx+3,sy+4,sz-6,sz-9);
-  cx.strokeStyle='#2b2620';cx.lineWidth=2;cx.strokeRect(sx+3,sy+4,sz-6,sz-9);
-  drawIcon(cx,b.type==='hall'?'hall':b.type,sx+sz/2,sy+sz/2,sz*.55);
+  // 4) fallback coloured box, filling the footprint
+  const H=h*sz;
+  cx.fillStyle='rgba(0,0,0,.22)';cx.fillRect(sx+3,baseY-sz*.25,W-6,sz*.2);
+  cx.fillStyle=BCOLS[b.type]||'#9a978e';cx.fillRect(sx+3,sy+4,W-6,H-9);
+  cx.strokeStyle='#2b2620';cx.lineWidth=2;cx.strokeRect(sx+3,sy+4,W-6,H-9);
+  drawIcon(cx,b.type==='hall'?'hall':b.type,sx+W/2,sy+H/2,sz*.55);
   if(b.type==='crate'){const tot=Object.values(b.store||{}).reduce((a,c2)=>a+c2,0);
-    cx.fillStyle='#2b2620';cx.fillRect(sx+5,sy+sz-9,sz-10,4);
-    cx.fillStyle='#e8a33d';cx.fillRect(sx+5,sy+sz-9,(sz-10)*Math.min(1,tot/16),4);}
-  if(!b.mine&&b.type!=='hall'){cx.globalAlpha=.35;cx.fillStyle='#fff';cx.fillRect(sx+3,sy+4,sz-6,sz-9);cx.globalAlpha=1}
+    cx.fillStyle='#2b2620';cx.fillRect(sx+5,baseY-9,W-10,4);
+    cx.fillStyle='#e8a33d';cx.fillRect(sx+5,baseY-9,(W-10)*Math.min(1,tot/16),4);}
+  ghost(sx+3,sy+4,W-6,H-9);
+}
+// external building sprites: assets/buildings/<type>.png (trimmed to the sprite, base at bottom, transparent).
+// Only listed types are fetched, so unlisted types never 404. Add a type here when its PNG is committed.
+const BLD_ASSETS=new Set(['lumberlodge']);
+const _bldImg={};
+function bldImg(type){
+  if(!BLD_ASSETS.has(type))return null;
+  if(_bldImg[type])return _bldImg[type];
+  const im=new Image();im.onload=()=>{im.ready=true};im.onerror=()=>{im.failed=true};
+  im.src='assets/buildings/'+type+'.png';
+  return _bldImg[type]=im;
 }
 const FB_PALS=[['#e86a8a','#f4c542','#f0f0e8'],['#f4c542','#b58fb0','#e86a8a'],['#f0f0e8','#5b8fb0','#f4c542'],['#e86a8a','#e8a33d','#b58fb0'],['#b58fb0','#f0f0e8','#e8a33d']];
 function drawDecor(b,sx,sy,sz){
@@ -1780,12 +1842,17 @@ function render(){
     }
   }
   if(S.buildSel&&hoverTile){
+    const[fw,fh]=foot(S.buildSel);
     const sx=(hoverTile.x-S.cam.x)*TSZ+VW/2, sy=(hoverTile.y-S.cam.y)*TSZ+VH/2;
-    let ok=walkable(hoverTile.x,hoverTile.y)&&!resAt(hoverTile.x,hoverTile.y)&&!S.buildings[key(hoverTile.x,hoverTile.y)];
+    let ok=true;   // whole footprint must be buildable
+    for(let dy=0;dy<fh&&ok;dy++)for(let dx=0;dx<fw&&ok;dx++){
+      const tx=hoverTile.x+dx,ty=hoverTile.y+dy;
+      if(!walkable(tx,ty)||resAt(tx,ty)||buildingAt(tx,ty)||(tx===HALL.x&&ty===HALL.y)||terrAt(tx,ty)===0)ok=false;
+    }
     if(S.buildSel==='dock')ok=ok&&[[1,0],[-1,0],[0,1],[0,-1]].some(([dx,dy])=>terrAt(hoverTile.x+dx,hoverTile.y+dy)===0);
     cx.fillStyle=ok?'rgba(232,163,61,.4)':'rgba(176,86,59,.45)';
-    cx.fillRect(sx,sy,TSZ,TSZ);
-    cx.strokeStyle='#2b2620';cx.strokeRect(sx,sy,TSZ,TSZ);
+    cx.fillRect(sx,sy,TSZ*fw,TSZ*fh);
+    cx.strokeStyle='#2b2620';cx.strokeRect(sx,sy,TSZ*fw,TSZ*fh);
   }
   /* row-interleaved draw: taller sprites occlude people behind them */
   const rowP={};
@@ -1847,7 +1914,9 @@ function render(){
       const sx=(x-S.cam.x)*TSZ+VW/2, sy=(y-S.cam.y)*TSZ+VH/2;
       const r=resAt(x,y); if(r&&!(x===WONDER.x&&y===WONDER.y))drawRes(r,x,y,sx,sy,TSZ);
       if(x===HALL.x&&y===HALL.y)drawBuilding({type:'hall',mine:true},sx,sy,TSZ);
-      const b=S.buildings[key(x,y)]; if(b&&b.type!=='path')drawBuilding(b,sx,sy,TSZ);
+      // draw a multi-tile building once, when the loop reaches its FRONT-LEFT tile, from the anchor pos
+      const bb=buildingAt(x,y);
+      if(bb&&bb.type!=='path'&&bb.x===x&&bb.y+bH(bb)-1===y)drawBuilding(bb,(bb.x-S.cam.x)*TSZ+VW/2,(bb.y-S.cam.y)*TSZ+VH/2,TSZ);
     }
     const ps=rowP[y]; if(ps){ps.sort((q,w)=>q.py-w.py);for(const p of ps)p.fn();}
   }
@@ -2307,8 +2376,8 @@ function demolishBuilding(b){
   if(B.home)for(const v of S.villagers)if(v.home===kk){v.home=null;
     if(B.prof){v.job='idle';v.state='idle';v.path=[];v.target=null;v.work=0;toast('🥴 '+v.name.split(' ')[0]+' is out of work — a Nitwit until rehoused')}
   }
-  delete S.buildings[kk];
-  spawnBurst(b.x,b.y,'#9a978e',8);
+  delete S.buildings[kk];occDirty();
+  spawnBurst(bCenter(b).x,bCenter(b).y,'#9a978e',8);
   sfx('chop');
   toast(B.name+' demolished — half the materials recovered');
   popup.style.display='none';
@@ -2412,7 +2481,7 @@ function openBuildingPopup(b,px,py){
     b.lvl=lvl+1;S.score+=15;b.sv=(b.sv||15)+15;
     sfx('build');spawnBurst(b.x,b.y,'#e8a33d',10);
     toast('🏬 Warehouse upgraded to Lv'+b.lvl+' — +'+WARE_CAP[b.lvl]+' storage');
-    syncBldSoon();netSend({t:'bld',k:key(b.x,b.y),e:{t:b.bt||0,type:b.type,lvl:b.lvl,owner:S.me.id,onm:S.me.name}});
+    occDirty();syncBldSoon();netSend({t:'bld',k:key(b.x,b.y),e:{t:b.bt||0,type:b.type,w:bW(b),h:bH(b),lvl:b.lvl,owner:S.me.id,onm:S.me.name}});
     renderHUD();questTick();saveSoon();
     openBuildingPopup(b,px,py);
   };
@@ -2448,7 +2517,7 @@ function openBuildingPopup(b,px,py){
     b.type=next;S.stats.b[next]=(S.stats.b[next]||0)+1;if(S.legacy){S.legacy.b[next]=(S.legacy.b[next]||0)+1;saveLegacySoon()}S.score+=15;b.sv=(b.sv||15)+15;
     sfx('build');spawnBurst(b.x,b.y,'#e8a33d',10);
     moveIn(key(b.x,b.y));renderHUD();renderBuildBar();questTick();checkTownTier();syncBldSoon();saveSoon();
-    netSend({t:'bld',k:key(b.x,b.y),e:{t:b.bt||0,type:b.type,owner:S.me.id,onm:S.me.name}});
+    netSend({t:'bld',k:key(b.x,b.y),e:{t:b.bt||0,type:b.type,w:bW(b),h:bH(b),owner:S.me.id,onm:S.me.name}});
     openBuildingPopup(b,px,py);
   };
   const db=popup.querySelector('#demolishBtn');
@@ -2528,7 +2597,7 @@ cv.addEventListener('click',e=>{
   // villager?
   let bestV=null,bd=1.2;
   for(const v of S.villagers){if(isInside(v))continue;const d=Math.hypot(v.x-(t.x+.5),v.y-(t.y+.5));if(d<bd){bd=d;bestV=v}}
-  const bAt=S.buildings[key(t.x,t.y)];
+  const bAt=buildingAt(t.x,t.y);
   if(bestV&&!S.buildSel&&!(bAt&&bd>0.6)){openVillagerPopup(bestV,e.clientX,e.clientY);return}
   if(S.buildSel){placeBuilding(S.buildSel,t.x,t.y);return}
   const b=bAt;
@@ -2574,7 +2643,7 @@ async function saveGame(){
   await store.set('save-v1',{island:ISLAND,raid:S.raid,inv:S.inv,name:S.me.name,id:S.me.id,x:S.me.x,y:S.me.y,score:S.score,won:S.won,msgShown:S.msgShown,quest:S.quest,stats:S.stats,muted:S.muted,wonderRewarded:!!S.wonderRewarded,
     monu:S.monu, playSec:S.playSec, town:S.town, lastMeal:S.lastMeal,
     villagers:S.villagers.map(v=>({name:v.name,color:v.color,job:v.job,hasTool:v.hasTool,xp:v.xp||0,txp:v.txp||0,home:v.home||null,hungry:!!v.hungry,perk:v.perk||null})),
-    buildings:Object.values(S.buildings).filter(b=>b.mine).map(b=>({type:b.type,x:b.x,y:b.y,store:b.store,sv:b.sv,bt:b.bt||0,lvl:b.lvl||1}))});
+    buildings:Object.values(S.buildings).filter(b=>b.mine).map(b=>({type:b.type,x:b.x,y:b.y,w:bW(b),h:bH(b),store:b.store,sv:b.sv,bt:b.bt||0,lvl:b.lvl||1}))});
 }
 async function loadGame(){
   let s=await store.get('save-v1');
@@ -2589,7 +2658,10 @@ async function loadGame(){
   S.lastMeal=(s.lastMeal!==undefined)?s.lastMeal:Math.floor(now()/1000/DAYLEN);
   if(s.stats){S.stats.jobs=s.stats.jobs||0;Object.assign(S.stats.g,s.stats.g||{});Object.assign(S.stats.b,s.stats.b||{});S.stats.vnameUse=s.stats.vnameUse||{};S.stats.fedDay=s.stats.fedDay?1:0}
   if(s.x!=null&&passable(s.x|0,s.y|0)){S.me.x=s.x;S.me.y=s.y;S.cam.x=s.x;S.cam.y=s.y}
-  for(const b of (s.buildings||[]))S.buildings[key(b.x,b.y)]={...b,mine:true};
+  // buildings placed before the footprint update have no w,h — keep them 1×1 (their original size)
+  // so they never overlap neighbours; only newly-placed buildings adopt the bigger FOOT footprints.
+  for(const b of (s.buildings||[]))S.buildings[key(b.x,b.y)]={...b,w:b.w||1,h:b.h||1,mine:true};
+  occDirty();
   if(s.monu) S.monu=s.monu;
   else if(Object.values(S.buildings).some(b=>b.type==='monument')) S.monu={stage:2,given:{},lit:false}; // v1 migration: Foundation complete
   else S.monu=null;
@@ -2633,7 +2705,7 @@ function syncBldSoon(){clearTimeout(_bldT);_bldT=setTimeout(()=>{try{syncBuildin
 function applyBldEntry(k,e){   // shared merge rules for one tile entry (poll + socket); returns true if the world changed
   const loc=S.buildings[k];
   if(e.rm){                                     // tombstone: its owner tore it down
-    if(loc&&!loc.mine&&loc.owner===e.owner){delete S.buildings[k];return true}
+    if(loc&&!loc.mine&&loc.owner===e.owner){delete S.buildings[k];occDirty();return true}
     return false;
   }
   if(e.owner===S.me.id)return false;            // my own echo
@@ -2642,14 +2714,16 @@ function applyBldEntry(k,e){   // shared merge rules for one tile entry (poll + 
     if((e.t||0)<(loc.bt||0)||((e.t||0)===(loc.bt||0)&&e.owner<S.me.id)){
       for(const[ck,cv]of Object.entries(BUILDS[loc.type].cost))S.inv[ck]=(S.inv[ck]||0)+cv;
       S.score=Math.max(0,S.score-(loc.sv||15));
-      delete S.buildings[k];
+      delete S.buildings[k];occDirty();
       toast('\u{1F3D7}️ '+(e.onm||'Another settler')+' built there first — materials refunded');
     } else return false;                        // I was first: my publish wins on their side
   }
   const cur=S.buildings[k];
-  if(!cur||(!cur.mine&&(cur.type!==e.type||(cur.lvl||1)!==(e.lvl||1)))){
+  if(!cur||(!cur.mine&&(cur.type!==e.type||(cur.lvl||1)!==(e.lvl||1)||(cur.w||1)!==(e.w||1)))){
     const[x,y]=k.split(',').map(Number);
-    S.buildings[k]={type:e.type,x,y,mine:false,owner:e.owner,onm:e.onm,bt:e.t||0,lvl:e.lvl||1};
+    // missing w,h means a pre-footprint client/placement → 1×1 (what that client sees), never overlap
+    S.buildings[k]={type:e.type,x,y,w:e.w||1,h:e.h||1,mine:false,owner:e.owner,onm:e.onm,bt:e.t||0,lvl:e.lvl||1};
+    occDirty();
     return true;
   }
   return false;
@@ -2665,7 +2739,7 @@ async function syncBuildings(){
       if(!e.rm&&e.owner===S.me.id&&(!S.buildings[k]||!S.buildings[k].mine)){m[k]={rm:now(),owner:S.me.id};dirty=true}}
     for(const k in S.buildings){const b=S.buildings[k];if(!b.mine)continue;
       const e=m[k];
-      if(!e||e.rm||e.owner!==S.me.id||e.type!==b.type||(e.lvl||1)!==(b.lvl||1)){m[k]={t:b.bt||0,type:b.type,lvl:b.lvl||1,owner:S.me.id,onm:S.me.name};dirty=true}}
+      if(!e||e.rm||e.owner!==S.me.id||e.type!==b.type||(e.lvl||1)!==(b.lvl||1)){m[k]={t:b.bt||0,type:b.type,w:bW(b),h:bH(b),lvl:b.lvl||1,owner:S.me.id,onm:S.me.name};dirty=true}}
     if(dirty)await store.set('bld',m,true);
     if(changed){renderBuildBar();beautyDirty()}
   }catch(e){}
@@ -2940,7 +3014,7 @@ function netConnect(){
     NET.ws=w;
     w.onopen=()=>{NET.ok=true;NET.tries=0;toast('\u{1F517} Connected to the valley relay');
       netSendPos();
-      for(const k in S.buildings){const b=S.buildings[k];if(b.mine)netSend({t:'bld',k,e:{t:b.bt||0,type:b.type,owner:S.me.id,onm:S.me.name}})}
+      for(const k in S.buildings){const b=S.buildings[k];if(b.mine)netSend({t:'bld',k,e:{t:b.bt||0,type:b.type,w:bW(b),h:bH(b),owner:S.me.id,onm:S.me.name}})}
     };
     w.onclose=()=>{const was=NET.ok;NET.ok=false;NET.ws=null;
       if(was)toast('\u{1F50C} Relay connection lost — falling back to slow sync');
@@ -3918,7 +3992,9 @@ function critterTick(dt){
     const n=critters.reduce((a,c)=>a+((c.type===kind&&c.pen)?1:0),0);
     if(n<Math.min(6,myPens.length*2)&&Math.random()<dt*.22){
       const p=myPens[(Math.random()*myPens.length)|0];
-      critters.push({type:kind,pen:1,x:p.x+.5,y:p.y+1.3,hx:p.x+.5,hy:p.y+.5,vx:0,vy:0,t:0,fx2:1,
+      // graze on a passable tile just outside the pen footprint (the pen tiles themselves block)
+      const gx=p.x+bW(p)*.5, gy=p.y+bH(p)+.4;
+      critters.push({type:kind,pen:1,x:gx,y:gy,hx:gx,hy:gy,vx:0,vy:0,t:0,fx2:1,
         wool:kind==='sheep'?24+Math.random()*20:undefined, fat:kind==='pig'?0:undefined});
     }
   }
