@@ -38,26 +38,37 @@
   #buildBtn:hover{transform:translateX(-50%) translateY(-2px)}
   #buildBtn .ic{font-size:18px}
   #buildPanel{position:fixed;bottom:64px;left:50%;transform:translateX(-50%);z-index:21;width:min(560px,94vw);
-    background:linear-gradient(var(--parch),var(--parch2));border:3px solid var(--ink);border-radius:14px;
-    box-shadow:0 6px 0 var(--shadow);overflow:hidden;display:flex;flex-direction:column}
+    background:linear-gradient(#4a3526,#382719);border:3px solid #6b4a33;border-radius:16px;
+    box-shadow:0 8px 0 rgba(0,0,0,.4),inset 0 0 0 2px rgba(0,0,0,.22),inset 0 1px 0 rgba(255,231,190,.12);
+    overflow:hidden;display:flex;flex-direction:column}
   #buildPanel.hid{display:none}
-  #buildTabs{display:flex;gap:4px;flex-wrap:wrap;background:var(--pine2);padding:7px 8px}
-  .bcat{display:flex;align-items:center;gap:4px;border:2px solid transparent;background:rgba(255,255,255,.12);color:var(--parch);
-    border-radius:8px;padding:5px 9px;font-weight:800;font-size:12px}
-  .bcat:hover{background:rgba(255,255,255,.25)}
-  .bcat.sel{background:var(--amber);color:var(--ink);border-color:#fff}
-  #buildGrid{display:flex;flex-wrap:wrap;gap:8px;padding:10px;max-height:50dvh;overflow-y:auto;justify-content:center}
-  .bbtn{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:74px;padding:6px 8px;border-radius:9px;
-    border:2px solid var(--ink);background:#fff8e6;transition:transform .08s}
-  .bbtn:hover{transform:translateY(-2px);background:#fffdf4}
-  .bbtn.sel{background:var(--amber);box-shadow:inset 0 0 0 2px #fff}
-  .bbtn.locked{opacity:.45;filter:grayscale(.6)}
-  .bbtn.eralock{opacity:.4;filter:grayscale(.85);cursor:not-allowed}
-  .bbtn.eralock .bc{color:var(--clay)}
-  .bbtn .bi{font-size:30px;display:flex;align-items:flex-end;justify-content:center;height:38px}
-  .bbtn .bi img.bthumb{width:40px;height:38px;object-fit:contain;object-position:bottom;display:block;image-rendering:auto;filter:drop-shadow(0 1px 1px rgba(0,0,0,.25))}
-  .bbtn .bn{font-size:11px;font-weight:800}
-  .bbtn .bc{display:flex;align-items:center;gap:2px;flex-wrap:wrap;justify-content:center;font-size:10px;font-weight:700;opacity:.75}
+  #buildHead{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:11px 16px 8px;
+    border-bottom:2px solid rgba(0,0,0,.28)}
+  #buildHead .bh-title{font-weight:900;font-size:20px;letter-spacing:.08em;color:#f3e6c6;text-shadow:0 2px 0 rgba(0,0,0,.4)}
+  #buildHead .bh-sub{font-weight:800;font-size:12.5px;color:#e6a63f;text-shadow:0 1px 0 rgba(0,0,0,.35)}
+  #buildTabs{display:flex;gap:5px;flex-wrap:wrap;padding:9px 12px 4px}
+  .bcat{display:flex;align-items:center;gap:4px;border:2px solid rgba(0,0,0,.3);background:rgba(0,0,0,.22);color:#e8d5b5;
+    border-radius:9px;padding:5px 10px;font-weight:800;font-size:12px;text-shadow:0 1px 0 rgba(0,0,0,.35)}
+  .bcat:hover{background:rgba(0,0,0,.12);color:#f3e6c6}
+  .bcat.sel{background:linear-gradient(#f0b24e,#e0972f);color:#3a281c;border-color:#ffd98a;text-shadow:none}
+  #buildGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:11px;padding:12px 14px 16px;
+    max-height:50dvh;overflow-y:auto}
+  .bbtn{display:flex;flex-direction:column;align-items:center;gap:4px;padding:0;border:0;background:transparent;transition:transform .08s}
+  .bbtn:hover{transform:translateY(-2px)}
+  .bbtn .bi{position:relative;width:100%;aspect-ratio:1;display:flex;align-items:flex-end;justify-content:center;
+    padding:7px 6px 6px;font-size:30px;border-radius:13px;border:2px solid #5e4229;
+    background:linear-gradient(#3c2a1a,#2b1d11);
+    box-shadow:inset 0 3px 7px rgba(0,0,0,.55),inset 0 -2px 0 rgba(255,231,190,.05);transition:border-color .1s,box-shadow .1s}
+  .bbtn:hover .bi{border-color:#8a6242}
+  .bbtn.sel .bi{border-color:#f0b24e;box-shadow:inset 0 0 0 2px rgba(240,178,78,.45),0 0 10px rgba(240,178,78,.4)}
+  .bbtn .bi img.bthumb{width:auto;max-width:100%;height:100%;max-height:100%;object-fit:contain;object-position:bottom;
+    display:block;image-rendering:auto;filter:drop-shadow(0 2px 2px rgba(0,0,0,.45))}
+  .bbtn .bi .ic svg{filter:drop-shadow(0 2px 2px rgba(0,0,0,.35))}
+  .bbtn.locked{opacity:.5;filter:grayscale(.55)}
+  .bbtn.eralock{opacity:.42;filter:grayscale(.8);cursor:not-allowed}
+  .bbtn.eralock .bc{color:#e08a5a}
+  .bbtn .bn{font-size:11px;font-weight:800;color:#efe1c2;text-align:center;line-height:1.15;text-shadow:0 1px 0 rgba(0,0,0,.4)}
+  .bbtn .bc{display:flex;align-items:center;gap:2px;flex-wrap:wrap;justify-content:center;font-size:10px;font-weight:700;color:#d6b47c}
   .bc .cp{display:inline-flex;align-items:center;gap:1px;white-space:nowrap}
   .cp .ic{font-size:14px}
 
@@ -163,9 +174,12 @@
     #hint{top:52px;font-size:10.5px;max-width:92vw;text-align:center}
     #buildBtn{font-size:13px;padding:8px 14px}
     #buildPanel{width:96vw;bottom:58px}
-    #buildTabs{padding:6px}
+    #buildHead{padding:9px 12px 6px}
+    #buildHead .bh-title{font-size:17px}
+    #buildHead .bh-sub{font-size:11px}
+    #buildTabs{padding:7px 8px 3px}
     .bcat{font-size:11px;padding:4px 7px}
-    #buildGrid{padding:8px;gap:6px;max-height:46dvh}
+    #buildGrid{grid-template-columns:repeat(auto-fill,minmax(78px,1fr));padding:9px;gap:8px;max-height:46dvh}
     .bbtn{min-width:64px;padding:5px 6px}
   }
 
@@ -288,6 +302,7 @@
 
 <button id="buildBtn" class="px" title="Build (B)">🔨 Build</button>
 <div id="buildPanel" class="hid">
+  <div id="buildHead"><span class="bh-title">BUILD</span><span class="bh-sub">Select a structure</span></div>
   <div id="buildTabs"></div>
   <div id="buildGrid"></div>
 </div>
@@ -1654,7 +1669,9 @@ function drawBuilding(b,sx,sy,sz){
 const BLD_ASSETS=new Set(['lumberlodge',
   'forge','kiln','butchery','chapel','haulerpost','farm','farmhouse','fishershack','dock','foragerhut',
   'glassworks','guardhouse','market','pigpen','sheeppen','shepherdhut','smelter','statue','masonhouse',
-  'tavern','toolsmithy','warehouse','watchtower','workshop']);
+  'tavern','toolsmithy','warehouse','watchtower','workshop',
+  'armory','bakery','clerichouse','fishmonger','fletcherhouse','gilder','leatherhouse','library','loom',
+  'plaza','sawmill','smokehouse','weaponsmithy','well']);
 const _bldImg={};
 function bldImg(type){
   if(!BLD_ASSETS.has(type))return null;
