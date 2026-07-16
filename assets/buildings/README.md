@@ -17,3 +17,7 @@ Only listed types are fetched, so unlisted types never 404.
 ## Current assets
 - `lumberlodge.png` — **PLACEHOLDER** (a crude generated cabin proving the pipeline).
   Replace this file with a real log-cabin sprite; no code change needed.
+
+## Sources
+Raw high-res uploads live in `../sources/buildings/` and are not loaded by the game —
+they're kept only for re-processing. This folder holds just the game-ready sprites.
