@@ -1298,15 +1298,17 @@ function drawTile(x,y,sx,sy,w,h){
       if(wv>0.75){cx.fillStyle='rgba(255,255,255,.18)';cx.fillRect(sx+w*.2,sy+h*.45,w*.5,2)}}
   }
 }
+// draw a resource sprite: contact shadow + base-aligned, ~1.25 tiles wide (trees overflow upward)
+function blitRes(im,sx,sy,sz){
+  const cxm=sx+sz/2;
+  cx.fillStyle='rgba(0,0,0,.2)';cx.beginPath();cx.ellipse(cxm,sy+sz*.86,sz*.3,sz*.1,0,0,7);cx.fill();
+  const scale=sz*1.25/im.width, dw=im.width*scale, dh=im.height*scale;
+  cx.drawImage(im,cxm-dw/2,sy+sz*.94-dh,dw,dh);
+}
 function drawRes(r,x,y,sx,sy,sz){
   const cxm=sx+sz/2;
   const rim=resImg(r.type);
-  if(rim&&rim.ready){ // real sprite: contact shadow + base-aligned, ~1.25 tiles wide (trees overflow upward)
-    cx.fillStyle='rgba(0,0,0,.2)';cx.beginPath();cx.ellipse(cxm,sy+sz*.86,sz*.3,sz*.1,0,0,7);cx.fill();
-    const scale=sz*1.25/rim.width, dw=rim.width*scale, dh=rim.height*scale;
-    cx.drawImage(rim,cxm-dw/2,sy+sz*.94-dh,dw,dh);
-    return;
-  }
+  if(rim&&rim.ready){blitRes(rim,sx,sy,sz);return;}
   if(r.type==='tree'){
     cx.fillStyle='rgba(0,0,0,.2)';cx.beginPath();cx.ellipse(cxm,sy+sz*.85,sz*.3,sz*.1,0,0,7);cx.fill();
     cx.fillStyle='#6b4a2f';cx.fillRect(cxm-2,sy+sz*.55,4,sz*.32);
@@ -1997,6 +1999,10 @@ function render(){
     for(let x=tx0;x<=tx1;x++){
       const sx=(x-S.cam.x)*TSZ+VW/2, sy=(y-S.cam.y)*TSZ+VH/2;
       const r=resAt(x,y); if(r&&!(x===WONDER.x&&y===WONDER.y))drawRes(r,x,y,sx,sy,TSZ);
+      else if(!r&&!(x===WONDER.x&&y===WONDER.y)){ // harvested berry bush regrowing -> show its spent/default state instead of vanishing
+        const br=baseRes[key(x,y)];
+        if(br&&br.type==='berry'&&!buildingAt(x,y)){const sp=resImg('berry_spent');if(sp&&sp.ready)blitRes(sp,sx,sy,TSZ);}
+      }
       if(x===HALL.x&&y===HALL.y)drawBuilding({type:'hall',mine:true},sx,sy,TSZ);
       // draw a multi-tile building once, when the loop reaches its FRONT-LEFT tile, from the anchor pos
       const bb=buildingAt(x,y);
