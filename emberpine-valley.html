@@ -1205,6 +1205,28 @@ const ATLAS_B64='iVBORw0KGgoAAAANSUhEUgAABAAAAAFeCAYAAAAboW2jAABvVElEQVR42u3deZw
 let atlasReady=false;
 const atlasImg=new Image();
 if(ATLAS_B64){atlasImg.onload=()=>{atlasReady=true};atlasImg.src='data:image/png;base64,'+ATLAS_B64;}
+// external terrain tiles: assets/terrain/<name>.png, seamless 64px (water is a 2x2 animation sheet).
+// When loaded they replace the 16px atlas tiles in drawTile(); until then the atlas/colour fallback shows.
+const TERR_NAMES=['grass','grass2','grass3','sand','stone','ice','dirt','water'];
+const _terrImg={};
+function terrTile(name){
+  let im=_terrImg[name]; if(im)return im;
+  im=new Image();im.onload=()=>{im.ready=true};im.onerror=()=>{im.failed=true};
+  im.src='assets/terrain/'+name+'.png';return _terrImg[name]=im;
+}
+TERR_NAMES.forEach(terrTile); // preload so the ground paints as tiles from the first frame
+// terrain type (0 water,1 sand,2 grass,3 dark grass,4 rock) -> tile name (null = no external tile).
+// grass = lush green, grass2 = dark green; keep them mostly uniform per type with only a rare
+// cross-patch so it reads as natural variation, not a checkerboard. grass3 (golden/dry) is too
+// different for base ground and is left out of the rotation.
+function terrTileName(x,y,t){
+  if(t===0)return 'water';
+  if(t===1)return 'sand';
+  if(t===2)return hash2(x,y,5)>0.9?'grass2':'grass';
+  if(t===3)return hash2(x,y,7)>0.9?'grass':'grass2';
+  if(t===4)return 'stone';
+  return null;
+}
 // per-terrain frame variants; grass2 (flowers) kept rare
 const TVAR=[['water0','water1'],['sand0','sand1'],['grass0','grass0','grass0','grass0','grass0','grass0','grass0','grass1','grass1','grass1','grass1','grass2'],['gdark0','gdark1'],['rock0','rock1']];
 // 4-bit mask of grass-side neighbors (N=1,E=2,S=4,W=8) -> grass-edged sand tile
@@ -1223,16 +1245,33 @@ function tileFrame(x,y,t){
 }
 function drawTile(x,y,sx,sy,w,h){
   const t=terrAt(x,y);
-  if(atlasReady){
-    const f=tileFrame(x,y,t);
-    cx.drawImage(atlasImg,f[0],f[1],16,16,sx,sy,w,h);
-  }else{
-    cx.fillStyle=hash2(x,y,5)>.5?TCOL[t]:TCOL2[t];
-    cx.fillRect(sx,sy,w+1,h+1);
-    if(t===2&&hash2(x,y,77)>.86){cx.fillStyle='rgba(255,255,255,.14)';cx.fillRect(sx+w*.3,sy+h*.3,2,2);cx.fillRect(sx+w*.6,sy+h*.55,2,2)}
+  let drew=false;
+  // frozen water -> ice tile as the base; when it's up we skip foam/waves entirely
+  if(t===0&&frozenNow()){
+    const ice=terrTile('ice');
+    if(ice.ready){cx.drawImage(ice,0,0,ice.width,ice.height,sx,sy,w+1,h+1);return;}
+  }
+  const nm=terrTileName(x,y,t);
+  if(nm==='water'){
+    const im=terrTile('water');
+    if(im.ready){const s=im.width/2,fr=((now()/240)|0)%4;   // 2x2 animation sheet, 4 frames
+      cx.drawImage(im,(fr&1)*s,(fr>>1)*s,s,s,sx,sy,w+1,h+1);drew=true;}
+  }else if(nm){
+    const im=terrTile(nm);
+    if(im.ready){cx.drawImage(im,0,0,im.width,im.height,sx,sy,w+1,h+1);drew=true;}
+  }
+  if(!drew){
+    if(atlasReady){
+      const f=tileFrame(x,y,t);
+      cx.drawImage(atlasImg,f[0],f[1],16,16,sx,sy,w,h);
+    }else{
+      cx.fillStyle=hash2(x,y,5)>.5?TCOL[t]:TCOL2[t];
+      cx.fillRect(sx,sy,w+1,h+1);
+      if(t===2&&hash2(x,y,77)>.86){cx.fillStyle='rgba(255,255,255,.14)';cx.fillRect(sx+w*.3,sy+h*.3,2,2);cx.fillRect(sx+w*.6,sy+h*.55,2,2)}
+    }
   }
   if(t===0){
-    if(frozenNow()){ // winter: solid ice — matte wash, cracks, sheen; no foam or waves
+    if(frozenNow()){ // ice tile wasn't ready above -> procedural ice fallback
       cx.fillStyle='rgba(206,229,240,.78)';cx.fillRect(sx,sy,w,h);
       const hh2=hash2(x,y,31);
       if(hh2>.7){cx.strokeStyle='rgba(140,175,198,.55)';cx.lineWidth=1;
@@ -1241,7 +1280,7 @@ function drawTile(x,y,sx,sy,w,h){
       return;
     }
     const nb=(terrAt(x,y-1)>0)|((terrAt(x+1,y)>0)<<1)|((terrAt(x,y+1)>0)<<2)|((terrAt(x-1,y)>0)<<3);
-    if(nb){ // shoreline foam, gently breathing
+    if(nb){ // shoreline foam, gently breathing — blends the water tile into the shore
       cx.fillStyle='rgba(255,255,255,'+(.16+.1*Math.sin(now()/650+x*.9+y*1.7)).toFixed(3)+')';
       const fw=Math.max(2,h*.1);
       if(nb&1)cx.fillRect(sx,sy,w,fw);
@@ -1249,8 +1288,8 @@ function drawTile(x,y,sx,sy,w,h){
       if(nb&4)cx.fillRect(sx,sy+h-fw,w,fw);
       if(nb&8)cx.fillRect(sx,sy,fw,h);
     }
-    const wv=Math.sin(now()/700+x*1.3+y*2.1);
-    if(wv>0.75){cx.fillStyle='rgba(255,255,255,.18)';cx.fillRect(sx+w*.2,sy+h*.45,w*.5,2)}
+    if(!drew){const wv=Math.sin(now()/700+x*1.3+y*2.1); // extra wave flecks only on the flat atlas/colour water
+      if(wv>0.75){cx.fillStyle='rgba(255,255,255,.18)';cx.fillRect(sx+w*.2,sy+h*.45,w*.5,2)}}
   }
 }
 function drawRes(r,x,y,sx,sy,sz){
