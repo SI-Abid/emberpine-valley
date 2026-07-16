@@ -1650,7 +1650,10 @@ function drawBuilding(b,sx,sy,sz){
 }
 // external building sprites: assets/buildings/<type>.png (trimmed to the sprite, base at bottom, transparent).
 // Only listed types are fetched, so unlisted types never 404. Add a type here when its PNG is committed.
-const BLD_ASSETS=new Set(['lumberlodge']);
+const BLD_ASSETS=new Set(['lumberlodge',
+  'forge','kiln','butchery','chapel','haulerpost','farm','farmhouse','fishershack','dock','foragerhut',
+  'glassworks','guardhouse','market','pigpen','sheeppen','shepherdhut','smelter','statue','masonhouse',
+  'tavern','toolsmithy','warehouse','watchtower','workshop']);
 const _bldImg={};
 function bldImg(type){
   if(!BLD_ASSETS.has(type))return null;
