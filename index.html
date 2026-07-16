@@ -652,7 +652,7 @@ const FOOT={
   sawmill:[2,2],smelter:[2,2],bakery:[2,2],workshop:[2,2],kiln:[2,2],glassworks:[2,2],forge:[2,2],loom:[2,2],gilder:[2,2],fishmonger:[2,2],smokehouse:[2,2],
   sheeppen:[2,2],pigpen:[2,2],
   tavern:[2,2],plaza:[2,2],chapel:[2,2],market:[2,2],warehouse:[2,2],well:[2,2],
-  watchtower:[1,2],
+  watchtower:[1,2],hall:[2,2],
 };
 function foot(type){return FOOT[type]||[1,1]}
 function bW(b){return (b&&b.w)||foot(b&&b.type)[0]||1}
@@ -1725,7 +1725,7 @@ const BLD_ASSETS=new Set(['lumberlodge',
   'glassworks','guardhouse','market','pigpen','sheeppen','shepherdhut','smelter','statue','masonhouse',
   'tavern','toolsmithy','warehouse','watchtower','workshop',
   'armory','bakery','clerichouse','fishmonger','fletcherhouse','gilder','leatherhouse','library','loom',
-  'plaza','sawmill','smokehouse','weaponsmithy','well','maproom']);
+  'plaza','sawmill','smokehouse','weaponsmithy','well','maproom','hall']);
 const _bldImg={};
 function bldImg(type){
   if(!BLD_ASSETS.has(type))return null;
@@ -1745,6 +1745,11 @@ function resImg(type){
   im.src='assets/resources/'+type+'.png';
   return _resImg[type]=im;
 }
+// monument build-stage sprites: assets/buildings/monument_1..4.png (foundation -> complete)
+const _monuImg={};
+function monuImg(n){ if(_monuImg[n])return _monuImg[n];
+  const im=new Image();im.onload=()=>{im.ready=true};im.onerror=()=>{im.failed=true};
+  im.src='assets/buildings/monument_'+n+'.png'; return _monuImg[n]=im; }
 const FB_PALS=[['#e86a8a','#f4c542','#f0f0e8'],['#f4c542','#b58fb0','#e86a8a'],['#f0f0e8','#5b8fb0','#f4c542'],['#e86a8a','#e8a33d','#b58fb0'],['#b58fb0','#f0f0e8','#e8a33d']];
 function drawDecor(b,sx,sy,sz){
   const cxm=sx+sz/2, h=(b.x*7+b.y*13)%5;
@@ -1805,31 +1810,23 @@ function drawDecor(b,sx,sy,sz){
 function drawMonument(b,sx,sy,sz){
   const cs=completedStages();               // 0..5
   cx.fillStyle='rgba(0,0,0,.28)';cx.beginPath();cx.ellipse(sx+sz/2,sy+sz*.92,sz*.5,sz*.13,0,0,7);cx.fill();
-  const tiers=[
-    {w:.86,h:.34,y:.62,c:'#b8b4a6'},        // 1 Foundation
-    {w:.70,h:.30,y:.34,c:'#c8c2b0'},        // 2 Frame
-    {w:.56,h:.28,y:.08,c:'#d8d2bd'},        // 3 Walls
-    {w:.40,h:.30,y:-.20,c:'#e6dcc2'},       // 4 Spire
-  ];
-  const shown=Math.min(4,cs);
-  for(let i=0;i<shown;i++){const t=tiers[i];
-    cx.fillStyle=t.c;cx.strokeStyle='#2b2620';cx.lineWidth=2;
-    const w=sz*t.w, x=sx+sz/2-w/2, y=sy+sz*t.y;
-    cx.fillRect(x,y,w,sz*t.h);cx.strokeRect(x,y,w,sz*t.h);
+  // real build-stage sprites (foundation -> complete). cs 0/1 -> stage 1, up to 4; lit uses the complete sprite.
+  const stage=Math.max(1,Math.min(4,cs)), im=monuImg(stage);
+  const flame=()=>{ if(!(S.monu&&S.monu.lit))return; const fl=1+Math.sin(now()/110)*.25, fy=sy-sz*.55;
+    cx.fillStyle='rgba(255,180,60,.3)';cx.beginPath();cx.arc(sx+sz/2,fy,sz*.7*fl,0,7);cx.fill();
+    cx.fillStyle='#e8a33d';cx.beginPath();cx.arc(sx+sz/2,fy,sz*.16*fl,0,7);cx.fill();
+    cx.fillStyle='#ffe9a0';cx.beginPath();cx.arc(sx+sz/2,fy,sz*.08*fl,0,7);cx.fill(); };
+  if(im&&im.ready){
+    const dw=sz*2.6, dh=dw*im.height/im.width;   // monument is a grand centrepiece, wider than its 1-tile base
+    cx.drawImage(im, sx+sz/2-dw/2, sy+sz - dh, dw, dh);
+    flame();
+    return;
   }
-  if(cs>=4){ // spire cap
-    cx.fillStyle='#e6dcc2';cx.strokeStyle='#2b2620';
-    cx.beginPath();cx.moveTo(sx+sz/2,sy-sz*.42);cx.lineTo(sx+sz/2-sz*.16,sy-sz*.16);cx.lineTo(sx+sz/2+sz*.16,sy-sz*.16);cx.closePath();cx.fill();cx.stroke();
-  }
-  if(S.monu&&S.monu.lit){
-    const fl=1+Math.sin(now()/110)*.25;
-    cx.fillStyle='rgba(255,180,60,.3)';cx.beginPath();cx.arc(sx+sz/2,sy-sz*.5,sz*.7*fl,0,7);cx.fill();
-    cx.fillStyle='#e8a33d';cx.beginPath();cx.arc(sx+sz/2,sy-sz*.5,sz*.16*fl,0,7);cx.fill();
-    cx.fillStyle='#ffe9a0';cx.beginPath();cx.arc(sx+sz/2,sy-sz*.5,sz*.08*fl,0,7);cx.fill();
-  }
-  if(cs===0){ // placed but nothing built yet — flag marker
-    cx.font=(sz*.5)+'px serif';cx.textAlign='center';cx.textBaseline='middle';cx.fillText('🚩',sx+sz/2,sy+sz*.45);
-  }
+  // procedural fallback (until sprites load)
+  const tiers=[{w:.86,h:.34,y:.62,c:'#b8b4a6'},{w:.70,h:.30,y:.34,c:'#c8c2b0'},{w:.56,h:.28,y:.08,c:'#d8d2bd'},{w:.40,h:.30,y:-.20,c:'#e6dcc2'}];
+  for(let i=0;i<Math.min(4,cs);i++){const t=tiers[i];cx.fillStyle=t.c;cx.strokeStyle='#2b2620';cx.lineWidth=2;
+    const w=sz*t.w, x=sx+sz/2-w/2, y=sy+sz*t.y;cx.fillRect(x,y,w,sz*t.h);cx.strokeRect(x,y,w,sz*t.h);}
+  flame();
 }
 const JOBANIM={woodcutter:'axe',miner:'mining',farmer:'watering',forager:'dig',fisher:'casting',hauler:'carry',guard:'attack',hunter:'attack',shepherd:'dig'};
 // per-profession headwear: each fn draws in a space translated to the head anchor, scaled by z.
@@ -2159,8 +2156,10 @@ function iconHTML(k,cls){return '<span class="ic'+(cls?' '+cls:'')+'" title="'+(
 // onerror restores the glyph so a missing/failed image never leaves a blank tile.
 function bthumbFail(img){img.parentNode.innerHTML=ICON_SVG[img.dataset.k]||ICON_SVG._missing}
 function buildIcon(t){
-  if(typeof BLD_ASSETS!=='undefined'&&BLD_ASSETS.has(t))
-    return '<span class="ic bti" title="'+((BUILDS[t]&&BUILDS[t].name)||NICE[t]||'')+'"><img class="bthumb" src="assets/buildings/'+t+'.png" alt="" data-k="'+t+'" onerror="bthumbFail(this)"></span>';
+  // monument has no single sprite — show its finished form (monument_4) in the menu
+  const src = t==='monument' ? 'assets/buildings/monument_4.png' : ((typeof BLD_ASSETS!=='undefined'&&BLD_ASSETS.has(t)) ? 'assets/buildings/'+t+'.png' : null);
+  if(src)
+    return '<span class="ic bti" title="'+((BUILDS[t]&&BUILDS[t].name)||NICE[t]||'')+'"><img class="bthumb" src="'+src+'" alt="" data-k="'+t+'" onerror="bthumbFail(this)"></span>';
   return iconHTML(t);
 }
 const iconImg={};
