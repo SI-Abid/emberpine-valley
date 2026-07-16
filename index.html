@@ -1255,6 +1255,13 @@ function drawTile(x,y,sx,sy,w,h){
 }
 function drawRes(r,x,y,sx,sy,sz){
   const cxm=sx+sz/2;
+  const rim=resImg(r.type);
+  if(rim&&rim.ready){ // real sprite: contact shadow + base-aligned, ~1.25 tiles wide (trees overflow upward)
+    cx.fillStyle='rgba(0,0,0,.2)';cx.beginPath();cx.ellipse(cxm,sy+sz*.86,sz*.3,sz*.1,0,0,7);cx.fill();
+    const scale=sz*1.25/rim.width, dw=rim.width*scale, dh=rim.height*scale;
+    cx.drawImage(rim,cxm-dw/2,sy+sz*.94-dh,dw,dh);
+    return;
+  }
   if(r.type==='tree'){
     cx.fillStyle='rgba(0,0,0,.2)';cx.beginPath();cx.ellipse(cxm,sy+sz*.85,sz*.3,sz*.1,0,0,7);cx.fill();
     cx.fillStyle='#6b4a2f';cx.fillRect(cxm-2,sy+sz*.55,4,sz*.32);
@@ -1679,6 +1686,17 @@ function bldImg(type){
   const im=new Image();im.onload=()=>{im.ready=true};im.onerror=()=>{im.failed=true};
   im.src='assets/buildings/'+type+'.png';
   return _bldImg[type]=im;
+}
+// external resource-node sprites: assets/resources/<type>.png (trimmed, base at bottom, transparent).
+// When a type's sprite is loaded, drawRes() uses it in place of the procedural art.
+const RES_ASSETS=new Set(['tree','stone','iron','gold','clay','sand','flax']);
+const _resImg={};
+function resImg(type){
+  if(!RES_ASSETS.has(type))return null;
+  if(_resImg[type])return _resImg[type];
+  const im=new Image();im.onload=()=>{im.ready=true};im.onerror=()=>{im.failed=true};
+  im.src='assets/resources/'+type+'.png';
+  return _resImg[type]=im;
 }
 const FB_PALS=[['#e86a8a','#f4c542','#f0f0e8'],['#f4c542','#b58fb0','#e86a8a'],['#f0f0e8','#5b8fb0','#f4c542'],['#e86a8a','#e8a33d','#b58fb0'],['#b58fb0','#f0f0e8','#e8a33d']];
 function drawDecor(b,sx,sy,sz){
