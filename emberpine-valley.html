@@ -375,7 +375,7 @@
 // match starts completely fresh — every emberpine:* key (save, legacy, identity,
 // account token) is discarded once, then the marker is stamped. Runs before anything
 // reads localStorage so even the ISLAND constant below sees the post-wipe state.
-const WORLD_EPOCH=2;
+const WORLD_EPOCH=3;
 try{if(+localStorage.getItem('emberpine:epoch')!==WORLD_EPOCH){
   Object.keys(localStorage).filter(k=>k.startsWith('emberpine:')).forEach(k=>localStorage.removeItem(k));
   localStorage.setItem('emberpine:epoch',String(WORLD_EPOCH));
@@ -3144,7 +3144,7 @@ let wsChat=[],lastStoreMsgs=[],netGiftSeen={};
 function netConnect(){
   if(!NET.host||NET.ws)return;
   try{
-    const w=new WebSocket(NET.host.replace(/\/+$/,'')+'/party/'+encodeURIComponent(SEED_STR+'-r3'));   // -r3: fresh shared world for the accounts update (old rooms go dormant)
+    const w=new WebSocket(NET.host.replace(/\/+$/,'')+'/party/'+encodeURIComponent(SEED_STR+'-r4'));   // -r4: fresh shared world (full reset; old rooms go dormant)
     NET.ws=w;
     w.onopen=()=>{NET.ok=true;NET.tries=0;toast('\u{1F517} Connected to the valley relay');
       netSendPos();
