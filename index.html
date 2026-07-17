@@ -1227,19 +1227,14 @@ function terrTile(name){
 }
 TERR_NAMES.forEach(terrTile); // preload so the ground paints as tiles from the first frame
 // terrain type (0 water,1 sand,2 grass,3 dark grass,4 rock) -> tile name (null = no external tile).
-// grass = lush green, grass2 = dark green, grass3 = golden. In spring/summer/winter grass stays
-// green (mostly uniform per type, rare cross-patch — no checkerboard). In autumn the golden tile
-// takes over as a mottled meadow, with lingering green patches so it reads as foliage turning.
+// grass = light green, grass3 = yellow, grass2 = dark green. The season paints ALL grass one colour:
+// spring & summer light green, autumn yellow, winter dark green.
 function terrTileName(x,y,t){
   if(t===0)return 'water';
   if(t===1)return 'sand';
   if(t===2||t===3){
-    if(seasonIdx()===2){ // autumn: golden-dominant meadow, mottled with lingering green
-      const r=hash2(x,y,5);
-      return r<0.62?'grass3':(r<0.85?'grass':'grass2');
-    }
-    if(t===2)return hash2(x,y,5)>0.9?'grass2':'grass';
-    return hash2(x,y,7)>0.9?'grass':'grass2';
+    const s=seasonIdx();               // 0 spring, 1 summer, 2 autumn, 3 winter
+    return s===2?'grass3':(s===3?'grass2':'grass');
   }
   if(t===4)return 'stone';
   return null;
