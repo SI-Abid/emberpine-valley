@@ -653,7 +653,7 @@ const FOOT={
   sawmill:[2,2],smelter:[2,2],bakery:[2,2],workshop:[2,2],kiln:[2,2],glassworks:[2,2],forge:[2,2],loom:[2,2],gilder:[2,2],fishmonger:[2,2],smokehouse:[2,2],
   sheeppen:[2,2],pigpen:[2,2],dock:[2,2],monument:[2,2],
   tavern:[2,2],plaza:[2,2],chapel:[2,2],market:[2,2],warehouse:[2,2],well:[2,2],
-  watchtower:[1,2],hall:[2,2],
+  watchtower:[2,2],hall:[2,2],
 };
 function foot(type){return FOOT[type]||[1,1]}
 function bW(b){return (b&&b.w)||foot(b&&b.type)[0]||1}
@@ -791,8 +791,14 @@ function villagerTick(v,dt){
     for(const g of goblins){const d=dist2(v,g);if(d<bd){bd=d;tg=g}}
     if(tg){
       const d=Math.sqrt(bd);
+      if(Math.abs(tg.x-v.x)>.05)v.fx=(tg.x-v.x)<0?-1:1;
       if(d<1.1){v.state='working';v.atk=(v.atk||0)-dt;if(v.atk<=0){v.atk=.7;hurtGoblin(tg,'guard');v.xp=(v.xp||0)+1}}
-      else{v.state='idle';const inv=1/Math.max(.2,d);v.x+=(tg.x-v.x)*inv*2.6*dt;v.y+=(tg.y-v.y)*inv*2.6*dt;if(Math.abs(tg.x-v.x)>.05)v.fx=(tg.x-v.x)<0?-1:1}
+      else{
+        // loose an arrow at raiders in bow range — picks off fleeing goblins a melee guard can't chase down
+        if(d<4.6){v.bow=(v.bow||0)-dt;if(v.bow<=0){v.bow=1.1;v.state='working';parts.push({x:v.x+.5,y:v.y-.2,vx:(tg.x-v.x)*3,vy:(tg.y-v.y)*3,life:.3,max:.3,color:'#e8d9a8',sz:2});hurtGoblin(tg,'guard');v.xp=(v.xp||0)+1}}
+        else v.state='idle';
+        const inv=1/Math.max(.2,d);v.x+=(tg.x-v.x)*inv*2.6*dt;v.y+=(tg.y-v.y)*inv*2.6*dt;
+      }
       return;
     }
     if(v.state==='working')v.state='idle';
@@ -4076,8 +4082,8 @@ function combatTick(dt){
     for(const g of goblins){const d=dist2(b,g);if(d<bd){bd=d;tg=g;rtg=null}}
     for(const g of rg){const d=(g.x-b.x)**2+(g.y-b.y)**2;if(d<bd){bd=d;tg=null;rtg=g}}
     if(tg||rtg){b.cd=1.2;
-      const t2=tg||rtg;
-      parts.push({x:b.x+.5,y:b.y-.2,vx:(t2.x-b.x)*3,vy:(t2.y-b.y)*3,life:.3,max:.3,color:'#e8d9a8',sz:2});
+      const t2=tg||rtg,ox=b.x+bW(b)/2,oy=b.y+.2;
+      parts.push({x:ox,y:oy,vx:(t2.x-ox)*3,vy:(t2.y-oy)*3,life:.3,max:.3,color:'#e8d9a8',sz:2});
       if(tg)hurtGoblin(tg,'tower');
       else netSend({t:'hit',own:rtg.own,gid:rtg.i,by:S.me.id,byName:S.me.name});
     }
