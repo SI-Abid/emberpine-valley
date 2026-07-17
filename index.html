@@ -375,7 +375,7 @@
 // match starts completely fresh — every emberpine:* key (save, legacy, identity,
 // account token) is discarded once, then the marker is stamped. Runs before anything
 // reads localStorage so even the ISLAND constant below sees the post-wipe state.
-const WORLD_EPOCH=2;
+const WORLD_EPOCH=3;
 try{if(+localStorage.getItem('emberpine:epoch')!==WORLD_EPOCH){
   Object.keys(localStorage).filter(k=>k.startsWith('emberpine:')).forEach(k=>localStorage.removeItem(k));
   localStorage.setItem('emberpine:epoch',String(WORLD_EPOCH));
@@ -589,7 +589,7 @@ const BUILDS={
   sawmill:{name:'Sawmill',ico:'🪚',cost:{wood:20},desc:'2 wood → 1 plank / 4s',rate:4},
   smelter:{name:'Smelter',ico:'🔥',cost:{stone:20,wood:10},desc:'1 ore + 1 wood → 1 ingot / 6s',rate:6},
   farm:{name:'Farm',ico:'🌾',cost:{wood:10},desc:'A farmer villager grows wheat here'},
-  dock:{name:'Dock',ico:'🎣',cost:{plank:8},desc:'A fisher villager casts lines here — place it beside water'},
+  dock:{name:'Dock',ico:'🎣',cost:{plank:8},desc:'A fisher villager casts lines here — one corner reaches over the water'},
   bakery:{name:'Bakery',ico:'🍞',cost:{plank:12,stone:10},desc:'2 wheat → bread · wheat + 2 berry + egg → pie / 5s',rate:5},
   workshop:{name:'Workshop',ico:'🛠️',cost:{plank:16,ingot:4},desc:'2 plank + ingot → tool (villagers 60% faster) · 2 leather + rope + ingot → backpack (+10 storage) / 8s',rate:8},
   kiln:{name:'Kiln',ico:'🔥',cost:{stone:20,wood:10},desc:'2 clay + 1 wood → brick · 2 wood → charcoal / 5s',rate:5},
@@ -644,13 +644,14 @@ const BUILDS={
   gnome:{name:'Garden Gnome',ico:'🧙',cost:{stone:1,ore:1},desc:'He judges silently',decor:5},
 };
 // ===== building footprints (tiles wide × tall). Anchor tile is the TOP-LEFT of the footprint. =====
-// AI-worked tiles (farm/dock) and small props stay 1×1; homes/production/pens/big-civic get room to breathe.
+// The 1×1 farm plot & small props stay 1×1; homes/production/pens/big-civic get room to breathe.
+// The dock is 2×2 with one corner over water (a pier reaching the shore).
 const FOOT={
   cottage:[2,2],house:[2,2],manor:[2,2],
   lumberlodge:[2,2],foragerhut:[2,2],farmhouse:[2,2],fishershack:[2,2],masonhouse:[2,2],butchery:[2,2],shepherdhut:[2,2],haulerpost:[2,2],guardhouse:[2,2],
   toolsmithy:[2,2],weaponsmithy:[2,2],armory:[2,2],leatherhouse:[2,2],library:[2,2],clerichouse:[2,2],fletcherhouse:[2,2],maproom:[2,2],
   sawmill:[2,2],smelter:[2,2],bakery:[2,2],workshop:[2,2],kiln:[2,2],glassworks:[2,2],forge:[2,2],loom:[2,2],gilder:[2,2],fishmonger:[2,2],smokehouse:[2,2],
-  sheeppen:[2,2],pigpen:[2,2],
+  sheeppen:[2,2],pigpen:[2,2],dock:[2,2],
   tavern:[2,2],plaza:[2,2],chapel:[2,2],market:[2,2],warehouse:[2,2],well:[2,2],
   watchtower:[1,2],hall:[2,2],
 };
@@ -1006,7 +1007,11 @@ const RECIPES={
 };
 function countB(type){let n=0;for(const k in S.buildings)if(S.buildings[k].type===type&&S.buildings[k].mine)n++;return n}
 function anyProfHome(){for(const k in S.buildings){const b=S.buildings[k];if(b.mine&&BUILDS[b.type]&&BUILDS[b.type].prof)return true}return false}
-function popCap(){let cap=2;for(const k in S.buildings){const b=S.buildings[k];if(b.mine&&BUILDS[b.type]&&BUILDS[b.type].home)cap+=BUILDS[b.type].cap}return cap}
+// a home's effective bed count: base cap + one per upgrade level, capped at 5
+function homeCap(b){const B=BUILDS[b.type];if(!B||!B.home)return 0;return Math.min(5,(B.cap||1)+((b.lvl||1)-1))}
+// cost to extend a home by one bed (null when already at 5) — scales with level
+function homeUpCost(b){const B=BUILDS[b.type];if(!B||!B.prof||homeCap(b)>=5)return null;const l=b.lvl||1;return{plank:6+l*4,stone:2+l*3,bread:l*2}}
+function popCap(){let cap=2;for(const k in S.buildings){const b=S.buildings[k];if(b.mine&&BUILDS[b.type]&&BUILDS[b.type].home)cap+=homeCap(b)}return cap}
 function homeless(){return S.villagers.filter(v=>!v.home||(v.home!=='hall'&&!S.buildings[v.home]))}
 function professionAt(bKey){   // the job a home confers, or null for legacy/hall homes
   const b=bKey==='hall'?null:S.buildings[bKey];
@@ -1018,7 +1023,7 @@ function stampProf(v,bKey){   // give a villager the profession of the home they
 }
 function moveIn(bKey){
   const b=S.buildings[bKey];if(!b||!BUILDS[b.type]||!BUILDS[b.type].home)return;
-  let free=BUILDS[b.type].cap - S.villagers.filter(v=>v.home===bKey).length - S.spawnQ.filter(q=>q.home===bKey).length;
+  let free=homeCap(b) - S.villagers.filter(v=>v.home===bKey).length - S.spawnQ.filter(q=>q.home===bKey).length;
   if(free<=0)return;
   const hs=homeless().sort((a,c)=>((a.x-b.x)**2+(a.y-b.y)**2)-((c.x-b.x)**2+(c.y-b.y)**2));
   for(const v of hs){if(free<=0)break;v.home=bKey;stampProf(v,bKey);free--}
@@ -1162,18 +1167,24 @@ function placeBuilding(type,x,y){
   const B=BUILDS[type];
   const[fw,fh]=foot(type);
   if(!canAfford(B.cost)){toast('Not enough materials');return}
-  // every footprint tile must be on land, clear of resources/buildings, and not the Hall/Wonder/you
+  // dock: 2x2 straddling the shore - exactly one corner over water, the rest buildable land
+  const isDock=type==='dock'; let dockWC=-1;
+  if(isDock){ const cn=[[0,0],[1,0],[0,1],[1,1]]; let wn=0;
+    for(let i=0;i<4;i++)if(terrAt(x+cn[i][0],y+cn[i][1])===0){wn++;dockWC=i;}
+    if(wn!==1){toast('The dock needs one corner over water');return} }
+  // every footprint tile on land (dock water corner excepted), clear, not Hall/you
   for(let dy=0;dy<fh;dy++)for(let dx=0;dx<fw;dx++){
+    if(isDock&&terrAt(x+dx,y+dy)===0){if(buildingAt(x+dx,y+dy)){toast('Cannot build there');return}continue;}
     const tx=x+dx,ty=y+dy;
     if(terrAt(tx,ty)===0){toast(frozenNow()?'The ice is too thin to build on \u{1F9CA}':'Can\u2019t build on water');return}
     if(!walkable(tx,ty)||resAt(tx,ty)||buildingAt(tx,ty)||(tx===HALL.x&&ty===HALL.y)){toast('Can\u2019t build there \u2014 needs '+fw+'\u00d7'+fh+' clear tiles');return}
     if(type!=='path'&&Math.floor(S.me.x)===tx&&Math.floor(S.me.y)===ty){toast('You\u2019re standing there!');return}
   }
-  if(type==='dock'&&![[1,0],[-1,0],[0,1],[0,-1]].some(([dx,dy])=>terrAt(x+dx,y+dy)===0)){toast('The dock must touch water 🌊');return}
   for(const[k,v]of Object.entries(B.cost))S.inv[k]-=v;
   const rec={type,x,y,w:fw,h:fh,mine:true,bt:now()};
+  if(isDock)rec.wc=dockWC;
   S.buildings[key(x,y)]=rec;occDirty();syncBldSoon();
-  netSend({t:'bld',k:key(x,y),e:{t:rec.bt,type,w:fw,h:fh,owner:S.me.id,onm:S.me.name}});
+  netSend({t:'bld',k:key(x,y),e:{t:rec.bt,type,w:fw,h:fh,wc:isDock?dockWC:undefined,owner:S.me.id,onm:S.me.name}});
   if(B.home)moveIn(key(x,y));
   S.stats.b[type]=(S.stats.b[type]||0)+1;if(S.legacy){S.legacy.b[type]=(S.legacy.b[type]||0)+1;saveLegacySoon()}S.score+=15;sfx('build');spawnBurst(x,y,'#e8a33d',10);questTick();
   toast(B.name+' built!');
@@ -1679,7 +1690,12 @@ function drawBuilding(b,sx,sy,sz){
   if(img&&img.ready){
     shadow();
     const dh=W*img.naturalHeight/Math.max(1,img.naturalWidth);
-    cx.drawImage(img,sx,baseY-dh,W,dh);
+    if(b.type==='dock'&&b.wc!=null){ // mirror the pier so its water corner (art default: top-right) matches the shore
+      const fx=(b.wc===0||b.wc===2)?-1:1, fy=(b.wc===2||b.wc===3)?-1:1;
+      cx.save();cx.translate(sx+W/2,baseY-dh/2);cx.scale(fx,fy);cx.drawImage(img,-W/2,-dh/2,W,dh);cx.restore();
+    }else{
+      cx.drawImage(img,sx,baseY-dh,W,dh);
+    }
     fabStatus(b,sx,sy,sz);ghost(sx,baseY-dh,W,dh);
     return;
   }
@@ -1928,11 +1944,13 @@ function render(){
     const[fw,fh]=foot(S.buildSel);
     const sx=(hoverTile.x-S.cam.x)*TSZ+VW/2, sy=(hoverTile.y-S.cam.y)*TSZ+VH/2;
     let ok=true;   // whole footprint must be buildable
+    const gDock=S.buildSel==='dock';
+    if(gDock){ let wn=0; for(const [dx,dy] of [[0,0],[1,0],[0,1],[1,1]])if(terrAt(hoverTile.x+dx,hoverTile.y+dy)===0)wn++; if(wn!==1)ok=false; }
     for(let dy=0;dy<fh&&ok;dy++)for(let dx=0;dx<fw&&ok;dx++){
       const tx=hoverTile.x+dx,ty=hoverTile.y+dy;
+      if(gDock&&terrAt(tx,ty)===0){ if(buildingAt(tx,ty))ok=false; continue; } // dock's water corner is allowed
       if(!walkable(tx,ty)||resAt(tx,ty)||buildingAt(tx,ty)||(tx===HALL.x&&ty===HALL.y)||terrAt(tx,ty)===0)ok=false;
     }
-    if(S.buildSel==='dock')ok=ok&&[[1,0],[-1,0],[0,1],[0,-1]].some(([dx,dy])=>terrAt(hoverTile.x+dx,hoverTile.y+dy)===0);
     cx.fillStyle=ok?'rgba(232,163,61,.4)':'rgba(176,86,59,.45)';
     cx.fillRect(sx,sy,TSZ*fw,TSZ*fh);
     cx.strokeStyle='#2b2620';cx.strokeRect(sx,sy,TSZ*fw,TSZ*fh);
@@ -2493,9 +2511,14 @@ function openBuildingPopup(b,px,py){
     }else{
     const occ=S.villagers.filter(v=>v.home===key(b.x,b.y));
     const stLbl=v=>isInside(v)?'asleep 😴':({working:'working ⚒️',toWork:'heading to work 👣',toHall:'hauling 📦',toCrate:'stashing 📦',sleep:'dozing off 😴',idle:'resting'}[v.state]||'about town');
-    extra='<div class="desc" style="text-align:left">🛏️ Beds '+occ.length+'/'+B.cap+
+    extra='<div class="desc" style="text-align:left">🛏️ Beds '+occ.length+'/'+homeCap(b)+
       (occ.length?occ.map(v=>'<br><span style="color:'+v.color+'">●</span> <b>'+escapeHtml(v.name.split(' ')[0])+'</b> · '+JOBS[v.job].label+' Lv'+vLvl(v)+(v.perk?' ⭐':'')+(v.hungry?' 🥺':'')+'<br><span style="opacity:.65;font-size:11px">&nbsp;&nbsp;&nbsp;'+stLbl(v)+'</span>').join(''):'<br><span style="opacity:.7">Empty — settlers arriving</span>')+'</div>';
     if(occ.length)extra+='<button id="knockBtn" class="wgive">🚪 Knock</button>';
+    const huc=homeUpCost(b);   // extend a profession home to hold one more of the same villager (up to 5)
+    if(B.prof){
+      if(huc)extra+='<button id="homeUpBtn" class="wgive"'+(canAfford(huc)?'':' disabled')+'>🛏️ Extend to '+(homeCap(b)+1)+' beds · '+costStr(huc)+'</button>';
+      else extra+='<div class="desc" style="opacity:.7">🏡 Fully extended · 5 beds</div>';
+    }
     const next=NEXT_HOME[b.type];
     if(next&&S.town.tier>=(TIER[next]||0)){
       extra+='<button id="upgradeBtn" class="wgive"'+(canAfford(BUILDS[next].cost)?'':' disabled')+'>Upgrade → '+BUILDS[next].name+' · '+costStr(BUILDS[next].cost)+'</button>';
@@ -2583,6 +2606,19 @@ function openBuildingPopup(b,px,py){
     renderHUD();questTick();saveSoon();
     openBuildingPopup(b,px,py);
   };
+  const hup=popup.querySelector('#homeUpBtn');
+  if(hup)hup.onclick=()=>{
+    const uc=homeUpCost(b);if(!uc||!canAfford(uc))return;
+    for(const[k,v]of Object.entries(uc))S.inv[k]-=v;
+    b.lvl=(b.lvl||1)+1;S.score+=10;b.sv=(b.sv||15)+10;
+    sfx('build');spawnBurst(b.x,b.y,'#e8a33d',10);
+    moveIn(key(b.x,b.y));   // a new villager of this profession moves into the extra bed
+    toast('🛏️ '+BUILDS[b.type].name+' extended — now '+homeCap(b)+' beds');
+    occDirty();syncBldSoon();renderHUD();renderBuildBar();questTick();
+    netSend({t:'bld',k:key(b.x,b.y),e:{t:b.bt||0,type:b.type,w:bW(b),h:bH(b),wc:b.wc,lvl:b.lvl,owner:S.me.id,onm:S.me.name}});
+    saveSoon();
+    openBuildingPopup(b,px,py);
+  };
   const kb=popup.querySelector('#knockBtn');
   if(kb)kb.onclick=()=>{
     const occ=S.villagers.filter(v=>v.home===key(b.x,b.y));
@@ -2615,7 +2651,7 @@ function openBuildingPopup(b,px,py){
     b.type=next;S.stats.b[next]=(S.stats.b[next]||0)+1;if(S.legacy){S.legacy.b[next]=(S.legacy.b[next]||0)+1;saveLegacySoon()}S.score+=15;b.sv=(b.sv||15)+15;
     sfx('build');spawnBurst(b.x,b.y,'#e8a33d',10);
     moveIn(key(b.x,b.y));renderHUD();renderBuildBar();questTick();checkTownTier();syncBldSoon();saveSoon();
-    netSend({t:'bld',k:key(b.x,b.y),e:{t:b.bt||0,type:b.type,w:bW(b),h:bH(b),owner:S.me.id,onm:S.me.name}});
+    netSend({t:'bld',k:key(b.x,b.y),e:{t:b.bt||0,type:b.type,w:bW(b),h:bH(b),wc:b.wc,owner:S.me.id,onm:S.me.name}});
     openBuildingPopup(b,px,py);
   };
   const db=popup.querySelector('#demolishBtn');
@@ -2741,7 +2777,7 @@ async function saveGame(){
   await store.set('save-v1',{island:ISLAND,raid:S.raid,inv:S.inv,name:S.me.name,id:S.me.id,x:S.me.x,y:S.me.y,score:S.score,won:S.won,msgShown:S.msgShown,quest:S.quest,stats:S.stats,muted:S.muted,wonderRewarded:!!S.wonderRewarded,
     monu:S.monu, playSec:S.playSec, town:S.town, lastMeal:S.lastMeal,
     villagers:S.villagers.map(v=>({name:v.name,color:v.color,job:v.job,hasTool:v.hasTool,xp:v.xp||0,txp:v.txp||0,home:v.home||null,hungry:!!v.hungry,perk:v.perk||null})),
-    buildings:Object.values(S.buildings).filter(b=>b.mine).map(b=>({type:b.type,x:b.x,y:b.y,w:bW(b),h:bH(b),store:b.store,sv:b.sv,bt:b.bt||0,lvl:b.lvl||1}))});
+    buildings:Object.values(S.buildings).filter(b=>b.mine).map(b=>({type:b.type,x:b.x,y:b.y,w:bW(b),h:bH(b),wc:b.wc,store:b.store,sv:b.sv,bt:b.bt||0,lvl:b.lvl||1}))});
 }
 async function loadGame(){
   let s=await store.get('save-v1');
@@ -2820,7 +2856,7 @@ function applyBldEntry(k,e){   // shared merge rules for one tile entry (poll + 
   if(!cur||(!cur.mine&&(cur.type!==e.type||(cur.lvl||1)!==(e.lvl||1)||(cur.w||1)!==(e.w||1)))){
     const[x,y]=k.split(',').map(Number);
     // missing w,h means a pre-footprint client/placement → 1×1 (what that client sees), never overlap
-    S.buildings[k]={type:e.type,x,y,w:e.w||1,h:e.h||1,mine:false,owner:e.owner,onm:e.onm,bt:e.t||0,lvl:e.lvl||1};
+    S.buildings[k]={type:e.type,x,y,w:e.w||1,h:e.h||1,wc:e.wc,mine:false,owner:e.owner,onm:e.onm,bt:e.t||0,lvl:e.lvl||1};
     occDirty();
     return true;
   }
@@ -2837,7 +2873,7 @@ async function syncBuildings(){
       if(!e.rm&&e.owner===S.me.id&&(!S.buildings[k]||!S.buildings[k].mine)){m[k]={rm:now(),owner:S.me.id};dirty=true}}
     for(const k in S.buildings){const b=S.buildings[k];if(!b.mine)continue;
       const e=m[k];
-      if(!e||e.rm||e.owner!==S.me.id||e.type!==b.type||(e.lvl||1)!==(b.lvl||1)){m[k]={t:b.bt||0,type:b.type,w:bW(b),h:bH(b),lvl:b.lvl||1,owner:S.me.id,onm:S.me.name};dirty=true}}
+      if(!e||e.rm||e.owner!==S.me.id||e.type!==b.type||(e.lvl||1)!==(b.lvl||1)){m[k]={t:b.bt||0,type:b.type,w:bW(b),h:bH(b),wc:b.wc,lvl:b.lvl||1,owner:S.me.id,onm:S.me.name};dirty=true}}
     if(dirty)await store.set('bld',m,true);
     if(changed){renderBuildBar();beautyDirty()}
   }catch(e){}
@@ -3108,11 +3144,11 @@ let wsChat=[],lastStoreMsgs=[],netGiftSeen={};
 function netConnect(){
   if(!NET.host||NET.ws)return;
   try{
-    const w=new WebSocket(NET.host.replace(/\/+$/,'')+'/party/'+encodeURIComponent(SEED_STR+'-r3'));   // -r3: fresh shared world for the accounts update (old rooms go dormant)
+    const w=new WebSocket(NET.host.replace(/\/+$/,'')+'/party/'+encodeURIComponent(SEED_STR+'-r4'));   // -r4: fresh shared world (full reset; old rooms go dormant)
     NET.ws=w;
     w.onopen=()=>{NET.ok=true;NET.tries=0;toast('\u{1F517} Connected to the valley relay');
       netSendPos();
-      for(const k in S.buildings){const b=S.buildings[k];if(b.mine)netSend({t:'bld',k,e:{t:b.bt||0,type:b.type,w:bW(b),h:bH(b),owner:S.me.id,onm:S.me.name}})}
+      for(const k in S.buildings){const b=S.buildings[k];if(b.mine)netSend({t:'bld',k,e:{t:b.bt||0,type:b.type,w:bW(b),h:bH(b),wc:b.wc,owner:S.me.id,onm:S.me.name}})}
     };
     w.onclose=()=>{const was=NET.ok;NET.ok=false;NET.ws=null;
       if(was)toast('\u{1F50C} Relay connection lost — falling back to slow sync');
