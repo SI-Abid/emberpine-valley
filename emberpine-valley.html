@@ -651,7 +651,7 @@ const FOOT={
   lumberlodge:[2,2],foragerhut:[2,2],farmhouse:[2,2],fishershack:[2,2],masonhouse:[2,2],butchery:[2,2],shepherdhut:[2,2],haulerpost:[2,2],guardhouse:[2,2],
   toolsmithy:[2,2],weaponsmithy:[2,2],armory:[2,2],leatherhouse:[2,2],library:[2,2],clerichouse:[2,2],fletcherhouse:[2,2],maproom:[2,2],
   sawmill:[2,2],smelter:[2,2],bakery:[2,2],workshop:[2,2],kiln:[2,2],glassworks:[2,2],forge:[2,2],loom:[2,2],gilder:[2,2],fishmonger:[2,2],smokehouse:[2,2],
-  sheeppen:[2,2],pigpen:[2,2],dock:[2,2],
+  sheeppen:[2,2],pigpen:[2,2],dock:[2,2],monument:[2,2],
   tavern:[2,2],plaza:[2,2],chapel:[2,2],market:[2,2],warehouse:[2,2],well:[2,2],
   watchtower:[1,2],hall:[2,2],
 };
@@ -1823,24 +1823,27 @@ function drawDecor(b,sx,sy,sz){
 }
 function drawMonument(b,sx,sy,sz){
   const cs=completedStages();               // 0..5
-  cx.fillStyle='rgba(0,0,0,.28)';cx.beginPath();cx.ellipse(sx+sz/2,sy+sz*.92,sz*.5,sz*.13,0,0,7);cx.fill();
+  const fw=bW(b), fh=bH(b), cxm=sx+fw*sz/2, baseY=sy+fh*sz;   // centre + bottom of the footprint (2×2)
+  cx.fillStyle='rgba(0,0,0,.28)';cx.beginPath();cx.ellipse(cxm,baseY-sz*.1,fw*sz*.44,sz*.16,0,0,7);cx.fill();
   // real build-stage sprites (foundation -> complete). cs 0/1 -> stage 1, up to 4; lit uses the complete sprite.
   const stage=Math.max(1,Math.min(4,cs)), im=monuImg(stage);
-  const flame=()=>{ if(!(S.monu&&S.monu.lit))return; const fl=1+Math.sin(now()/110)*.25, fy=sy-sz*.55;
-    cx.fillStyle='rgba(255,180,60,.3)';cx.beginPath();cx.arc(sx+sz/2,fy,sz*.7*fl,0,7);cx.fill();
-    cx.fillStyle='#e8a33d';cx.beginPath();cx.arc(sx+sz/2,fy,sz*.16*fl,0,7);cx.fill();
-    cx.fillStyle='#ffe9a0';cx.beginPath();cx.arc(sx+sz/2,fy,sz*.08*fl,0,7);cx.fill(); };
+  const flame=(fy)=>{ if(!(S.monu&&S.monu.lit))return; const fl=1+Math.sin(now()/110)*.25;
+    cx.fillStyle='rgba(255,180,60,.3)';cx.beginPath();cx.arc(cxm,fy,sz*.8*fl,0,7);cx.fill();
+    cx.fillStyle='#e8a33d';cx.beginPath();cx.arc(cxm,fy,sz*.2*fl,0,7);cx.fill();
+    cx.fillStyle='#ffe9a0';cx.beginPath();cx.arc(cxm,fy,sz*.1*fl,0,7);cx.fill(); };
   if(im&&im.ready){
-    const dw=sz*2.6, dh=dw*im.height/im.width;   // monument is a grand centrepiece, wider than its 1-tile base
-    cx.drawImage(im, sx+sz/2-dw/2, sy+sz - dh, dw, dh);
-    flame();
+    const dw=fw*sz*1.15, dh=dw*im.height/im.width;   // fills the footprint width with a little grand overhang
+    const topY=baseY-dh;
+    cx.drawImage(im, cxm-dw/2, topY, dw, dh);
+    flame(topY+sz*.2);
     return;
   }
-  // procedural fallback (until sprites load)
+  // procedural fallback (until sprites load), scaled to the footprint
   const tiers=[{w:.86,h:.34,y:.62,c:'#b8b4a6'},{w:.70,h:.30,y:.34,c:'#c8c2b0'},{w:.56,h:.28,y:.08,c:'#d8d2bd'},{w:.40,h:.30,y:-.20,c:'#e6dcc2'}];
+  const H=fh*sz;
   for(let i=0;i<Math.min(4,cs);i++){const t=tiers[i];cx.fillStyle=t.c;cx.strokeStyle='#2b2620';cx.lineWidth=2;
-    const w=sz*t.w, x=sx+sz/2-w/2, y=sy+sz*t.y;cx.fillRect(x,y,w,sz*t.h);cx.strokeRect(x,y,w,sz*t.h);}
-  flame();
+    const w=fw*sz*t.w, x=cxm-w/2, y=sy+H*t.y;cx.fillRect(x,y,w,H*t.h);cx.strokeRect(x,y,w,H*t.h);}
+  flame(sy-sz*.4);
 }
 const JOBANIM={woodcutter:'axe',miner:'mining',farmer:'watering',forager:'dig',fisher:'casting',hauler:'carry',guard:'attack',hunter:'attack',shepherd:'dig'};
 // per-profession headwear: each fn draws in a space translated to the head anchor, scaled by z.
