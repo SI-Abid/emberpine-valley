@@ -15,8 +15,10 @@ Add its building type to the `BLD_ASSETS` set in `index.html` (search for `BLD_A
 Only listed types are fetched, so unlisted types never 404.
 
 ## Current assets
-- `lumberlodge.png` — **PLACEHOLDER** (a crude generated cabin proving the pipeline).
-  Replace this file with a real log-cabin sprite; no code change needed.
+- Every buildable type has a real sprite. The town `hall` and the four monument
+  build-stages (`monument_1`…`monument_4`, foundation → complete) are here too;
+  the monument is drawn by `drawMonument()` keyed on the build stage, not by the
+  generic loader.
 
 ## Sources
 Raw high-res uploads live in `../sources/buildings/` and are not loaded by the game —
