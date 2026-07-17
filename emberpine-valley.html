@@ -1011,6 +1011,9 @@ function anyProfHome(){for(const k in S.buildings){const b=S.buildings[k];if(b.m
 function homeCap(b){const B=BUILDS[b.type];if(!B||!B.home)return 0;return Math.min(5,(B.cap||1)+((b.lvl||1)-1))}
 // cost to extend a home by one bed (null when already at 5) — scales with level
 function homeUpCost(b){const B=BUILDS[b.type];if(!B||!B.prof||homeCap(b)>=5)return null;const l=b.lvl||1;return{plank:6+l*4,stone:2+l*3,bread:l*2}}
+// a pen's animal capacity: 2 at level 1, +1 per upgrade, capped at 5
+function penCap(b){const B=BUILDS[b.type];if(!B||!B.pen)return 0;return Math.min(5,(b.lvl||1)+1)}
+function penUpCost(b){const B=BUILDS[b.type];if(!B||!B.pen||penCap(b)>=5)return null;const l=b.lvl||1;return{wood:8+l*4,plank:2+l*2}}
 function popCap(){let cap=2;for(const k in S.buildings){const b=S.buildings[k];if(b.mine&&BUILDS[b.type]&&BUILDS[b.type].home)cap+=homeCap(b)}return cap}
 function homeless(){return S.villagers.filter(v=>!v.home||(v.home!=='hall'&&!S.buildings[v.home]))}
 function professionAt(bKey){   // the job a home confers, or null for legacy/hall homes
@@ -2543,6 +2546,12 @@ function openBuildingPopup(b,px,py){
     extra='<div class="desc" style="text-align:left">🏬 Level <b>'+lvl+'</b> · holds <b>+'+WARE_CAP[lvl]+'</b> storage'+(up?'<br>Next: <b>+'+WARE_CAP[lvl+1]+'</b> storage':'<br><b>Fully upgraded!</b>')+'</div>';
     if(up)extra+='<button id="wareUpBtn" class="wgive"'+(canAfford(up)?'':' disabled')+'>⬆️ Upgrade to Lv'+(lvl+1)+' · '+costStr(up)+'</button>';
   }
+  if(B.pen&&b.mine){   // enlarge a pen to graze more animals (up to 5)
+    const cap=penCap(b), uc=penUpCost(b);
+    extra='<div class="desc" style="text-align:left">'+B.ico+' Grazes up to <b>'+cap+'</b> '+B.pen+'</div>';
+    if(uc)extra+='<button id="penUpBtn" class="wgive"'+(canAfford(uc)?'':' disabled')+'>⬆️ Enlarge → '+(cap+1)+' '+B.pen+' · '+costStr(uc)+'</button>';
+    else extra+='<div class="desc" style="opacity:.7">🐾 Fully enlarged · 5</div>';
+  }
   const demo=(b.mine&&b.type!=='monument')?'<button id="demolishBtn" class="demoBtn">\u{1F5D1} Demolish</button>':'';
   popup.innerHTML='<button class="close">✕</button><h4 class="px">'+iconHTML(b.type)+' '+B.name+'</h4><div class="sub">'+(b.mine?'YOUR WORKS':'ANOTHER SETTLER\u2019S WORKS')+'</div><div class="desc">'+B.desc+'</div>'+extra+demo;
   popup.querySelector('.close').onclick=()=>popup.style.display='none';
@@ -2610,6 +2619,18 @@ function openBuildingPopup(b,px,py){
     moveIn(key(b.x,b.y));   // a new villager of this profession moves into the extra bed
     toast('🛏️ '+BUILDS[b.type].name+' extended — now '+homeCap(b)+' beds');
     occDirty();syncBldSoon();renderHUD();renderBuildBar();questTick();
+    netSend({t:'bld',k:key(b.x,b.y),e:{t:b.bt||0,type:b.type,w:bW(b),h:bH(b),wc:b.wc,lvl:b.lvl,owner:S.me.id,onm:S.me.name}});
+    saveSoon();
+    openBuildingPopup(b,px,py);
+  };
+  const pup=popup.querySelector('#penUpBtn');
+  if(pup)pup.onclick=()=>{
+    const uc=penUpCost(b);if(!uc||!canAfford(uc))return;
+    for(const[k,v]of Object.entries(uc))S.inv[k]-=v;
+    b.lvl=(b.lvl||1)+1;S.score+=10;b.sv=(b.sv||15)+10;
+    sfx('build');spawnBurst(b.x,b.y,'#e8a33d',10);
+    toast(BUILDS[b.type].ico+' '+BUILDS[b.type].name+' enlarged — grazes up to '+penCap(b));
+    occDirty();syncBldSoon();renderHUD();questTick();
     netSend({t:'bld',k:key(b.x,b.y),e:{t:b.bt||0,type:b.type,w:bW(b),h:bH(b),wc:b.wc,lvl:b.lvl,owner:S.me.id,onm:S.me.name}});
     saveSoon();
     openBuildingPopup(b,px,py);
@@ -4119,7 +4140,8 @@ function critterTick(dt){
     const myPens=Object.values(S.buildings).filter(b=>b.mine&&BUILDS[b.type]&&BUILDS[b.type].pen===kind);
     if(!myPens.length)continue;
     const n=critters.reduce((a,c)=>a+((c.type===kind&&c.pen)?1:0),0);
-    if(n<Math.min(6,myPens.length*2)&&Math.random()<dt*.22){
+    const capTotal=myPens.reduce((a,b)=>a+penCap(b),0);
+    if(n<Math.min(12,capTotal)&&Math.random()<dt*.22){
       const p=myPens[(Math.random()*myPens.length)|0];
       // graze on a passable tile just outside the pen footprint (the pen tiles themselves block)
       const gx=p.x+bW(p)*.5, gy=p.y+bH(p)+.4;
