@@ -1266,8 +1266,8 @@ function drawTile(x,y,sx,sy,w,h){
   const nm=terrTileName(x,y,t);
   if(nm==='water'){
     const im=terrTile('water');
-    if(im.ready){const s=im.width/2,fr=((now()/240)|0)%4;   // 2x2 animation sheet, 4 frames
-      cx.drawImage(im,(fr&1)*s,(fr>>1)*s,s,s,sx,sy,w+1,h+1);drew=true;}
+    if(im.ready){const s=im.width/2;   // static: draw one frame of the sheet (no animation — avoids the cycle glitch)
+      cx.drawImage(im,0,0,s,s,sx,sy,w+1,h+1);drew=true;}
   }else if(nm){
     const im=terrTile(nm);
     if(im.ready){cx.drawImage(im,0,0,im.width,im.height,sx,sy,w+1,h+1);drew=true;}
