@@ -1007,7 +1007,11 @@ const RECIPES={
 };
 function countB(type){let n=0;for(const k in S.buildings)if(S.buildings[k].type===type&&S.buildings[k].mine)n++;return n}
 function anyProfHome(){for(const k in S.buildings){const b=S.buildings[k];if(b.mine&&BUILDS[b.type]&&BUILDS[b.type].prof)return true}return false}
-function popCap(){let cap=2;for(const k in S.buildings){const b=S.buildings[k];if(b.mine&&BUILDS[b.type]&&BUILDS[b.type].home)cap+=BUILDS[b.type].cap}return cap}
+// a home's effective bed count: base cap + one per upgrade level, capped at 5
+function homeCap(b){const B=BUILDS[b.type];if(!B||!B.home)return 0;return Math.min(5,(B.cap||1)+((b.lvl||1)-1))}
+// cost to extend a home by one bed (null when already at 5) — scales with level
+function homeUpCost(b){const B=BUILDS[b.type];if(!B||!B.prof||homeCap(b)>=5)return null;const l=b.lvl||1;return{plank:6+l*4,stone:2+l*3,bread:l*2}}
+function popCap(){let cap=2;for(const k in S.buildings){const b=S.buildings[k];if(b.mine&&BUILDS[b.type]&&BUILDS[b.type].home)cap+=homeCap(b)}return cap}
 function homeless(){return S.villagers.filter(v=>!v.home||(v.home!=='hall'&&!S.buildings[v.home]))}
 function professionAt(bKey){   // the job a home confers, or null for legacy/hall homes
   const b=bKey==='hall'?null:S.buildings[bKey];
@@ -1019,7 +1023,7 @@ function stampProf(v,bKey){   // give a villager the profession of the home they
 }
 function moveIn(bKey){
   const b=S.buildings[bKey];if(!b||!BUILDS[b.type]||!BUILDS[b.type].home)return;
-  let free=BUILDS[b.type].cap - S.villagers.filter(v=>v.home===bKey).length - S.spawnQ.filter(q=>q.home===bKey).length;
+  let free=homeCap(b) - S.villagers.filter(v=>v.home===bKey).length - S.spawnQ.filter(q=>q.home===bKey).length;
   if(free<=0)return;
   const hs=homeless().sort((a,c)=>((a.x-b.x)**2+(a.y-b.y)**2)-((c.x-b.x)**2+(c.y-b.y)**2));
   for(const v of hs){if(free<=0)break;v.home=bKey;stampProf(v,bKey);free--}
@@ -2507,9 +2511,14 @@ function openBuildingPopup(b,px,py){
     }else{
     const occ=S.villagers.filter(v=>v.home===key(b.x,b.y));
     const stLbl=v=>isInside(v)?'asleep 😴':({working:'working ⚒️',toWork:'heading to work 👣',toHall:'hauling 📦',toCrate:'stashing 📦',sleep:'dozing off 😴',idle:'resting'}[v.state]||'about town');
-    extra='<div class="desc" style="text-align:left">🛏️ Beds '+occ.length+'/'+B.cap+
+    extra='<div class="desc" style="text-align:left">🛏️ Beds '+occ.length+'/'+homeCap(b)+
       (occ.length?occ.map(v=>'<br><span style="color:'+v.color+'">●</span> <b>'+escapeHtml(v.name.split(' ')[0])+'</b> · '+JOBS[v.job].label+' Lv'+vLvl(v)+(v.perk?' ⭐':'')+(v.hungry?' 🥺':'')+'<br><span style="opacity:.65;font-size:11px">&nbsp;&nbsp;&nbsp;'+stLbl(v)+'</span>').join(''):'<br><span style="opacity:.7">Empty — settlers arriving</span>')+'</div>';
     if(occ.length)extra+='<button id="knockBtn" class="wgive">🚪 Knock</button>';
+    const huc=homeUpCost(b);   // extend a profession home to hold one more of the same villager (up to 5)
+    if(B.prof){
+      if(huc)extra+='<button id="homeUpBtn" class="wgive"'+(canAfford(huc)?'':' disabled')+'>🛏️ Extend to '+(homeCap(b)+1)+' beds · '+costStr(huc)+'</button>';
+      else extra+='<div class="desc" style="opacity:.7">🏡 Fully extended · 5 beds</div>';
+    }
     const next=NEXT_HOME[b.type];
     if(next&&S.town.tier>=(TIER[next]||0)){
       extra+='<button id="upgradeBtn" class="wgive"'+(canAfford(BUILDS[next].cost)?'':' disabled')+'>Upgrade → '+BUILDS[next].name+' · '+costStr(BUILDS[next].cost)+'</button>';
@@ -2595,6 +2604,19 @@ function openBuildingPopup(b,px,py){
     toast('🏬 Warehouse upgraded to Lv'+b.lvl+' — +'+WARE_CAP[b.lvl]+' storage');
     occDirty();syncBldSoon();netSend({t:'bld',k:key(b.x,b.y),e:{t:b.bt||0,type:b.type,w:bW(b),h:bH(b),lvl:b.lvl,owner:S.me.id,onm:S.me.name}});
     renderHUD();questTick();saveSoon();
+    openBuildingPopup(b,px,py);
+  };
+  const hup=popup.querySelector('#homeUpBtn');
+  if(hup)hup.onclick=()=>{
+    const uc=homeUpCost(b);if(!uc||!canAfford(uc))return;
+    for(const[k,v]of Object.entries(uc))S.inv[k]-=v;
+    b.lvl=(b.lvl||1)+1;S.score+=10;b.sv=(b.sv||15)+10;
+    sfx('build');spawnBurst(b.x,b.y,'#e8a33d',10);
+    moveIn(key(b.x,b.y));   // a new villager of this profession moves into the extra bed
+    toast('🛏️ '+BUILDS[b.type].name+' extended — now '+homeCap(b)+' beds');
+    occDirty();syncBldSoon();renderHUD();renderBuildBar();questTick();
+    netSend({t:'bld',k:key(b.x,b.y),e:{t:b.bt||0,type:b.type,w:bW(b),h:bH(b),wc:b.wc,lvl:b.lvl,owner:S.me.id,onm:S.me.name}});
+    saveSoon();
     openBuildingPopup(b,px,py);
   };
   const kb=popup.querySelector('#knockBtn');
