@@ -2257,7 +2257,7 @@ function updateClock(){
 setInterval(updateClock,4000);
 function invTotal(){let t=0;for(const k in S.inv)t+=(S.inv[k]||0);return t}
 function storeCap(){
-  let c=140+([0,60,150,300][S.town.tier]||0)+10*(S.inv.backpack||0);
+  let c=250+([0,120,260,460][S.town.tier]||0)+10*(S.inv.backpack||0);
   for(const k in S.buildings){const b=S.buildings[k];if(!b.mine)continue;
     if(b.type==='crate')c+=30;else if(b.type==='warehouse')c+=WARE_CAP[Math.min(b.lvl||1,WARE_CAP.length-1)]}
   return c;
